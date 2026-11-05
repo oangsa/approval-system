@@ -4,6 +4,8 @@
 >
 > **Status:** All listed features are **PLANNED**, none is claimed implemented or tested. Architecture choices are already finalized separately; this file does not change them.
 
+> **D-01 — approved engineering amendment (2026-11-05):** [Owner decision, Issue #1](https://github.com/oangsa/approval-system/issues/1) replaces the earlier Bun runtime/toolchain with Node.js 24, npm Workspaces, one root `package-lock.json`, Elysia through `@elysia/node`, TypeScript, Vitest for unit/API/contract/real-PostgreSQL integration tests, and Playwright for browser E2E. React Router 7, shadcn/ui + Tailwind CSS, PostgreSQL + Drizzle ORM and shared Zod contracts remain. This amendment changes no feature scope, FR/BR/AC/test identifiers, product/API/UI behavior, ownership or effort estimates; baseline contract versions remain unchanged. It records engineering alignment only, not implementation or passing verification.
+
 ## Sprint 2: Core Workflow Expansion
 
 - **Checkpoint:** 29 November 2026 — Deliverable 2 (70 points)
@@ -102,7 +104,7 @@
 ## Delivery rules (course requirements)
 
 - The team consists of two students; use the **same GitHub monorepo** throughout the course.
-- Keep one root `AGENTS.md`, Bun workspaces, React Router 7 hybrid SSR/frontend, Elysia + Bun backend, PostgreSQL + Drizzle, and one shared `packages/contracts` using Zod.
+- Keep one root `AGENTS.md`, npm Workspaces, React Router 7 hybrid SSR/frontend, Elysia on Node.js 24 through `@elysia/node` backend, PostgreSQL + Drizzle, and one shared `packages/contracts` using Zod.
 - **Elysia must enforce authentication, permissions, ownership and workflow rules**; a hidden frontend button never replaces authorization.
 - Before implementing each feature, version its feature SDS, UI/API/data contract, numbered acceptance criteria (AC), test specifications (STS) and DoD. Maintain requirement -> feature -> sprint -> AC -> test traceability.
 - Use GitHub Issues/project board, feature branches off sprint staging, teammate-reviewed PRs, integration/release PR to `main`, tag/commit, meaningful test evidence and a brief AI-use declaration.

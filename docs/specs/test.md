@@ -8,6 +8,8 @@
 
 > **Contract precedence:** `specifications.md` controls feature behavior, approval state and requirements; `api-specs.md` controls routes, DTOs, status/errors, headers, security and transactions; `ui-specs.md` controls navigation, presentation and interaction. A mismatch is a contract issue, **not** permission to quietly change behavior to make a test pass. Implementation defaults may be tuned if their change is documented and doesn't violate frozen rules.
 
+> **D-01 — approved engineering amendment (2026-11-05):** [Owner decision, Issue #1](https://github.com/oangsa/approval-system/issues/1) replaces the earlier Bun runtime/toolchain with Node.js 24, npm Workspaces, one root `package-lock.json`, Elysia through `@elysia/node`, TypeScript, Vitest for unit/API/contract/real-PostgreSQL integration tests, and Playwright for browser E2E. React Router 7, shadcn/ui + Tailwind CSS, PostgreSQL + Drizzle ORM and shared Zod contracts remain. This amendment changes no feature scope, FR/BR/AC/test identifiers, product/API/UI behavior, ownership or effort estimates; baseline contract versions remain unchanged. It records engineering alignment only, not implementation or passing verification.
+
 ## 1. Test goal and scope
 
 Verify that a two-person implementation satisfies the frozen product, API and UI contracts, including actual PostgreSQL persistence, secure authorization, revision-aware approval, dynamic conditional form behavior, semantic UI statuses, account recovery, operational notifications, and protected file/report access.
@@ -20,13 +22,13 @@ Verify that a two-person implementation satisfies the frozen product, API and UI
 
 | Layer                     | Test ID prefix | Primary runner                                                                 | What is real?                                                                                   |
 | ------------------------- | -------------- | ------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------- |
-| Domain unit               | `UT-*`         | Bun test                                                                       | Pure policies/state/form evaluator; fake clock and controlled dependencies                      |
-| Shared contract           | `CT-*`         | Bun test                                                                       | Actual shared Zod schemas, DTO and enum validation                                              |
-| HTTP/API                  | `API-*`        | Bun test + Elysia app request                                                  | Real routing, middleware, headers, error envelopes and authentication; integration DB as needed |
-| Database integration      | `DB-*`         | Bun test + disposable PostgreSQL                                               | Real Drizzle schema/migrations, constraints, transactions and isolation                         |
-| Concurrency/failure       | `CX-*`         | Bun test + two or more real PG connections                                     | Competing commits, unique constraints, rollback, retries, crash/fault boundaries                |
+| Domain unit               | `UT-*`         | Vitest                                                                       | Pure policies/state/form evaluator; fake clock and controlled dependencies                      |
+| Shared contract           | `CT-*`         | Vitest                                                                       | Actual shared Zod schemas, DTO and enum validation                                              |
+| HTTP/API                  | `API-*`        | Vitest + Elysia app request                                                  | Real routing, middleware, headers, error envelopes and authentication; integration DB as needed |
+| Database integration      | `DB-*`         | Vitest + disposable PostgreSQL                                               | Real Drizzle schema/migrations, constraints, transactions and isolation                         |
+| Concurrency/failure       | `CX-*`         | Vitest + two or more real PG connections                                     | Competing commits, unique constraints, rollback, retries, crash/fault boundaries                |
 | UI component              | `UI-*`         | React Testing Library or comparable React harness **[implementation default]** | Real components + mocked API responses; keyboard and accessible semantics                       |
-| End-to-end                | `E2E-*`        | Playwright **[implementation default]**                                        | Web + API + real disposable DB, private test storage, actual browser                            |
+| End-to-end                | `E2E-*`        | Playwright (D-01)                                        | Web + API + real disposable DB, private test storage, actual browser                            |
 | Privacy/security          | `SEC-*`        | Direct HTTP + browser checks                                                   | Role/ownership/cookie/session/download safeguards                                               |
 | Operations/non-functional | `OPS-*`        | Fake clock, trusted-job request, controlled smoke environment                  | SLA scheduler, localization, accessibility and optional performance target                      |
 
@@ -53,7 +55,7 @@ tests/
   evidence/
 ```
 
-Use independent `apps/web/.env.test` and `apps/api/.env.test`, never commit credentials. The product remains Bun Workspaces, React Router 7, Elysia, Drizzle/PostgreSQL, and one shared `packages/contracts` package. These paths, runners, test script names, and numeric budgets are **implementation defaults**.
+Use independent `apps/web/.env.test` and `apps/api/.env.test`, never commit credentials. The product remains npm Workspaces, React Router 7, Elysia, Drizzle/PostgreSQL, and one shared `packages/contracts` package. Node.js 24, Vitest and Playwright are owner-approved D-01 tooling; suggested paths and numeric budgets remain **implementation defaults**.
 
 ## 2. Test fixtures and reproducible environment
 
@@ -555,7 +557,7 @@ Features may share test harnesses, but none may be counted complete based solely
 7. Security, scheduler, accessibility/responsiveness and optional performance smoke.
 8. Final rerun of all regression suites against the same committed build and migrations proposed for release.
 
-**Suggested script names (not guaranteed to exist until implemented):** `bun test`, `bun run test:contracts`, `bun run test:integration`, `bun run test:e2e` and `bun run test:all`. Document actual scripts in package manifests when created; do not claim they currently run.
+**Existing npm entry points (execution is not asserted):** `npm test`, `npm run test:contracts`, `npm run test:integration` and `npm run test:e2e`; `npm run check` runs typecheck, lint, ordinary tests and builds, while integration and E2E remain explicit separate commands. These scripts exist in the root manifest, but their existence does not prove feature coverage or passing execution. Record actual commands, outcomes, evidence and blockers; do not substitute mocked/discovered tests for executed PostgreSQL/Playwright verification.
 
 ## 9. Evidence, test case record and defect workflow
 
@@ -567,7 +569,7 @@ Every executed test report records:
 | -------------------------- | ------------------------------------------------------------------------------------------------- |
 | `testId`                   | One of `FT-*`, `UT-*`, `CT-*`, `DB-*`, `CX-*`, `API-*`, `SEC-*`, `UI-*`, `E2E-*`, `OPS-*`, `EP-*` |
 | `featureId / FR / BR / AC` | Traceable contract identifiers where applicable                                                   |
-| `environment`              | OS, Bun/Node/test-runner/browser version, PostgreSQL version, object-store adapter                |
+| `environment`              | OS, Node.js/npm/test-runner/browser version, PostgreSQL version, object-store adapter                |
 | `build`                    | Commit SHA and optional release tag                                                               |
 | `fixture`                  | Seed revision, role, request type/policy version, clock instant                                   |
 | `operation`                | Input, actor, endpoint/page, idempotency identity when relevant                                   |

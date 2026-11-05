@@ -9,6 +9,8 @@
 
 > **Authority:** `shall` and `must` are binding UI requirements. The 54 features and all 15 product decisions remain defined by `specifications.md`; wire/security contracts remain defined by `api-specs.md` (additive v1.0.1). `[IMPLEMENTATION DEFAULT — NOT FROZEN]` values are adjustable without changing approved behavior. **The Maintenance Tracking System frontend is the only UI reference.** No implementation or passing tests are asserted.
 
+> **D-01 — approved engineering amendment (2026-11-05):** [Owner decision, Issue #1](https://github.com/oangsa/approval-system/issues/1) replaces the earlier Bun runtime/toolchain with Node.js 24, npm Workspaces, one root `package-lock.json`, Elysia through `@elysia/node`, TypeScript, Vitest for unit/API/contract/real-PostgreSQL integration tests, and Playwright for browser E2E. React Router 7, shadcn/ui + Tailwind CSS, PostgreSQL + Drizzle ORM and shared Zod contracts remain. This amendment changes no feature scope, FR/BR/AC/test identifiers, product/API/UI behavior, ownership or effort estimates; baseline contract versions remain unchanged. It records engineering alignment only, not implementation or passing verification.
+
 ## 1. UI goal and reference boundary
 
 Deliver a minimal, professional, black-and-white application for requesters, reviewers, and administrators. Use whitespace, hierarchy, strong typography, crisp dividers, and restrained surfaces. Reserve limited semantic colors for request status, warnings, errors, success, and focus/validation. Avoid colorful decorative gradients, glassmorphism, heavy shadows, ornamental illustrations, and chart-heavy dashboards.

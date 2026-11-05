@@ -10,6 +10,8 @@
 
 > **Design-source discipline:** This design implements the approved 54 features and 15 product decisions without expanding scope. **[FROZEN]** marks behavior fixed by source contracts. **[PROPOSED DESIGN]** marks an engineering choice that needs code/design review, not a new user decision. If a proposed table, endpoint interpretation or component structure conflicts with frozen behavior, the frozen source contract wins. No feature is claimed implemented or tested.
 
+> **D-01 — approved engineering amendment (2026-11-05):** [Owner decision, Issue #1](https://github.com/oangsa/approval-system/issues/1) replaces the earlier Bun runtime/toolchain with Node.js 24, npm Workspaces, one root `package-lock.json`, Elysia through `@elysia/node`, TypeScript, Vitest for unit/API/contract/real-PostgreSQL integration tests, and Playwright for browser E2E. React Router 7, shadcn/ui + Tailwind CSS, PostgreSQL + Drizzle ORM and shared Zod contracts remain. This amendment changes no feature scope, FR/BR/AC/test identifiers, product/API/UI behavior, ownership or effort estimates; baseline contract versions remain unchanged. It records engineering alignment only, not implementation or passing verification.
+
 ## 1. Purpose, Goals and Boundary
 
 ### 1.1 Architectural objectives
@@ -31,7 +33,7 @@
 ```mermaid
 flowchart LR
   U[Browser: requester / reviewer / admin] -->|HTTPS navigation| W[React Router 7 web]
-  U -->|HTTPS JSON + Bearer / Refresh cookie| API[Elysia API on Bun]
+  U -->|HTTPS JSON + Bearer / Refresh cookie| API[Elysia API on Node.js 24]
   W -.->|client HTTP; never embed private data in public SSR| API
   API -->|Drizzle transactions| DB[(PostgreSQL)]
   API -->|authorized upload/download| OBJ[(Private object storage)]
@@ -86,10 +88,10 @@ workflow-approval-system/
 │   ├── system-sds.md
 │   └── traceability.md
 ├── package.json
-└── bun.lock
+└── package-lock.json
 ```
 
-**[FROZEN]** Bun Workspaces, one root `AGENTS.md`, React Router 7 Framework Mode with `ssr:true`, shadcn/ui, Tailwind-only styling, Elysia + Bun, OOP/Clean Architecture, PostgreSQL/Drizzle and a single Zod contracts package. Web and API have separate environment configurations; neither commits real credentials.
+**[FROZEN]** npm Workspaces, one root `AGENTS.md`, React Router 7 Framework Mode with `ssr:true`, shadcn/ui, Tailwind-only styling, Elysia on Node.js 24 through `@elysia/node`, OOP/Clean Architecture, PostgreSQL/Drizzle and a single Zod contracts package. Web and API have separate environment configurations; neither commits real credentials.
 
 ### 3.1 Clean Architecture dependency rule
 

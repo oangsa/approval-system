@@ -10,6 +10,8 @@
 
 > **Language:** The word **shall** indicates required behavior; **must not** indicates prohibited behavior. _Examples_ and _proposed defaults_ are non-normative unless explicitly promoted through change control.
 
+> **D-01 — approved engineering amendment (2026-11-05):** [Owner decision, Issue #1](https://github.com/oangsa/approval-system/issues/1) replaces the earlier Bun runtime/toolchain with Node.js 24, npm Workspaces, one root `package-lock.json`, Elysia through `@elysia/node`, TypeScript, Vitest for unit/API/contract/real-PostgreSQL integration tests, and Playwright for browser E2E. React Router 7, shadcn/ui + Tailwind CSS, PostgreSQL + Drizzle ORM and shared Zod contracts remain. This amendment changes no feature scope, FR/BR/AC/test identifiers, product/API/UI behavior, ownership or effort estimates; baseline contract versions remain unchanged. It records engineering alignment only, not implementation or passing verification.
+
 ## 1. Product Goal
 
 Deliver one organization’s full-stack request and approval platform. Requesters use administrator-configured forms to submit and track requests; assigned reviewers approve, reject, or return requests through an auditable, revision-aware workflow; administrators control trusted membership and bounded routing policies without automatic access to confidential request contents.
@@ -306,7 +308,7 @@ workflow-approval-system/
 ├── AGENTS.md                   # the only AI-instruction file
 ├── apps/
 │   ├── web/                    # React Router 7, SSR enabled, authenticated client-loaded routes
-│   └── api/                    # Elysia / Bun, OOP + Clean Architecture
+│   └── api/                    # Elysia / Node.js 24 (`@elysia/node`), OOP + Clean Architecture
 ├── packages/
 │   └── contracts/              # shared Zod static transport schemas and types
 ├── docs/
@@ -315,7 +317,7 @@ workflow-approval-system/
 │   └── ui-specs.md             # future screen contract
 ├── .github/
 ├── package.json
-└── bun.lock
+└── package-lock.json
 ```
 
 ### 7.2 Frontend
@@ -631,7 +633,7 @@ The following selections guide the first implementation and may be adjusted with
 
 | Concern                  | Suggested default                                                                                |
 | ------------------------ | ------------------------------------------------------------------------------------------------ |
-| Workspace                | `apps/web`, `apps/api`, `packages/contracts`; one `AGENTS.md` and root `bun.lock`                |
+| Workspace                | npm Workspaces: `apps/web`, `apps/api`, `packages/contracts`; one `AGENTS.md` and root `package-lock.json`                |
 | Public IDs               | Opaque UUIDs for directly addressable resources                                                  |
 | API naming               | `/api/v1`, camelCase JSON fields, snake_case DB columns                                          |
 | API errors               | Consistent machine code/message with safe structured field errors                                |
@@ -647,7 +649,7 @@ The following selections guide the first implementation and may be adjusted with
 | Uploads                  | Private object store; PDF/JPEG/PNG; maximum 10 MiB/file                                          |
 | Collection paging        | Default 20, max 100 rows, deterministic tie-breaker                                              |
 | Business SLA example     | 8 business hours from stage activation; configurable allowed SLA durations                       |
-| Tests                    | Bun test for unit/integration, PostgreSQL-backed tests, Playwright for critical journeys         |
+| Tests                    | Vitest for unit/integration, PostgreSQL-backed tests, Playwright for critical journeys         |
 | Infrastructure           | Containerized web/API, durable PostgreSQL, private storage, managed scheduler                    |
 | Internationalized fields | Thai/English labels or documented fallback from one configured label                             |
 

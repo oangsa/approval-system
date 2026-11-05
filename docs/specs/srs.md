@@ -8,6 +8,8 @@
 
 > **Requirements authority:** All FR, BR, NFR, AC and product decisions below are reproduced from the existing frozen product specification. Their identifiers, meaning and acceptance tests are not redefined by this file. If the underlying frozen specifications change through approved change control, update this SRS and its traceability concurrently. Proposed system-design choices belong to [`system-sds.md`](./system-sds.md), not to this SRS.
 
+> **D-01 — approved engineering amendment (2026-11-05):** [Owner decision, Issue #1](https://github.com/oangsa/approval-system/issues/1) replaces the earlier Bun runtime/toolchain with Node.js 24, npm Workspaces, one root `package-lock.json`, Elysia through `@elysia/node`, TypeScript, Vitest for unit/API/contract/real-PostgreSQL integration tests, and Playwright for browser E2E. React Router 7, shadcn/ui + Tailwind CSS, PostgreSQL + Drizzle ORM and shared Zod contracts remain. This amendment changes no feature scope, FR/BR/AC/test identifiers, product/API/UI behavior, ownership or effort estimates; baseline contract versions remain unchanged. It records engineering alignment only, not implementation or passing verification.
+
 ## 1. Purpose and Audience
 
 ### 1.1 Purpose
@@ -58,7 +60,7 @@ A user may hold several roles; permissions are decided for each operation and re
 ### 2.3 Operating environment and dependencies
 
 - Browser application supporting desktop, tablet and mobile, in Thai and English, light and dark modes.
-- React Router 7/TypeScript web application, Bun/Elysia backend, PostgreSQL/Drizzle persistence, shared Zod contracts.
+- React Router 7/TypeScript web application, Node.js 24/Elysia (`@elysia/node`) backend, PostgreSQL/Drizzle persistence, shared Zod contracts.
 - Authenticated HTTP/JSON API, private binary object storage, independent scheduled processing.
 - Server stores authoritative UTC timestamps; business time is calculated for Monday–Friday 09:00–17:00 in `Asia/Bangkok`.
 - Public identifiers are opaque UUIDs; any human-readable request number is distinct from identity.

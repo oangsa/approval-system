@@ -10,6 +10,8 @@
 
 > **ID policy:** Preserve the original 54 unique Feature IDs and one-to-one `FR-NNN`, `AC-NNN`, `FT-NNN` mapping. `BR-NNN` and `NFR-NNN` are cross-cutting and can apply to many features. Paths in the matrix are illustrative links to the **existing frozen route directories**, not newly authorized endpoints. Use `api-specs.md` as authoritative for exact methods, schemas, audience and errors.
 
+> **D-01 — approved engineering amendment (2026-11-05):** [Owner decision, Issue #1](https://github.com/oangsa/approval-system/issues/1) replaces the earlier Bun runtime/toolchain with Node.js 24, npm Workspaces, one root `package-lock.json`, Elysia through `@elysia/node`, TypeScript, Vitest for unit/API/contract/real-PostgreSQL integration tests, and Playwright for browser E2E. React Router 7, shadcn/ui + Tailwind CSS, PostgreSQL + Drizzle ORM and shared Zod contracts remain. This amendment changes no feature scope, FR/BR/AC/test identifiers, product/API/UI behavior, ownership or effort estimates; baseline contract versions remain unchanged. It records engineering alignment only, not implementation or passing verification.
+
 ## 1. Coverage Accounting
 
 | Item                          | Count / guarantee                                        |

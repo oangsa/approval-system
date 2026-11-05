@@ -2,15 +2,18 @@
 
 ## Tech Stack
 
-- **Repository:** Monorepo using Bun Workspaces; one root `AGENTS.md` and one root `bun.lock`.
-- **Language / runtime:** TypeScript throughout; npm for workspace management and backend runtime.
+> **D-01:** [Owner-approved runtime/toolchain amendment](https://github.com/oangsa/approval-system/issues/1), 2026-11-05. Node.js/npm supersedes the earlier runtime choice; product features, business requirements, ownership and estimates remain unchanged.
+
+- **Repository:** Monorepo using npm Workspaces; one root `AGENTS.md` and one root `package-lock.json`.
+- **Language / runtime:** TypeScript throughout; Node.js 24 runtime and npm for workspace management and scripts.
 - **Frontend:** React Router 7 Framework Mode (`ssr: true`), React, TypeScript, shadcn/ui, Tailwind CSS.
 - **Rendering:** SSR for public pages; client-side data loading and hydrated, SPA-style navigation for authenticated pages. Do not assume `ssr: true` disables SSR per route.
 - **Frontend architecture:** Feature-based modular structure with thin route modules, reusable UI components, and dedicated API/service layers.
-- **Backend:** Elysia on Bun, using OOP and Clean Architecture.
+- **Backend:** Elysia on Node.js 24 through `@elysia/node`, using OOP and Clean Architecture.
 - **Persistence:** PostgreSQL with Drizzle ORM and versioned migrations.
 - **Shared contracts:** One `packages/contracts` workspace package using Zod schemas and inferred TypeScript types.
 - **Authentication:** Email + application password (no OAuth); access JWT and rotating refresh token stored in an HttpOnly cookie.
+- **Testing:** Vitest for unit, API, contract and real-PostgreSQL integration tests; Playwright for browser E2E.
 - **Delivery:** Docker, GitHub Actions CI/CD, and deployment to Google Cloud Platform.
 
 ## General Rules
