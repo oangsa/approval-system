@@ -16,6 +16,7 @@
 ## General Rules
 
 - Follow this single root `AGENTS.md` for every workspace package. Do not create nested `AGENTS.md` files.
+- All required specifications are in `docs/specs/`. Read the relevant requirements, design, API, UI, test, and traceability specifications there before implementation.
 - Keep changes limited to the requested scope. Inspect related code, contracts, tests, and existing patterns before editing; reuse existing abstractions where appropriate.
 - Use strict TypeScript; avoid `any`, duplicated types, dead code, speculative abstractions, and unrelated refactors.
 - Use **PascalCase** for classes, interfaces (prefixed with `I`), React components, and class methods; **camelCase** for ordinary functions, variables, and properties.
