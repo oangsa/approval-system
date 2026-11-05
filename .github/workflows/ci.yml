@@ -1,0 +1,50 @@
+name: Verification
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: workflow_test
+          POSTGRES_USER: workflow_test
+          POSTGRES_PASSWORD: ci_test_only
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U workflow_test -d workflow_test"
+          --health-interval 2s
+          --health-timeout 3s
+          --health-retries 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm run test:web -- --reporter=default --reporter=junit --outputFile=artifacts/vitest/web.xml
+      - run: npm run test:api -- --reporter=default --reporter=junit --outputFile=artifacts/vitest/api.xml
+      - run: npm run test:contracts -- --reporter=default --reporter=junit --outputFile=artifacts/vitest/contracts.xml
+      - run: npm run build
+      - run: npm run test:integration
+        env:
+          NODE_ENV: test
+          TEST_DATABASE_URL: postgresql://workflow_test:ci_test_only@127.0.0.1:5432/workflow_test
+          DATABASE_URL: postgresql://127.0.0.1:5432/workflow_dev
+      - run: npm run test:e2e:install
+      - run: npm run test:e2e
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-diagnostics
+          path: artifacts/
+          if-no-files-found: ignore

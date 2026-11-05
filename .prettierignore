@@ -1,0 +1,14 @@
+**/*.ts
+**/*.tsx
+package-lock.json
+node_modules
+**/build
+**/dist
+**/.react-router
+AGENTS.md
+.agents
+.codex
+.aws
+artifacts
+playwright-report
+test-results

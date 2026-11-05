@@ -1,0 +1,52 @@
+{
+  "name": "workflow-approval-system",
+  "private": true,
+  "type": "module",
+  "packageManager": "npm@11.16.0",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "node scripts/dev.ts",
+    "typecheck": "npm run typecheck --workspaces && tsc -p tsconfig.json",
+    "build": "npm run build --workspaces",
+    "lint": "eslint . && prettier --check .",
+    "format": "eslint . --fix && prettier --write .",
+    "test": "vitest run",
+    "check": "npm run typecheck && npm run lint && npm test && npm run build",
+    "db:up": "docker compose --env-file apps/api/.env up -d --wait",
+    "db:down": "docker compose --env-file apps/api/.env down",
+    "db:check": "npm run db:check --workspace @workflow/api",
+    "db:generate": "npm run db:generate --workspace @workflow/api",
+    "db:migrate": "npm run db:migrate --workspace @workflow/api",
+    "test:web": "vitest run --project web",
+    "test:api": "vitest run --project api",
+    "test:contracts": "vitest run --project contracts",
+    "test:integration": "npm run test:integration --workspace @workflow/api",
+    "test:e2e": "npm run build && playwright test",
+    "test:coverage": "vitest run --coverage",
+    "test:e2e:install": "playwright install --with-deps chromium",
+    "db:test:up": "docker compose --env-file apps/api/.env.test -f apps/api/tests/postgres/compose.yaml up -d --wait",
+    "db:test:down": "docker compose --env-file apps/api/.env.test -f apps/api/tests/postgres/compose.yaml down",
+    "db:test:migrate": "npm run db:test:migrate --workspace @workflow/api"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3",
+    "eslint": "^9.39.0",
+    "@eslint/js": "^9.39.0",
+    "typescript-eslint": "^8.57.0",
+    "prettier": "^3.8.0",
+    "@workflow/contracts": "*",
+    "@types/node": "^24.0.0",
+    "vitest": "4.1.10",
+    "@vitest/coverage-v8": "4.1.10",
+    "@playwright/test": "1.60.0",
+    "tsx": "^4.23.5",
+    "esbuild": "^0.25.12"
+  },
+  "engines": {
+    "node": ">=24",
+    "npm": ">=11"
+  }
+}

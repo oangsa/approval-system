@@ -1,0 +1,11 @@
+import { render, screen } from "@testing-library/react";
+import { expect, test } from "vitest";
+import Home from "../../app/routes/home";
+
+test("starter page exposes its content with semantic markup", () =>
+{
+    render(<Home />);
+    expect(screen.getByRole("main")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1, name: "Workflow and Approval System" })).toBeVisible();
+    expect(screen.getByText("Project foundation is ready.")).toBeVisible();
+});

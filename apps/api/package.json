@@ -1,0 +1,27 @@
+{
+  "name": "@workflow/api",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node --env-file-if-exists=.env --import tsx --watch src/index.ts",
+    "start": "node --env-file-if-exists=.env dist/index.js",
+    "build": "esbuild src/index.ts --bundle --platform=node --target=node24 --format=esm --external:elysia --external:@elysia/node --external:postgres --external:drizzle-orm --external:zod --outfile=dist/index.js",
+    "typecheck": "tsc -p tsconfig.json",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "db:check": "node --env-file-if-exists=.env --import tsx scripts/check-database.ts",
+    "test:integration": "vitest run --config vitest.postgres.config.ts",
+    "db:test:migrate": "drizzle-kit migrate --config drizzle.test.config.ts"
+  },
+  "dependencies": {
+    "@workflow/contracts": "*",
+    "elysia": "^1.4.0",
+    "drizzle-orm": "^0.45.0",
+    "postgres": "^3.4.8",
+    "zod": "^4.3.6",
+    "@elysia/node": "1.4.6"
+  },
+  "devDependencies": {
+    "drizzle-kit": "^0.31.9"
+  }
+}
