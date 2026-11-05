@@ -4,9 +4,9 @@
 
 **Requirements:** FR-001–FR-003, AC-001–AC-003
 
-**Document state:** Prepared for documentation versioning before implementation.
+**Document state:** Versioned design with uncommitted foundation drafts; feature implementation remains incomplete.
 
-**Implementation and test status:** NOT RUN.
+**Implementation and test status:** Foundation drafts have partial test evidence in the STS. Full feature cases remain PLANNED / NOT RUN.
 
 ## 1. Purpose and authority
 
@@ -81,19 +81,19 @@ Fail closed when required account, session, or authorization state cannot be rea
 
 Use PostgreSQL with Drizzle migrations. Exact physical table names below are the feature's selected identity model; other business entities remain owned by their features.
 
-| Relation               | Required data and constraints                                                                                                                                                                                                                                       |
-| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| users                  | UUID id, normalized unique email, display name, versioned Argon2id password record, active flag, general version, authentication version, timestamps.                                                                                                               |
-| roles                  | The three approved role codes only.                                                                                                                                                                                                                                 |
-| user_roles             | User and role foreign keys; unique user/role pair.                                                                                                                                                                                                                  |
-| departments            | UUID id, stable code, name, and active flag.                                                                                                                                                                                                                        |
-| department_memberships | Trusted user/department relation and primary flag; database constraint allows at most one primary membership per user.                                                                                                                                              |
-| session_families       | UUID id, user foreign key, creation time, absolute expiry, captured authentication version, and revocation time/reason. A family belongs to exactly one account and expires no later than seven days after issuance.                                                |
-| refresh_tokens         | UUID id, family foreign key, unique SHA-256 hash of a cryptographically random opaque secret, creation/expiry, consumed time, and revocation state. Store each rotation as a new history row; never store its raw secret. Token expiry cannot exceed family expiry. |
+| Relation               | Required data and constraints                                                                                                                                                                                                                                                                      |
+| ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| users                  | UUID id, normalized unique email, display name, versioned Argon2id password record, active flag, nonnegative authentication version, timestamps.                                                                                                                                                   |
+| roles                  | The three approved role codes only.                                                                                                                                                                                                                                                                |
+| user_roles             | User and role foreign keys; unique user/role pair.                                                                                                                                                                                                                                                 |
+| departments            | UUID id, stable code, name, and active flag.                                                                                                                                                                                                                                                       |
+| department_memberships | Trusted user/department relation, active and primary flags; database constraint allows at most one primary membership per user.                                                                                                                                                                    |
+| session_families       | UUID id, user foreign key, creation time, absolute expiry, captured authentication version, and revocation time. A family belongs to exactly one account and expires no later than seven days after issuance.                                                                                      |
+| refresh_tokens         | UUID id, family foreign key, unique SHA-256 hash of a cryptographically random opaque secret, creation/expiry, and consumed time. Family revocation invalidates its token history. Store each rotation as a new history row; never store its raw secret. Token expiry cannot exceed family expiry. |
 
 The seven-day refresh lifetime is an absolute family lifetime, not a sliding extension. Each refresh secret is single-use. Use foreign keys and indexes for normalized email, role membership, family ownership/revocation/expiry, and unique token hashes. Seed roles and synthetic identities idempotently. Do not seed real user data or secrets.
 
-For account authentication changes such as role changes or deactivation, increment authentication version and revoke existing families in the same transaction. Every protected request also checks the current active flag and roles. A remaining role continues to authorize its own permitted operations after an unrelated role is removed; removed permissions stop immediately.
+Every protected request checks the current active flag and roles. Role removal does not require an authentication version increment. Logout-all increments authentication version and revokes existing families in the same transaction. A remaining role continues to authorize its own permitted operations after an unrelated role is removed; removed permissions stop immediately.
 
 ## 6. Refresh, revocation, and race behavior
 
@@ -166,4 +166,4 @@ Apply rate limits to login. Keep security telemetry structured and redacted. Nev
 
 The numbered child acceptance criteria are in [acceptance-criteria.md](./acceptance-criteria.md), and the executable test design is in [sts.md](./sts.md). The implementation completion gate is in [dod.md](./dod.md). The narrow additions to shared traceability and specification documents must preserve all frozen IDs and global PLANNED / NOT RUN statements.
 
-All contracts and tests in this SDS describe intended behavior. No endpoint, migration, seed, user interface, browser behavior, or test result is claimed implemented.
+Uncommitted foundation drafts include shared contracts, domain and ports, persistence and a migration, security primitives, a deterministic seed, and tests. The STS records bounded evidence for these drafts. Application and HTTP lifecycle, race and restart behavior, authorization integration, frontend and browser behavior, and feature completion remain PLANNED / NOT RUN. The contracts in this SDS continue to describe intended feature behavior.

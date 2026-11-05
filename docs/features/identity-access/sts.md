@@ -2,9 +2,9 @@
 
 **Feature IDs:** M01, M02, M03
 
-**Document state:** Prepared for documentation versioning before implementation.
+**Document state:** Versioned test design with a separate record of partial foundation evidence.
 
-**Execution status:** PLANNED / NOT RUN.
+**Execution status:** Full planned feature cases remain PLANNED / NOT RUN; foundation checks are recorded separately in section 7.
 
 ## 1. Test rules and fixtures
 
@@ -14,7 +14,7 @@ Use synthetic actors aligned with test.md: U-OWNER and U-OTHER for owner isolati
 
 Protected API checks must use credentials obtained through the real login flow, except malformed/forged/expired-token cases that explicitly test token validation. Use independent PostgreSQL connections plus a synchronization barrier for concurrency cases. Assert database final state, not only response timing or status counts. The owner/foreign/missing private resource is a generic test fixture and route registered only for tests; it is not a business API.
 
-Every case below is PLANNED / NOT RUN. Setup, action, and expected assertions define future evidence; they are not observed results. Capture command, environment, fixture IDs, tested SHA and dirty state, expected and actual outcome, status, and redacted evidence when a case runs. Never store raw passwords, cookies, JWTs, or refresh values in evidence.
+Every full planned case below is PLANNED / NOT RUN. Setup, action, and expected assertions define future evidence; partial foundation checks in section 7 do not complete these cases. Capture command, environment, fixture IDs, tested SHA and dirty state, expected and actual outcome, status, and redacted evidence when a case runs. Never store raw passwords, cookies, JWTs, or refresh values in evidence.
 
 ## 2. Contract tests
 
@@ -71,9 +71,19 @@ Every case below is PLANNED / NOT RUN. Setup, action, and expected assertions de
 
 ## 7. TDD and evidence record
 
-For each behavior change, create the focused failing test before implementation and retain its failing result. Implement the smallest change that makes the specified assertion pass, then rerun the same test and record the green result. Run broader relevant checks after focused tests. This section specifies planned red/green evidence; no failing or passing execution has occurred for this documentation packet.
+For each behavior change, create the focused failing test before implementation and retain its failing result. Implement the smallest change that makes the specified assertion pass, then rerun the same test and record the green result. Run broader relevant checks after focused tests. The foundation record below is partial and does not establish completion of any full planned case.
 
 For every future run, record the exact command and working directory, environment/runtime, database and seed, browser, tested commit SHA, dirty state, expected and actual outcome, status, and redacted artifact or CI link. Use NOT RUN until evidence exists. Keep raw secrets out of screenshots, logs, and trace files.
+
+### Partial foundation evidence
+
+All commands below used `C:/Users/kitti/approval-system` at HEAD `518c9b52ba5f4c4ab773c9e2dd1050b80f781c5e` on `feature/1-identity-auth-access`. The checkout had 31 dirty paths before these documentation edits and 32 afterward. The inherited runtime was Node v24.22.1 and npm 11.19.1; the guarded test database was `workflow_test`.
+
+Inherited predecessor results: `npm run db:test:migrate` passed twice, `npm run db:test:seed` passed twice, and `npm run test:integration` passed two files and seven tests (three connection/guard and four identity tests). `npm run test:api` passed 55 tests; it does not prove authentication HTTP endpoints. `npm.cmd run test:contracts` passed two files and eight tests; the original contract behavior had a focused red/green run. `npm.cmd run typecheck`, `npm.cmd run lint`, and `npm.cmd run build` passed. These results are inherited, not rerun for this record. The predecessor migration review covered seven relations, enum, foreign keys, checks, indexes, and no DROP. Quote, lint, and whitespace failures were static evidence, not behavioral TDD red.
+
+Fresh static checks for this record: `git diff --check`, the corrected raw whitespace scan, and Git full-file `diff --no-index --check` passed across 32 paths before and after the evidence edits. The corrected pattern `(?m)^[\t ]* [\t ]*\t` detects spaces before tabs without rejecting ordinary tab indentation. The generated SQL remains unchanged with SHA256 `878DDC464E1DEF175970BADEB46F26D3A9951B10C38C0D916EE09A101D293596`. Formatting these two documents and `npm.cmd run lint` passed. Full-file no-index checks returned 1 for files differing from NUL; CRLF conversion warnings were informational.
+
+This evidence does not prove empty-database setup, the full HTTP lifecycle, races or restart behavior, authorization integration, UI/browser behavior, or feature completion. No full IA-CT, IA-DB, or IA-API case is marked passed.
 
 ## 8. Coverage boundary
 
