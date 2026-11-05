@@ -453,3 +453,7 @@ Use accessible toast for noncritical confirmations; destructive/irreversible ope
 - Only the Maintenance Tracking System frontend was used as a UI architectural reference; its business terminology, colors and exact UI designs are not carried over.
 - No additional feature (visual workflow builder, universal administrator request viewer, email notifications, realtime push, CSV export or accounting ledger) is authorized by this UI specification.
 - Future behavior/route/API changes require documented compatible contract revisions and adjusted tests. This document makes **no** claim of implemented or tested behavior.
+
+## 19. Identity & Access implementation scope (additive)
+
+The preimplementation design and child criteria for M01–M03 are in [identity-access/sds.md](../features/identity-access/sds.md) and [acceptance-criteria.md](../features/identity-access/acceptance-criteria.md); the planned browser checks are in [sts.md](../features/identity-access/sts.md). This feature implements only the login route, a protected shell, safe dashboard placeholder, read-only account summary, and unauthorized screen. It does not remove or change the other frozen routes, shell requirements, UI criteria, or downstream ownership. Navigation in this feature points only to shipped routes. UI implementation and checks remain PLANNED / NOT RUN.

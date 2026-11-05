@@ -554,3 +554,7 @@ Every selected capability maps one-to-one to `FR-NNN`/`AC-NNN`/`FT-NNN`; associa
 6. Keep all three specification documents and `test.md` aligned with actual implementation; log any approved design deviation.
 
 **Document status:** System-level **proposed physical design** faithful to the frozen product/API/UI contracts. No tests, database migrations or deployed resources are asserted to exist.
+
+## 17. Identity & Access feature records (additive)
+
+The feature-level implementation design, criteria, tests, and DoD for M01–M03 are maintained in [identity-access/sds.md](../features/identity-access/sds.md), [acceptance-criteria.md](../features/identity-access/acceptance-criteria.md), [sts.md](../features/identity-access/sts.md), and [dod.md](../features/identity-access/dod.md). These records refine the identity/session portion of this proposed system design; they do not change the shared architecture, global status, or ownership boundaries. Implementation and test status remains NOT RUN.

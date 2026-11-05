@@ -269,3 +269,13 @@ This is the selected allocation. It does not claim that everything assigned to a
 6. Do not mark a feature accepted while its important access, persistence, concurrency or UI requirement has not been verified.
 
 **Current evidence statement:** All checks in this matrix are planned. No passing implementation or execution result is asserted.
+
+## 10. Identity & Access child criteria (additive)
+
+| Feature                     | Frozen requirement / acceptance / primary test | Feature criteria                      | Scoped supporting tests                                                          |
+| --------------------------- | ---------------------------------------------- | ------------------------------------- | -------------------------------------------------------------------------------- |
+| M01 — Login                 | FR-001 / AC-001 / FT-001                       | IA-AC-01–02, IA-AC-08–09, IA-AC-11–12 | IA-CT-01; IA-DB-01; IA-API-01, IA-API-08–09; IA-WEB-04; IA-E2E-01, IA-E2E-04     |
+| M02 — Logout & Current User | FR-002 / AC-002 / FT-002                       | IA-AC-03–05, IA-AC-08–10, IA-AC-12    | IA-DB-02–06, IA-DB-08; IA-API-02–05, IA-API-08; IA-WEB-01–03; IA-E2E-02–03       |
+| M03 — Role-based Access     | FR-003 / AC-003 / FT-003                       | IA-AC-06–12                           | IA-DB-07–08; IA-API-03, IA-API-06–08; IA-WEB-03, IA-WEB-05; IA-E2E-03, IA-E2E-05 |
+
+The child criteria refine, but do not replace, the frozen feature mapping. IA-API-07 proves only generic test-guard behavior and does not satisfy full FT-003 business-resource coverage. These feature documents and all implementation checks remain PLANNED / NOT RUN.

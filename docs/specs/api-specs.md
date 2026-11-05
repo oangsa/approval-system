@@ -1182,3 +1182,7 @@ Feature-level FR/AC mapping is authoritative in `specifications.md`. This crossw
 **Amendment mapping:** The administrator escalation search is a narrow read surface supporting the existing escalation/reassignment capabilities; no new feature ID or change to the 54-feature scope.
 
 **Coverage check:** M01–M17 (17), R01–R17 (17), and the 20 expressly selected O-series features appear once each.
+
+## 13. Identity & Access feature records (additive)
+
+The feature implementation details and supporting evidence plan for M01–M03 are maintained in [identity-access/sds.md](../features/identity-access/sds.md), [acceptance-criteria.md](../features/identity-access/acceptance-criteria.md), [sts.md](../features/identity-access/sts.md), and [dod.md](../features/identity-access/dod.md). Those records implement only the existing login, refresh, logout, logout-all, and current-user routes with the DTOs already defined in §§3.2, 5.1, and 6.1. They add no route, change no frozen method or DTO, and do not revise this document's version or status. All feature checks remain PLANNED / NOT RUN.
