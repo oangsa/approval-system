@@ -631,27 +631,27 @@ These are operational details requiring implementation-ready documentation, not 
 
 The following selections guide the first implementation and may be adjusted with documented rationale, provided product rules above are preserved.
 
-| Concern                  | Suggested default                                                                                |
-| ------------------------ | ------------------------------------------------------------------------------------------------ |
-| Workspace                | npm Workspaces: `apps/web`, `apps/api`, `packages/contracts`; one `AGENTS.md` and root `package-lock.json`                |
-| Public IDs               | Opaque UUIDs for directly addressable resources                                                  |
-| API naming               | `/api/v1`, camelCase JSON fields, snake_case DB columns                                          |
-| API errors               | Consistent machine code/message with safe structured field errors                                |
-| Frontend forms           | React Hook Form + Zod resolver + metadata-driven inputs                                          |
-| Password hashing         | Argon2id                                                                                         |
-| Access JWT               | 15-minute TTL, held in browser memory                                                            |
-| Refresh                  | 7-day lifetime with rotating HttpOnly/Secure cookie and server family revocation                 |
-| Dynamic operators        | `equals`, `notEquals`, `in`, `isSet`, optional AND groups; reject condition cycles               |
-| Nonapplicable fields     | Explicit validation error on submitted nonapplicable values rather than trusting hidden controls |
-| Money                    | One organization currency, initially THB; PostgreSQL exact `numeric`                             |
-| Request number           | `REQ-YYYY-NNNNNN` with database uniqueness                                                       |
-| Priority vocabulary      | `LOW`, `NORMAL`, `HIGH`, `URGENT`                                                                |
-| Uploads                  | Private object store; PDF/JPEG/PNG; maximum 10 MiB/file                                          |
-| Collection paging        | Default 20, max 100 rows, deterministic tie-breaker                                              |
-| Business SLA example     | 8 business hours from stage activation; configurable allowed SLA durations                       |
-| Tests                    | Vitest for unit/integration, PostgreSQL-backed tests, Playwright for critical journeys         |
-| Infrastructure           | Containerized web/API, durable PostgreSQL, private storage, managed scheduler                    |
-| Internationalized fields | Thai/English labels or documented fallback from one configured label                             |
+| Concern                  | Suggested default                                                                                          |
+| ------------------------ | ---------------------------------------------------------------------------------------------------------- |
+| Workspace                | npm Workspaces: `apps/web`, `apps/api`, `packages/contracts`; one `AGENTS.md` and root `package-lock.json` |
+| Public IDs               | Opaque UUIDs for directly addressable resources                                                            |
+| API naming               | `/api/v1`, camelCase JSON fields, snake_case DB columns                                                    |
+| API errors               | Consistent machine code/message with safe structured field errors                                          |
+| Frontend forms           | React Hook Form + Zod resolver + metadata-driven inputs                                                    |
+| Password hashing         | Argon2id                                                                                                   |
+| Access JWT               | 15-minute TTL, held in browser memory                                                                      |
+| Refresh                  | 7-day lifetime with rotating HttpOnly/Secure cookie and server family revocation                           |
+| Dynamic operators        | `equals`, `notEquals`, `in`, `isSet`, optional AND groups; reject condition cycles                         |
+| Nonapplicable fields     | Explicit validation error on submitted nonapplicable values rather than trusting hidden controls           |
+| Money                    | One organization currency, initially THB; PostgreSQL exact `numeric`                                       |
+| Request number           | `REQ-YYYY-NNNNNN` with database uniqueness                                                                 |
+| Priority vocabulary      | `LOW`, `NORMAL`, `HIGH`, `URGENT`                                                                          |
+| Uploads                  | Private object store; PDF/JPEG/PNG; maximum 10 MiB/file                                                    |
+| Collection paging        | Default 20, max 100 rows, deterministic tie-breaker                                                        |
+| Business SLA example     | 8 business hours from stage activation; configurable allowed SLA durations                                 |
+| Tests                    | Vitest for unit/integration, PostgreSQL-backed tests, Playwright for critical journeys                     |
+| Infrastructure           | Containerized web/API, durable PostgreSQL, private storage, managed scheduler                              |
+| Internationalized fields | Thai/English labels or documented fallback from one configured label                                       |
 
 Defaults do not permit weakening frozen session rotation, self-approval, parallel ALL, audit atomicity, or authorization requirements.
 
