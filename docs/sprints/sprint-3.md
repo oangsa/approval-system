@@ -3,7 +3,6 @@
 > **Planning draft — not frozen.** This is a proposed allocation of the user-selected **54 capabilities** (M01–M17, R01–R17, and 20 selected O-series). IDs are project planning labels, **not instructor-issued requirement IDs**. No feature is deleted or duplicated between sprints.
 >
 > **Status:** All listed features are **PLANNED**, none is claimed implemented or tested. Architecture choices are already finalized separately; this file does not change them.
->
 
 ## Sprint 3: Operations, Experience & Final Hardening
 
@@ -16,72 +15,72 @@
 
 ### Identity & Access (3)
 
-| ID | Feature | Target behavior / compact implementation |
-|---|---|---|
-| `O09` | **Admin User Management** | Admin creates/disables users and manages role assignment with server-side controls. |
-| `O26` | **Self-registration** | Allow safe new-account creation with minimum requester role, no privilege self-escalation. |
-| `O27` | **Password Recovery** | Provide a secure account-recovery mechanism; delivery/verification method needs a policy decision. |
+| ID    | Feature                   | Target behavior / compact implementation                                                           |
+| ----- | ------------------------- | -------------------------------------------------------------------------------------------------- |
+| `O09` | **Admin User Management** | Admin creates/disables users and manages role assignment with server-side controls.                |
+| `O26` | **Self-registration**     | Allow safe new-account creation with minimum requester role, no privilege self-escalation.         |
+| `O27` | **Password Recovery**     | Provide a secure account-recovery mechanism; delivery/verification method needs a policy decision. |
 
 ### Request Management (1)
 
-| ID | Feature | Target behavior / compact implementation |
-|---|---|---|
+| ID    | Feature              | Target behavior / compact implementation                                          |
+| ----- | -------------------- | --------------------------------------------------------------------------------- |
 | `O02` | **File Attachments** | Upload/download private supporting files with access checks and size/type limits. |
 
 ### Assignment & Policy (2)
 
-| ID | Feature | Target behavior / compact implementation |
-|---|---|---|
-| `O07` | **Reviewer Reassignment** | Change an individual pending reviewer assignment with authorization and audit. |
-| `O08` | **Reviewer Delegation** | Temporarily delegate an approval responsibility, with expiry and self-approval checks. |
+| ID    | Feature                   | Target behavior / compact implementation                                               |
+| ----- | ------------------------- | -------------------------------------------------------------------------------------- |
+| `O07` | **Reviewer Reassignment** | Change an individual pending reviewer assignment with authorization and audit.         |
+| `O08` | **Reviewer Delegation**   | Temporarily delegate an approval responsibility, with expiry and self-approval checks. |
 
 ### Approval Workflow (1)
 
-| ID | Feature | Target behavior / compact implementation |
-|---|---|---|
+| ID    | Feature           | Target behavior / compact implementation                                                  |
+| ----- | ----------------- | ----------------------------------------------------------------------------------------- |
 | `O15` | **Bulk Approval** | Apply the normal per-request decision service to a selection and report partial failures. |
 
 ### Revision & Collaboration (1)
 
-| ID | Feature | Target behavior / compact implementation |
-|---|---|---|
+| ID    | Feature                   | Target behavior / compact implementation                                                  |
+| ----- | ------------------------- | ----------------------------------------------------------------------------------------- |
 | `O01` | **Comments / Discussion** | Add permission-checked discussion linked to a request without replacing decision records. |
 
 ### Search & Experience (6)
 
-| ID | Feature | Target behavior / compact implementation |
-|---|---|---|
-| `R12` | **Search Requests** | Search visible requests by number/title without exposing unauthorized matches. |
-| `R13` | **Status & Date Filters** | Filter visible requests by status and created/submitted date ranges. |
-| `R14` | **Sorting & Pagination** | Use stable ordering and server-side pagination for request lists. |
+| ID    | Feature                      | Target behavior / compact implementation                                             |
+| ----- | ---------------------------- | ------------------------------------------------------------------------------------ |
+| `R12` | **Search Requests**          | Search visible requests by number/title without exposing unauthorized matches.       |
+| `R13` | **Status & Date Filters**    | Filter visible requests by status and created/submitted date ranges.                 |
+| `R14` | **Sorting & Pagination**     | Use stable ordering and server-side pagination for request lists.                    |
 | `R17` | **Responsive & Polished UX** | Make critical journeys usable across screen sizes with loading/empty/error feedback. |
-| `O24` | **Dark Mode** | Support persistent light/dark theme preference and usable contrast. |
-| `O25` | **Thai / English UI** | Support Thai and English labels/messages and a language switch. |
+| `O24` | **Dark Mode**                | Support persistent light/dark theme preference and usable contrast.                  |
+| `O25` | **Thai / English UI**        | Support Thai and English labels/messages and a language switch.                      |
 
 ### Reporting (1)
 
-| ID | Feature | Target behavior / compact implementation |
-|---|---|---|
+| ID    | Feature               | Target behavior / compact implementation                                  |
+| ----- | --------------------- | ------------------------------------------------------------------------- |
 | `O21` | **PDF Report Export** | Export authorized reports into a downloadable PDF with safe data scoping. |
 
 ### Notifications & SLA (3)
 
-| ID | Feature | Target behavior / compact implementation |
-|---|---|---|
-| `O03` | **In-app Notifications** | Deliver persisted notifications for assignment, decision, and change events. |
-| `O11` | **Approval Deadlines / SLA** | Persist stage due dates, overdue status, and clear deadline semantics. |
-| `O12` | **Escalation & Reminders** | Run idempotent scheduled reminders/escalations for overdue assignments. |
+| ID    | Feature                      | Target behavior / compact implementation                                     |
+| ----- | ---------------------------- | ---------------------------------------------------------------------------- |
+| `O03` | **In-app Notifications**     | Deliver persisted notifications for assignment, decision, and change events. |
+| `O11` | **Approval Deadlines / SLA** | Persist stage due dates, overdue status, and clear deadline semantics.       |
+| `O12` | **Escalation & Reminders**   | Run idempotent scheduled reminders/escalations for overdue assignments.      |
 
 ## Dependency bundles (finish incrementally, start before the 29 Nov checkpoint)
 
-| Bundle | Related IDs | Required predecessor / implementation intent |
-|---|---|---|
-| Reviewer operations | `O07`, `O08`, `O15` | Existing approval engine, assignment management, revision-aware decision authorization; audit every change. |
-| Accounts and recovery | `O09`, `O26`, `O27` | Backend-enforced roles + refresh-session system; new signups cannot self-assign reviewer/admin; define a genuine secure recovery channel/code. |
-| Collaboration and files | `O01`, `O02` | Request ownership/assigned-reviewer permissions; private file storage with access checks. |
-| Notifications and time | `O03`, `O11`, `O12` | Workflow events, persisted due dates, idempotent background/scheduled processing. |
-| Lists and UX | `R12`, `R13`, `R14`, `R17`, `O24`, `O25` | Single reusable authorized query/listing flow and consistent UI states, theme tokens and translations. |
-| Export | `O21` | Authorized reporting from Sprint 2 (`M16`); enforce row-level visibility in PDF results. |
+| Bundle                  | Related IDs                              | Required predecessor / implementation intent                                                                                                   |
+| ----------------------- | ---------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| Reviewer operations     | `O07`, `O08`, `O15`                      | Existing approval engine, assignment management, revision-aware decision authorization; audit every change.                                    |
+| Accounts and recovery   | `O09`, `O26`, `O27`                      | Backend-enforced roles + refresh-session system; new signups cannot self-assign reviewer/admin; define a genuine secure recovery channel/code. |
+| Collaboration and files | `O01`, `O02`                             | Request ownership/assigned-reviewer permissions; private file storage with access checks.                                                      |
+| Notifications and time  | `O03`, `O11`, `O12`                      | Workflow events, persisted due dates, idempotent background/scheduled processing.                                                              |
+| Lists and UX            | `R12`, `R13`, `R14`, `R17`, `O24`, `O25` | Single reusable authorized query/listing flow and consistent UI states, theme tokens and translations.                                         |
+| Export                  | `O21`                                    | Authorized reporting from Sprint 2 (`M16`); enforce row-level visibility in PDF results.                                                       |
 
 ## Required checkpoint on 29 Nov (Deliverable 2)
 

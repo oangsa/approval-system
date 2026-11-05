@@ -15,15 +15,15 @@ Deliver a minimal, professional, black-and-white application for requesters, rev
 
 Adapt these **structural patterns** from the Maintenance Tracking System frontend; do not copy its business domain or carry over its app-specific routes:
 
-| Reference pattern | CPE334 adaptation |
-|---|---|
-| `app/routes.ts` and role-aware route layouts | Public auth routes; shared authenticated shell; route-level permission gates |
-| `app/layouts/LayoutMain.tsx`, common Sidebar | Sidebar + top header + mobile drawer, role-filtered navigation |
-| `app/components/Common/DataTable` | One type-safe, API-driven collection foundation for all tabular screens |
-| `app/components/Common/Form`, `useManagedForm` | One config-based Zod-driven form foundation and runtime request-type field renderer |
-| `LookupField`, `LineItemsEditor` | Reviewer/department lookups and dynamic request line-item editing |
-| `Maintain/PageHeader`, `DetailPage`, `DetailSections` | Shared page shell and readable request details |
-| Dashboard cards, auth pages, shadcn/ui primitives | Minimal dashboard and account experiences |
+| Reference pattern                                     | CPE334 adaptation                                                                   |
+| ----------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| `app/routes.ts` and role-aware route layouts          | Public auth routes; shared authenticated shell; route-level permission gates        |
+| `app/layouts/LayoutMain.tsx`, common Sidebar          | Sidebar + top header + mobile drawer, role-filtered navigation                      |
+| `app/components/Common/DataTable`                     | One type-safe, API-driven collection foundation for all tabular screens             |
+| `app/components/Common/Form`, `useManagedForm`        | One config-based Zod-driven form foundation and runtime request-type field renderer |
+| `LookupField`, `LineItemsEditor`                      | Reviewer/department lookups and dynamic request line-item editing                   |
+| `Maintain/PageHeader`, `DetailPage`, `DetailSections` | Shared page shell and readable request details                                      |
+| Dashboard cards, auth pages, shadcn/ui primitives     | Minimal dashboard and account experiences                                           |
 
 Reuse principles and composition, **not** implementation verbatim. All behavior follows CPE334's already-frozen product/API contracts.
 
@@ -38,32 +38,32 @@ Reuse principles and composition, **not** implementation verbatim. All behavior 
 
 ### 2.2 Proposed neutral visual system — IMPLEMENTATION DEFAULT
 
-| Token/element | Light theme | Dark theme |
-|---|---|---|
-| Main background | `#FFFFFF` | `#09090B` |
-| Subtle app background | `#FAFAFA` | `#0F0F11` |
-| Surface/card | `#FFFFFF` | `#18181B` |
-| Primary text | `#09090B` | `#FAFAFA` |
-| Secondary text | `#71717A` | `#A1A1AA` |
-| Divider/border | `#E4E4E7` | `#27272A` |
-| Main action button | Almost black, white text | Almost white, black text |
-| Secondary action | Outlined or quiet neutral | Outlined or quiet neutral |
-| Font | Inter; system sans fallback | Same |
-| Radius | 8–12px for controls/cards | Same |
-| Elevation | Borders first, very soft shadow only if needed | Same |
+| Token/element         | Light theme                                    | Dark theme                |
+| --------------------- | ---------------------------------------------- | ------------------------- |
+| Main background       | `#FFFFFF`                                      | `#09090B`                 |
+| Subtle app background | `#FAFAFA`                                      | `#0F0F11`                 |
+| Surface/card          | `#FFFFFF`                                      | `#18181B`                 |
+| Primary text          | `#09090B`                                      | `#FAFAFA`                 |
+| Secondary text        | `#71717A`                                      | `#A1A1AA`                 |
+| Divider/border        | `#E4E4E7`                                      | `#27272A`                 |
+| Main action button    | Almost black, white text                       | Almost white, black text  |
+| Secondary action      | Outlined or quiet neutral                      | Outlined or quiet neutral |
+| Font                  | Inter; system sans fallback                    | Same                      |
+| Radius                | 8–12px for controls/cards                      | Same                      |
+| Elevation             | Borders first, very soft shadow only if needed | Same                      |
 
 Use explicit text labels and icon/shape to indicate state. Color is **supplementary**, never the sole status communication.
 
 ### 2.3 Semantic state colors — FROZEN
 
-| Request state | Color family | Visible label |
-|---|---|---|
-| `DRAFT` | Neutral/slate | Draft |
-| `PENDING` | Amber | Pending approval |
-| `RETURNED` | Blue | Returned for revision |
-| `APPROVED` | Green | Approved |
-| `REJECTED` | Red | Rejected |
-| `WITHDRAWN` | Neutral/dim gray | Withdrawn |
+| Request state | Color family     | Visible label         |
+| ------------- | ---------------- | --------------------- |
+| `DRAFT`       | Neutral/slate    | Draft                 |
+| `PENDING`     | Amber            | Pending approval      |
+| `RETURNED`    | Blue             | Returned for revision |
+| `APPROVED`    | Green            | Approved              |
+| `REJECTED`    | Red              | Rejected              |
+| `WITHDRAWN`   | Neutral/dim gray | Withdrawn             |
 
 `WAITING` and `ACTIONABLE` task statuses use visually distinct neutral/amber tokens. Overdue uses danger/warning indicators but **does not overwrite** the formal request state. Dark variants must preserve sufficient contrast, and status chips show localized text with icons where useful. Priority is distinct from request status and must not use the same visual meaning.
 
@@ -105,54 +105,54 @@ The frontend's role checks are for navigation/UX only; server permissions still 
 
 All paths below are **frontend React Router paths**, not API routes. Reuse feature modules under `app/modules/` with thin route adapters under `app/routes/`, as in the Maintenance System's modular organization.
 
-| Frontend route | UI | Audience | Primary API |
-|---|---|---|---|
-| `/` | Public landing / redirect to dashboard if authenticated | Public | — |
-| `/auth/login` | Sign in | Public | `POST /auth/login` |
-| `/auth/register` | Register + recovery-code issuance flow | Public | `POST /auth/register` |
-| `/auth/recover` | Recovery-code password reset | Public | `POST /auth/recovery/password` |
-| `/auth/assisted-reset` | Redeem admin-assisted one-time reset grant | Public | `POST /auth/recovery/admin-grants/redeem` |
-| `/dashboard` | Role-aware dashboard | Authenticated | `GET /dashboard` |
-| `/requests` | My Requests / permitted requests | Requester, authorized reviewers | `POST /requests/search` |
-| `/requests/new` | Multi-step request wizard (create DRAFT + submit) | Requester | `POST /requests`, request-type lookup |
-| `/requests/:id` | Request detail, history, revisions, comments, files | Authorized current participant | `GET /requests/:id` and scoped subresources |
-| `/requests/:id/edit` | Multi-step wizard for working DRAFT / RETURNED revision | Owner only | `PATCH /requests/:id/draft` |
-| `/reviews` | Assigned task queue, bulk actions | Reviewer | `POST /approval-tasks/search` |
-| `/reviews/:taskId` | Task decision + current permitted request context | Assigned/delegated reviewer | `GET /approval-tasks/:id` |
-| `/delegations` | My delegation list + create/revoke | Reviewer | `/delegations/*` |
-| `/notifications` | Persistent notifications | Authenticated | `/notifications/*` |
-| `/reports` | Authorized summary + PDF export | Authenticated per scope | `/reports/requests/*` |
-| `/settings` | Account, theme, language, recovery-code regeneration | Authenticated | `/auth/me`, recovery endpoint |
-| `/admin/users` and `/admin/users/:id` | User/roles/department management | Admin | `/users/*` |
-| `/admin/departments` | Department management | Admin | `/departments/*` |
-| `/admin/request-types` and `/admin/request-types/:id` | List, create, draft/edit/publish, disable | Admin | `/admin/request-types/*` |
-| `/admin/approval-policies` and `/admin/approval-policies/:id` | Versioned one-/two-stage policy editor | Admin | `/admin/approval-policies/*` |
-| `/admin/reviewer-assignments` | Reviewer mappings/eligible reviewer lookup | Admin | `/admin/reviewer-assignments/*`, `/reviewers/eligible/search` |
-| `/admin/budget-policies` | Amount ceilings and threshold references | Admin | `/admin/budget-policies/*` |
-| `/admin/escalations` | Minimal overdue/escalation queue and reassignment | Admin | `POST /admin/approval-tasks/search` (API v1.0.1) |
-| `/unauthorized` | Access forbidden explanation | Authenticated | — |
-| `*` | Not found | Any | — |
+| Frontend route                                                | UI                                                      | Audience                        | Primary API                                                   |
+| ------------------------------------------------------------- | ------------------------------------------------------- | ------------------------------- | ------------------------------------------------------------- |
+| `/`                                                           | Public landing / redirect to dashboard if authenticated | Public                          | —                                                             |
+| `/auth/login`                                                 | Sign in                                                 | Public                          | `POST /auth/login`                                            |
+| `/auth/register`                                              | Register + recovery-code issuance flow                  | Public                          | `POST /auth/register`                                         |
+| `/auth/recover`                                               | Recovery-code password reset                            | Public                          | `POST /auth/recovery/password`                                |
+| `/auth/assisted-reset`                                        | Redeem admin-assisted one-time reset grant              | Public                          | `POST /auth/recovery/admin-grants/redeem`                     |
+| `/dashboard`                                                  | Role-aware dashboard                                    | Authenticated                   | `GET /dashboard`                                              |
+| `/requests`                                                   | My Requests / permitted requests                        | Requester, authorized reviewers | `POST /requests/search`                                       |
+| `/requests/new`                                               | Multi-step request wizard (create DRAFT + submit)       | Requester                       | `POST /requests`, request-type lookup                         |
+| `/requests/:id`                                               | Request detail, history, revisions, comments, files     | Authorized current participant  | `GET /requests/:id` and scoped subresources                   |
+| `/requests/:id/edit`                                          | Multi-step wizard for working DRAFT / RETURNED revision | Owner only                      | `PATCH /requests/:id/draft`                                   |
+| `/reviews`                                                    | Assigned task queue, bulk actions                       | Reviewer                        | `POST /approval-tasks/search`                                 |
+| `/reviews/:taskId`                                            | Task decision + current permitted request context       | Assigned/delegated reviewer     | `GET /approval-tasks/:id`                                     |
+| `/delegations`                                                | My delegation list + create/revoke                      | Reviewer                        | `/delegations/*`                                              |
+| `/notifications`                                              | Persistent notifications                                | Authenticated                   | `/notifications/*`                                            |
+| `/reports`                                                    | Authorized summary + PDF export                         | Authenticated per scope         | `/reports/requests/*`                                         |
+| `/settings`                                                   | Account, theme, language, recovery-code regeneration    | Authenticated                   | `/auth/me`, recovery endpoint                                 |
+| `/admin/users` and `/admin/users/:id`                         | User/roles/department management                        | Admin                           | `/users/*`                                                    |
+| `/admin/departments`                                          | Department management                                   | Admin                           | `/departments/*`                                              |
+| `/admin/request-types` and `/admin/request-types/:id`         | List, create, draft/edit/publish, disable               | Admin                           | `/admin/request-types/*`                                      |
+| `/admin/approval-policies` and `/admin/approval-policies/:id` | Versioned one-/two-stage policy editor                  | Admin                           | `/admin/approval-policies/*`                                  |
+| `/admin/reviewer-assignments`                                 | Reviewer mappings/eligible reviewer lookup              | Admin                           | `/admin/reviewer-assignments/*`, `/reviewers/eligible/search` |
+| `/admin/budget-policies`                                      | Amount ceilings and threshold references                | Admin                           | `/admin/budget-policies/*`                                    |
+| `/admin/escalations`                                          | Minimal overdue/escalation queue and reassignment       | Admin                           | `POST /admin/approval-tasks/search` (API v1.0.1)              |
+| `/unauthorized`                                               | Access forbidden explanation                            | Authenticated                   | —                                                             |
+| `*`                                                           | Not found                                               | Any                             | —                                                             |
 
 `/requests/:id` must **not** be shown as a full-current-record page to a historic-only reviewer. Historical task/revision projection is limited to exactly the data authorized in `api-specs.md`.
 
 ## 6. Shared component foundation
 
-| Reusable component | Requirement |
-|---|---|
-| `AppShell`, `AppSidebar`, `PageHeader`, `Breadcrumbs` | Consistent navigation, responsive structure |
-| `DataTable<T>` | Search, allowlisted filters, sort, page, row actions, loading/error/empty states |
-| `ManagedForm<T>`, `FieldRenderer` | Labels, hints, errors, required markers, validation, disable/busy behavior |
-| `LookupField<T>` | Authorized server-backed single-/multi-select for departments/reviewers |
-| `LineItemsEditor` | Editable rows, exact decimal displays, totals from server |
-| `StatusBadge`, `PriorityBadge`, `StageProgress` | Semantic text/status visuals, no color-only meaning |
-| `DetailSections`, `RequestSummary`, `RevisionViewer` | Read-only request context and pinned historical form displays |
-| `AuditTimeline`, `DecisionHistory` | Historical event list, chronological/accessible labels |
-| `DecisionDialog`, `ConfirmDialog` | Explicit action confirmation and reasons |
-| `AsyncState`, `ErrorState`, `EmptyState`, `Skeleton` | Unified fetching and recoverable feedback |
-| `NotificationEntry`, `NotificationList` | Own inbox and read state |
-| `AttachmentList`, `UploadField` | Safe private attachment actions; no public direct URLs |
+| Reusable component                                    | Requirement                                                                      |
+| ----------------------------------------------------- | -------------------------------------------------------------------------------- |
+| `AppShell`, `AppSidebar`, `PageHeader`, `Breadcrumbs` | Consistent navigation, responsive structure                                      |
+| `DataTable<T>`                                        | Search, allowlisted filters, sort, page, row actions, loading/error/empty states |
+| `ManagedForm<T>`, `FieldRenderer`                     | Labels, hints, errors, required markers, validation, disable/busy behavior       |
+| `LookupField<T>`                                      | Authorized server-backed single-/multi-select for departments/reviewers          |
+| `LineItemsEditor`                                     | Editable rows, exact decimal displays, totals from server                        |
+| `StatusBadge`, `PriorityBadge`, `StageProgress`       | Semantic text/status visuals, no color-only meaning                              |
+| `DetailSections`, `RequestSummary`, `RevisionViewer`  | Read-only request context and pinned historical form displays                    |
+| `AuditTimeline`, `DecisionHistory`                    | Historical event list, chronological/accessible labels                           |
+| `DecisionDialog`, `ConfirmDialog`                     | Explicit action confirmation and reasons                                         |
+| `AsyncState`, `ErrorState`, `EmptyState`, `Skeleton`  | Unified fetching and recoverable feedback                                        |
+| `NotificationEntry`, `NotificationList`               | Own inbox and read state                                                         |
+| `AttachmentList`, `UploadField`                       | Safe private attachment actions; no public direct URLs                           |
 
-`DataTable` always consumes server results and can render **table rows on desktop / compact cards on mobile** for main request/review collections using the *same* server-authorized result, query state, and row-action definitions; never fork the business logic. `X-Pagination` is parsed by the shared HTTP client and exposed as typed metadata. An empty dataset and a filtered zero-match list have different explanatory text.
+`DataTable` always consumes server results and can render **table rows on desktop / compact cards on mobile** for main request/review collections using the _same_ server-authorized result, query state, and row-action definitions; never fork the business logic. `X-Pagination` is parsed by the shared HTTP client and exposed as typed metadata. An empty dataset and a filtered zero-match list have different explanatory text.
 
 **IMPLEMENTATION DEFAULT:** page-size choices 10/20/50/100 bounded by frozen API max 100; debounced search 300ms; list state stored in URL search params when beneficial for deep links and navigation preservation. No client-side filtering of a paged server dataset as a substitute for authorized backend queries.
 
@@ -197,15 +197,15 @@ All paths below are **frontend React Router paths**, not API routes. Reuse featu
 
 ### 8.2 New/Edit request wizard (`/requests/new`, `/requests/:id/edit`) — UI-03 [FROZEN]
 
-A **multi-step wizard** is mandatory for creating and editing a request; it must remain compatible with dynamically configured fields and incomplete drafts. It is *not* a separate type-specific hardcoded flow. The wizard uses the existing Maintenance-style shared form foundation and Tailwind components.
+A **multi-step wizard** is mandatory for creating and editing a request; it must remain compatible with dynamically configured fields and incomplete drafts. It is _not_ a separate type-specific hardcoded flow. The wizard uses the existing Maintenance-style shared form foundation and Tailwind components.
 
-| Step | Title | Required behavior |
-|---|---|---|
-| 1 | **Request Type** | Select active/published type; display description and definition version. Warn before switching away from a type with incompatible unsaved values. For existing DRAFT/RETURNED, preserve the pinned eligible definition; do not silently change a returned type. |
-| 2 | **Basic Information** | Title, description/justification, priority and trusted department display. Server remains authoritative for identity/department. |
-| 3 | **Request Details** | Render all type-defined fields, conditional visibility and requiredness, contextual help and field-specific validation. |
-| 4 | **Items & Attachments** | Show line-item editor only when enabled; show authorized working-revision uploads only when the feature is available. If neither applies, skip this step without blank content. |
-| 5 | **Review & Submit** | Readable summary of applicable fields, totals, attachment names and policy-relevant notices; choose **Save Draft** or **Submit/Resubmit** with explicit confirmation. Final status and request number come only from the server. |
+| Step | Title                   | Required behavior                                                                                                                                                                                                                                                |
+| ---- | ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1    | **Request Type**        | Select active/published type; display description and definition version. Warn before switching away from a type with incompatible unsaved values. For existing DRAFT/RETURNED, preserve the pinned eligible definition; do not silently change a returned type. |
+| 2    | **Basic Information**   | Title, description/justification, priority and trusted department display. Server remains authoritative for identity/department.                                                                                                                                 |
+| 3    | **Request Details**     | Render all type-defined fields, conditional visibility and requiredness, contextual help and field-specific validation.                                                                                                                                          |
+| 4    | **Items & Attachments** | Show line-item editor only when enabled; show authorized working-revision uploads only when the feature is available. If neither applies, skip this step without blank content.                                                                                  |
+| 5    | **Review & Submit**     | Readable summary of applicable fields, totals, attachment names and policy-relevant notices; choose **Save Draft** or **Submit/Resubmit** with explicit confirmation. Final status and request number come only from the server.                                 |
 
 - Show a clear numbered step indicator and **Back / Next** navigation; label completed/current steps with text, not just color. Keyboard and screen-reader users can identify their current step. Allow returning to prior completed steps without losing inputs.
 - **Save Draft** is available from any wizard step **after selecting a valid published request type and version** (required by `POST /requests`), including when all other fields are incomplete. Before type selection the Save control explains why it is unavailable. For a never-saved request create DRAFT through `POST /requests`, then use `PATCH /requests/:id/draft` with its current `expectedVersion`; for a returned request edit its working revision via that same PATCH endpoint. Draft Save is not a Submit and must not create approval tasks or a request number.
@@ -344,25 +344,25 @@ Minimal filterable report tables/summaries. The UI sends the exact same authoriz
 
 ## 13. System feedback and failure matrix
 
-| Situation | UI requirement |
-|---|---|
-| Initial loading | Skeleton that approximates shape; avoid layout shift |
-| Empty dataset | Explain no records and offer relevant primary action |
-| No filter matches | Explain no matches; Reset filters action |
-| `401 UNAUTHENTICATED` | Try permitted refresh once; otherwise clear private state and redirect to login |
-| `403 FORBIDDEN` | Access explanation; safe navigation, no protected content remains rendered |
-| `404 NOT_FOUND` | Generic unavailable state, indistinguishable missing/inaccessible private record |
-| `422 VALIDATION_ERROR` | Field-level translated errors, retain editable inputs, focus first invalid field |
-| `422 FORM_FIELD_NOT_APPLICABLE` | Re-evaluate conditions, remove nonapplicable submitted key, preserve safe edits |
-| `409 FORM_DEFINITION_CHANGED` | Explain first-submit version conflict; explicitly review updated definition before retry |
-| `409 APPROVAL_TASK_STALE` | Disable old action, refetch authoritative task; do not silently resubmit |
+| Situation                                                    | UI requirement                                                                              |
+| ------------------------------------------------------------ | ------------------------------------------------------------------------------------------- |
+| Initial loading                                              | Skeleton that approximates shape; avoid layout shift                                        |
+| Empty dataset                                                | Explain no records and offer relevant primary action                                        |
+| No filter matches                                            | Explain no matches; Reset filters action                                                    |
+| `401 UNAUTHENTICATED`                                        | Try permitted refresh once; otherwise clear private state and redirect to login             |
+| `403 FORBIDDEN`                                              | Access explanation; safe navigation, no protected content remains rendered                  |
+| `404 NOT_FOUND`                                              | Generic unavailable state, indistinguishable missing/inaccessible private record            |
+| `422 VALIDATION_ERROR`                                       | Field-level translated errors, retain editable inputs, focus first invalid field            |
+| `422 FORM_FIELD_NOT_APPLICABLE`                              | Re-evaluate conditions, remove nonapplicable submitted key, preserve safe edits             |
+| `409 FORM_DEFINITION_CHANGED`                                | Explain first-submit version conflict; explicitly review updated definition before retry    |
+| `409 APPROVAL_TASK_STALE`                                    | Disable old action, refetch authoritative task; do not silently resubmit                    |
 | `409 CONFIGURATION_INCOMPLETE` / `AMBIGUOUS_APPROVAL_POLICY` | Preserve draft/returned work and explain route/configuration issue; do not claim submission |
-| `409 IDEMPOTENCY_CONFLICT` | Block key reuse for changed payload; show safe retry/new-attempt pathway |
-| `413` / `415` | Explain file size/type; preserve other attachment selections where possible |
-| `429 RATE_LIMITED` | Rate-limit message and retry guidance; do not reveal account existence |
-| `500` / `503` | Recoverable page-level error with Request ID/copyable support identifier; no stack/SQL |
-| Bulk partial failure | Per-item status and reasons, not one global success |
-| Successful terminal decision | Refetch authoritative request/task status and clear stale queue actions |
+| `409 IDEMPOTENCY_CONFLICT`                                   | Block key reuse for changed payload; show safe retry/new-attempt pathway                    |
+| `413` / `415`                                                | Explain file size/type; preserve other attachment selections where possible                 |
+| `429 RATE_LIMITED`                                           | Rate-limit message and retry guidance; do not reveal account existence                      |
+| `500` / `503`                                                | Recoverable page-level error with Request ID/copyable support identifier; no stack/SQL      |
+| Bulk partial failure                                         | Per-item status and reasons, not one global success                                         |
+| Successful terminal decision                                 | Refetch authoritative request/task status and clear stale queue actions                     |
 
 Use accessible toast for noncritical confirmations; destructive/irreversible operations require dialogs. Avoid success-only UI states that are not confirmed by API response. Never leak data from previous account/session while a new user loads.
 
@@ -403,16 +403,16 @@ Use accessible toast for noncritical confirmations; destructive/irreversible ope
 
 ### 15.2 Selected feature-to-UI coverage (complete)
 
-| Module | Feature IDs | Primary UI coverage |
-|---|---|---|
-| Identity & Access | M01, M02, M03, O09, O26, O27 | Auth, account settings, user/department admin and recovery |
-| Request Management | M04, M05, M06, M15, M17, R01, R05, R06, R07, O02, O16, O17 | New/edit requests, list, detail, drafts, line items, attachments, type configuration |
-| Assignment & Policy | M07, M13, R09, R10, O07, O08, O10, O18, O19 | Approver panel, reviewer lookup, admin routing/budget, reassignment/delegation |
-| Approval Workflow | M08, M09, M10, M11, M12, R08, R11, O13, O15 | Reviewer queue/task/decisions, 2-stage progress, bulk actions |
-| Revision & Collaboration | M14, R02, R03, R04, R16, O01 | Revision edit/resubmit, timeline, discussion |
-| Search & Experience | R12, R13, R14, R15, R17, O24, O25 | Lists, dashboard, responsive design, dark mode, localization |
-| Reporting | M16, O21 | Aggregate report table + PDF |
-| Notifications & SLA | O03, O11, O12 | Inbox, deadlines, reminders, escalations |
+| Module                   | Feature IDs                                                | Primary UI coverage                                                                  |
+| ------------------------ | ---------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| Identity & Access        | M01, M02, M03, O09, O26, O27                               | Auth, account settings, user/department admin and recovery                           |
+| Request Management       | M04, M05, M06, M15, M17, R01, R05, R06, R07, O02, O16, O17 | New/edit requests, list, detail, drafts, line items, attachments, type configuration |
+| Assignment & Policy      | M07, M13, R09, R10, O07, O08, O10, O18, O19                | Approver panel, reviewer lookup, admin routing/budget, reassignment/delegation       |
+| Approval Workflow        | M08, M09, M10, M11, M12, R08, R11, O13, O15                | Reviewer queue/task/decisions, 2-stage progress, bulk actions                        |
+| Revision & Collaboration | M14, R02, R03, R04, R16, O01                               | Revision edit/resubmit, timeline, discussion                                         |
+| Search & Experience      | R12, R13, R14, R15, R17, O24, O25                          | Lists, dashboard, responsive design, dark mode, localization                         |
+| Reporting                | M16, O21                                                   | Aggregate report table + PDF                                                         |
+| Notifications & SLA      | O03, O11, O12                                              | Inbox, deadlines, reminders, escalations                                             |
 
 ## 16. Approved API coordination — additive amendment, resolved
 
@@ -420,25 +420,25 @@ Use accessible toast for noncritical confirmations; destructive/irreversible ope
 
 - Response shape: `AdminApprovalTaskSummary[]` plus `X-Pagination`; task UUID, request UUID/number, stage number, current slot status, minimal assigned reviewer summary, current version, UTC due/created/updated timestamps and calculated overdue flag only.
 - Default queue returns active PENDING-cycle overdue actionable slots; allowlisted filters may include stage, status, reviewer and due date. A `WAITING` future-stage slot with no due date is never overdue.
-- Admin privileges allow routing discovery and the *existing* reassignment mutation, **not** private request detail, decision participation, attachments, comments or current-revision viewing.
+- Admin privileges allow routing discovery and the _existing_ reassignment mutation, **not** private request detail, decision participation, attachments, comments or current-revision viewing.
 - The admin screen handles safe 401/403/404/409/422/error results without exposing private content. API test coverage must prove non-admin denial, projection minimization, allowlisted filtering and versioned reassignment.
 
 ## 17. Frozen UI decision register
 
-| ID | Frozen decision |
-|---|---|
-| UI-01 | First visit follows system theme; user can set persistent System/Light/Dark |
-| UI-02 | Collapsible desktop sidebar, sticky top header, mobile drawer |
+| ID    | Frozen decision                                                                                    |
+| ----- | -------------------------------------------------------------------------------------------------- |
+| UI-01 | First visit follows system theme; user can set persistent System/Light/Dark                        |
+| UI-02 | Collapsible desktop sidebar, sticky top header, mobile drawer                                      |
 | UI-03 | Multi-step request creation/editing wizard; Save Draft from any step once request type is selected |
-| UI-04 | Four-tab detail: Overview, Approval, History, Discussion / Files |
-| UI-05 | Structured admin field-list + conditional-rule builder + preview |
-| UI-06 | Confirmation dialog for every formal Approve, Reject and Return |
-| UI-07 | Mobile compact cards for primary request/review collections |
-| UI-08 | Header bell and full persistent notification inbox |
-| UI-09 | Initial UI language from browser preference, then explicit user override |
-| UI-10 | Monochrome base plus neutral/amber/blue/green/red semantic status accents |
-| UI-11 | Tailwind transitions; optional modern Motion for React (`motion/react`) |
-| UI-12 | Admin-only minimal escalation task search API amendment approved |
+| UI-04 | Four-tab detail: Overview, Approval, History, Discussion / Files                                   |
+| UI-05 | Structured admin field-list + conditional-rule builder + preview                                   |
+| UI-06 | Confirmation dialog for every formal Approve, Reject and Return                                    |
+| UI-07 | Mobile compact cards for primary request/review collections                                        |
+| UI-08 | Header bell and full persistent notification inbox                                                 |
+| UI-09 | Initial UI language from browser preference, then explicit user override                           |
+| UI-10 | Monochrome base plus neutral/amber/blue/green/red semantic status accents                          |
+| UI-11 | Tailwind transitions; optional modern Motion for React (`motion/react`)                            |
+| UI-12 | Admin-only minimal escalation task search API amendment approved                                   |
 
 **[IMPLEMENTATION DEFAULT — NOT FROZEN]** Inter font, exact neutral token hex values, mobile breakpoints, card density, spacing, icon choices, search debounce, page-size selection within API caps, transition duration, header notification polling interval, wizard step URL/bookmark design, and skeleton counts. Changes to these values cannot weaken approved layout, language/theme behavior, accessibility, or authorization requirements.
 

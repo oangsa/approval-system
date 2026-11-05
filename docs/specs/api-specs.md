@@ -8,51 +8,51 @@
 **Scope:** All 54 approved features, Sprints 1–3; excludes unrelated coursework  
 **Amendment:** API-UI-ADD-01, approved with `ui-specs.md` v1.0; adds only the minimal administrator-only approval-task search
 
-> **Authority and separation.** The product specification defines *what* is required, this document defines the HTTP/data/security contract, and `ui-specs.md` will define user-facing routes and interactions. If any API interpretation conflicts with a frozen product requirement, the product requirement wins and this document requires an explicit revision. `shall`/`must` indicate binding API behavior. A value marked **[IMPLEMENTATION DEFAULT — NOT FROZEN]** may be changed through a recorded technical decision if the agreed behavior remains satisfied. The backend is Elysia + Bun using OOP/Clean Architecture, PostgreSQL + Drizzle, and shared Zod contracts in `packages/contracts`.
+> **Authority and separation.** The product specification defines _what_ is required, this document defines the HTTP/data/security contract, and `ui-specs.md` will define user-facing routes and interactions. If any API interpretation conflicts with a frozen product requirement, the product requirement wins and this document requires an explicit revision. `shall`/`must` indicate binding API behavior. A value marked **[IMPLEMENTATION DEFAULT — NOT FROZEN]** may be changed through a recorded technical decision if the agreed behavior remains satisfied. The backend is Elysia + Bun using OOP/Clean Architecture, PostgreSQL + Drizzle, and shared Zod contracts in `packages/contracts`.
 
 ## 1. Frozen decision register
 
 ### 1.1 Product decisions inherited unchanged
 
-| ID | Binding product behavior |
-|---|---|
-| DEC-01 | Admin-configurable, published and versioned request types |
-| DEC-02 | Sequential approval with parallel **ALL** voting |
-| DEC-03 | Monetary policy limits/thresholds only; no balance ledger |
-| DEC-04 | One organization, multiple departments and user roles |
-| DEC-05 | Public Requester signup, recovery codes, no OAuth |
-| DEC-06 | Business-day SLA, reminders, administrator escalation |
-| DEC-07 | Resubmission starts a fresh approval cycle |
-| DEC-08 | Time-bounded eligible reviewer delegation |
-| DEC-09 | Conditional field visibility and requiredness |
-| DEC-10 | Maximum **two** sequential approval stages |
-| DEC-11 | Trusted department assignment by Administrator |
-| DEC-12 | SLA calendar: Mon–Fri 09:00–17:00, `Asia/Bangkok`, no holiday calendar |
+| ID     | Binding product behavior                                                 |
+| ------ | ------------------------------------------------------------------------ |
+| DEC-01 | Admin-configurable, published and versioned request types                |
+| DEC-02 | Sequential approval with parallel **ALL** voting                         |
+| DEC-03 | Monetary policy limits/thresholds only; no balance ledger                |
+| DEC-04 | One organization, multiple departments and user roles                    |
+| DEC-05 | Public Requester signup, recovery codes, no OAuth                        |
+| DEC-06 | Business-day SLA, reminders, administrator escalation                    |
+| DEC-07 | Resubmission starts a fresh approval cycle                               |
+| DEC-08 | Time-bounded eligible reviewer delegation                                |
+| DEC-09 | Conditional field visibility and requiredness                            |
+| DEC-10 | Maximum **two** sequential approval stages                               |
+| DEC-11 | Trusted department assignment by Administrator                           |
+| DEC-12 | SLA calendar: Mon–Fri 09:00–17:00, `Asia/Bangkok`, no holiday calendar   |
 | DEC-13 | Returned revisions retain the original published form-definition version |
-| DEC-14 | Audited admin-assisted account reset when all recovery codes are lost |
-| DEC-15 | Submission blocked if any required reviewer cannot be resolved |
+| DEC-14 | Audited admin-assisted account reset when all recovery codes are lost    |
+| DEC-15 | Submission blocked if any required reviewer cannot be resolved           |
 
 ### 1.2 Final API decisions confirmed for v1.0
 
-| ID | Binding API decision |
-|---|---|
-| API-01 | Auth namespace **`/api/v1/auth`**, not `/authentication` |
-| API-02 | Public resource identifiers are **UUIDs**; numeric database keys may remain internal |
-| API-03 | Successful JSON responses are direct DTOs/arrays; paged arrays use **`X-Pagination`** |
+| ID     | Binding API decision                                                                                          |
+| ------ | ------------------------------------------------------------------------------------------------------------- |
+| API-01 | Auth namespace **`/api/v1/auth`**, not `/authentication`                                                      |
+| API-02 | Public resource identifiers are **UUIDs**; numeric database keys may remain internal                          |
+| API-03 | Successful JSON responses are direct DTOs/arrays; paged arrays use **`X-Pagination`**                         |
 | API-04 | Collection filtering uses **`POST /search`** with `search`, `searchTerm`, `orderBy`, `pageNumber`, `pageSize` |
-| API-05 | Maintenance-style `{statusCode,message,error}` errors extended with `code`, `details`, and `requestId` |
-| API-06 | Bounded AND/OR conditional-field groups and simple comparison operators |
-| API-07 | Reject submitted hidden/nonapplicable form values; never silently discard them |
-| API-08 | `Idempotency-Key` plus `expectedVersion` on critical applicable mutations |
-| API-09 | Approval policy precedence by explicit priority; ambiguous highest-priority tie rejects resolution |
+| API-05 | Maintenance-style `{statusCode,message,error}` errors extended with `code`, `details`, and `requestId`        |
+| API-06 | Bounded AND/OR conditional-field groups and simple comparison operators                                       |
+| API-07 | Reject submitted hidden/nonapplicable form values; never silently discard them                                |
+| API-08 | `Idempotency-Key` plus `expectedVersion` on critical applicable mutations                                     |
+| API-09 | Approval policy precedence by explicit priority; ambiguous highest-priority tie rejects resolution            |
 | API-10 | Original reviewer **or** currently eligible delegate may decide; the first valid decision claims the one slot |
-| API-11 | A former reviewer may read only their own previously handled revision/decision context |
-| API-12 | Only Requester may upload to their own `DRAFT`/`RETURNED` working revision; reviewers read only |
-| API-13 | SLA durations configurable per policy/stage, default 8 business hours |
-| API-14 | Audited admin-assisted reset uses a short-lived, one-time out-of-band grant/code |
-| API-15 | Persistent in-app notification inbox with **periodic polling**, no push subscription requirement |
-| API-16 | Stable error codes, English fallback messages; Thai/English presentation belongs in frontend |
-| API-17 | `multipart/form-data` uploads pass **through Elysia** into private object storage |
+| API-11 | A former reviewer may read only their own previously handled revision/decision context                        |
+| API-12 | Only Requester may upload to their own `DRAFT`/`RETURNED` working revision; reviewers read only               |
+| API-13 | SLA durations configurable per policy/stage, default 8 business hours                                         |
+| API-14 | Audited admin-assisted reset uses a short-lived, one-time out-of-band grant/code                              |
+| API-15 | Persistent in-app notification inbox with **periodic polling**, no push subscription requirement              |
+| API-16 | Stable error codes, English fallback messages; Thai/English presentation belongs in frontend                  |
+| API-17 | `multipart/form-data` uploads pass **through Elysia** into private object storage                             |
 
 ## 2. General HTTP and data conventions
 
@@ -99,10 +99,14 @@ A collection query has this shape:
   "pageNumber": 1,
   "pageSize": 20,
   "search": [
-    {"name":"status","condition":"EQUAL","value":"PENDING"},
-    {"name":"createdAt","condition":"GREATEROREQUAL","value":"2026-11-01T00:00:00.000Z"}
+    { "name": "status", "condition": "EQUAL", "value": "PENDING" },
+    {
+      "name": "createdAt",
+      "condition": "GREATEROREQUAL",
+      "value": "2026-11-01T00:00:00.000Z"
+    }
   ],
-  "searchTerm": {"name":"requestNumber,title","value":"equipment"},
+  "searchTerm": { "name": "requestNumber,title", "value": "equipment" },
   "orderBy": "createdAt desc"
 }
 ```
@@ -127,7 +131,11 @@ All JSON errors have the same shape:
   "error": "Conflict",
   "requestId": "7bb91ef4-5982-405f-8bd5-61b5c3cf410b",
   "details": [
-    {"field":"expectedVersion","code":"STALE_VERSION","message":"Version does not match."}
+    {
+      "field": "expectedVersion",
+      "code": "STALE_VERSION",
+      "message": "Version does not match."
+    }
   ]
 }
 ```
@@ -137,19 +145,19 @@ All JSON errors have the same shape:
 - Do not return SQL, stack traces, provider secrets, refresh credentials, recovery codes, or inaccessible resource existence.
 - API messages are not translated using `Accept-Language`. UI maps `code` and valid `details[].code` to English/Thai translations; backend English messages remain fallback only.
 
-| HTTP | Default `code` | Meaning |
-|---|---|---|
-| 400 | `BAD_REQUEST` | Malformed JSON, malformed multipart, invalid protocol syntax |
-| 401 | `UNAUTHENTICATED` | Missing/expired/invalid authentication |
-| 403 | `FORBIDDEN` | Authenticated actor lacks operation permission where disclosure is safe |
-| 404 | `NOT_FOUND` | Missing or inaccessible private object; indistinguishable by owner existence |
-| 409 | `CONFLICT` or a specific code below | Stale version, invalid state, idempotency/key collision, configuration ambiguity |
-| 413 | `FILE_TOO_LARGE` | Upload exceeds permitted limits |
-| 415 | `UNSUPPORTED_MEDIA_TYPE` | Invalid upload media type |
-| 422 | `VALIDATION_ERROR` | Well-formed input violates static or dynamic field constraints |
-| 429 | `RATE_LIMITED` | Login/recovery/other protected rate limit exceeded |
-| 500 | `INTERNAL_ERROR` | Sanitized unexpected server failure |
-| 503 | `SERVICE_UNAVAILABLE` | Temporary required backend infrastructure unavailable |
+| HTTP | Default `code`                      | Meaning                                                                          |
+| ---- | ----------------------------------- | -------------------------------------------------------------------------------- |
+| 400  | `BAD_REQUEST`                       | Malformed JSON, malformed multipart, invalid protocol syntax                     |
+| 401  | `UNAUTHENTICATED`                   | Missing/expired/invalid authentication                                           |
+| 403  | `FORBIDDEN`                         | Authenticated actor lacks operation permission where disclosure is safe          |
+| 404  | `NOT_FOUND`                         | Missing or inaccessible private object; indistinguishable by owner existence     |
+| 409  | `CONFLICT` or a specific code below | Stale version, invalid state, idempotency/key collision, configuration ambiguity |
+| 413  | `FILE_TOO_LARGE`                    | Upload exceeds permitted limits                                                  |
+| 415  | `UNSUPPORTED_MEDIA_TYPE`            | Invalid upload media type                                                        |
+| 422  | `VALIDATION_ERROR`                  | Well-formed input violates static or dynamic field constraints                   |
+| 429  | `RATE_LIMITED`                      | Login/recovery/other protected rate limit exceeded                               |
+| 500  | `INTERNAL_ERROR`                    | Sanitized unexpected server failure                                              |
+| 503  | `SERVICE_UNAVAILABLE`               | Temporary required backend infrastructure unavailable                            |
 
 Required specific codes include `BUDGET_LIMIT_EXCEEDED`, `INVALID_REQUEST_TRANSITION`, `APPROVAL_TASK_STALE`, `FORM_DEFINITION_CHANGED`, `FORM_FIELD_NOT_APPLICABLE`, `CONFIGURATION_INCOMPLETE`, `AMBIGUOUS_APPROVAL_POLICY`, `SELF_APPROVAL_FORBIDDEN`, `IDEMPOTENCY_CONFLICT`, `RECOVERY_CREDENTIAL_INVALID`, and `ASSIGNMENT_NOT_ELIGIBLE`. Their operation-specific status mapping is in §8.
 
@@ -168,7 +176,7 @@ Required specific codes include `BUDGET_LIMIT_EXCEEDED`, `INVALID_REQUEST_TRANSI
 
 - The following require `Idempotency-Key: <UUID>`: initial draft creation, first submit, resubmit, withdraw, single decision, bulk decisions, reassignment, publish of request type/policy, and admin recovery grant creation. Mutations not listed may add keys when needed; all must remain safe under retries where they affect money, permissions, or business history.
 - Critical mutable-resource operations also require `expectedVersion` as a nonnegative integer in their JSON body or documented multipart metadata; use the current request/task/config version. **First creation** has no pre-existing version and therefore requires only the key, not `expectedVersion`.
-- Idempotency identity is `(authenticated actor or verified public registration/recovery context, HTTP method, canonical path/resource, Idempotency-Key)` and includes a canonical hash of the validated semantic request body. Reuse with the same identity/body returns the same stored logical outcome without executing a second mutation; same key/scope with changed body returns `409 IDEMPOTENCY_CONFLICT`. **Secret-display exception:** accepted recovery-grant creation is idempotent as a *grant creation*, but its raw `oneTimeCode` is returned only on the first successful issuance response; later same-key replays return the grant ID/expiry with `oneTimeCode:null` and must never recreate, decrypt or redisplay the original secret. If the first response is lost, the administrator must revoke/reissue a new grant following the verified process.
+- Idempotency identity is `(authenticated actor or verified public registration/recovery context, HTTP method, canonical path/resource, Idempotency-Key)` and includes a canonical hash of the validated semantic request body. Reuse with the same identity/body returns the same stored logical outcome without executing a second mutation; same key/scope with changed body returns `409 IDEMPOTENCY_CONFLICT`. **Secret-display exception:** accepted recovery-grant creation is idempotent as a _grant creation_, but its raw `oneTimeCode` is returned only on the first successful issuance response; later same-key replays return the grant ID/expiry with `oneTimeCode:null` and must never recreate, decrypt or redisplay the original secret. If the first response is lost, the administrator must revoke/reissue a new grant following the verified process.
 - Idempotency records use durable database claims and unique constraints. A request abandoned before commit must be reclaimable without inventing or duplicating an accepted result. The resource mutation, decision/audit and successful claim completion commit consistently.
 - `expectedVersion` mismatches return `409` with a domain-specific conflict code and no business state mutation. A successful replay is evaluated **before** a stale-version rejection when its original accepted result can be proven, so client retries remain safe.
 - A concurrent approval/rejection/return/withdrawal must produce one serializable coherent state. Version checks, row locks and unique `slotId` decision constraints prevent lost updates and second votes.
@@ -187,10 +195,12 @@ type UTCDateTime = string; // ISO-8601 UTC instant
 type LocalDate = string; // YYYY-MM-DD
 type DecimalString = string; // canonical finite fixed-point representation
 type UserRole = "REQUESTER" | "REVIEWER" | "ADMINISTRATOR";
-type RequestStatus = "DRAFT" | "PENDING" | "RETURNED" | "APPROVED" | "REJECTED" | "WITHDRAWN";
+type RequestStatus =
+  "DRAFT" | "PENDING" | "RETURNED" | "APPROVED" | "REJECTED" | "WITHDRAWN";
 type Priority = "LOW" | "MEDIUM" | "HIGH" | "URGENT";
 type DecisionType = "APPROVE" | "REJECT" | "RETURN";
-type FieldKind = "TEXT" | "TEXTAREA" | "DECIMAL" | "DATE" | "SELECT" | "BOOLEAN";
+type FieldKind =
+  "TEXT" | "TEXTAREA" | "DECIMAL" | "DATE" | "SELECT" | "BOOLEAN";
 type LocalizedText = { en: string; th?: string };
 ```
 
@@ -199,16 +209,35 @@ type LocalizedText = { en: string; th?: string };
 ### 3.2 User and session DTOs
 
 ```ts
-type DepartmentSummary = { id: PublicId; code: string; name: string; isActive: boolean };
-type UserSummary = { id: PublicId; displayName: string; email: string;
-  roles: UserRole[]; isActive: boolean; department: DepartmentSummary | null };
+type DepartmentSummary = {
+  id: PublicId;
+  code: string;
+  name: string;
+  isActive: boolean;
+};
+type UserSummary = {
+  id: PublicId;
+  displayName: string;
+  email: string;
+  roles: UserRole[];
+  isActive: boolean;
+  department: DepartmentSummary | null;
+};
 type LoginRequest = { email: string; password: string };
 type LoginResponse = { accessToken: string; user: UserSummary };
 type RefreshResponse = { accessToken: string };
 type RegisterRequest = { email: string; password: string; displayName: string };
 type RegisterResponse = { user: UserSummary; recoveryCodes: string[] }; // codes shown only once
-type RecoveryResetRequest = { email: string; recoveryCode: string; newPassword: string };
-type AdminRecoveryGrant = { grantId: PublicId; expiresAt: UTCDateTime; oneTimeCode: string | null };
+type RecoveryResetRequest = {
+  email: string;
+  recoveryCode: string;
+  newPassword: string;
+};
+type AdminRecoveryGrant = {
+  grantId: PublicId;
+  expiresAt: UTCDateTime;
+  oneTimeCode: string | null;
+};
 ```
 
 - No public session/user DTO contains password hash, raw refresh token, recovery-code hash, or secret admin verification details.
@@ -221,26 +250,43 @@ type AdminRecoveryGrant = { grantId: PublicId; expiresAt: UTCDateTime; oneTimeCo
 type ConditionAtom = {
   fieldKey: string;
   operator: "EQ" | "NE" | "GT" | "GTE" | "LT" | "LTE" | "IN" | "PRESENT";
-  value?: string | boolean | DecimalString | LocalDate | Array<string | boolean | DecimalString | LocalDate>;
+  value?:
+    | string
+    | boolean
+    | DecimalString
+    | LocalDate
+    | Array<string | boolean | DecimalString | LocalDate>;
 };
 type ConditionExpr = { all?: ConditionAtom[]; any?: ConditionAtom[] };
 type RequestField = {
-  key: string; kind: FieldKind;
-  label: LocalizedText; description?: LocalizedText;
-  required: boolean; defaultValue?: unknown;
+  key: string;
+  kind: FieldKind;
+  label: LocalizedText;
+  description?: LocalizedText;
+  required: boolean;
+  defaultValue?: unknown;
   constraints?: {
-    min?: DecimalString | LocalDate; max?: DecimalString | LocalDate;
-    minLength?: number; maxLength?: number;
+    min?: DecimalString | LocalDate;
+    max?: DecimalString | LocalDate;
+    minLength?: number;
+    maxLength?: number;
     options?: Array<{ value: string; label: LocalizedText }>;
   };
   visibleWhen?: ConditionExpr;
   requiredWhen?: ConditionExpr;
 };
 type PublishedRequestType = {
-  id: PublicId; code: string; name: LocalizedText; description?: LocalizedText;
-  versionId: PublicId; versionNumber: number;
-  isEnabled: boolean; supportsLineItems: boolean; monetary: boolean;
-  fields: RequestField[]; publishedAt: UTCDateTime;
+  id: PublicId;
+  code: string;
+  name: LocalizedText;
+  description?: LocalizedText;
+  versionId: PublicId;
+  versionNumber: number;
+  isEnabled: boolean;
+  supportsLineItems: boolean;
+  monetary: boolean;
+  fields: RequestField[];
+  publishedAt: UTCDateTime;
 };
 ```
 
@@ -260,33 +306,58 @@ type PublishedRequestType = {
 
 ```ts
 type RequestLineItem = {
-  id: PublicId; description: string;
-  quantity: DecimalString; unitAmount: DecimalString; totalAmount: DecimalString;
+  id: PublicId;
+  description: string;
+  quantity: DecimalString;
+  unitAmount: DecimalString;
+  totalAmount: DecimalString;
 };
 type RequestRevision = {
-  id: PublicId; revisionNumber: number; formDefinitionVersionId: PublicId;
-  fields: Record<string, unknown>; lineItems: RequestLineItem[];
-  amount: DecimalString | null; currency: string | null;
-  submittedAt: UTCDateTime | null; submittedBy: PublicId | null;
+  id: PublicId;
+  revisionNumber: number;
+  formDefinitionVersionId: PublicId;
+  fields: Record<string, unknown>;
+  lineItems: RequestLineItem[];
+  amount: DecimalString | null;
+  currency: string | null;
+  submittedAt: UTCDateTime | null;
+  submittedBy: PublicId | null;
 };
 type RequestSummary = {
-  id: PublicId; requestNumber: string | null; typeId: PublicId;
-  typeCode: string; title: string; priority: Priority;
-  status: RequestStatus; requester: UserSummary;
+  id: PublicId;
+  requestNumber: string | null;
+  typeId: PublicId;
+  typeCode: string;
+  title: string;
+  priority: Priority;
+  status: RequestStatus;
+  requester: UserSummary;
   department: DepartmentSummary | null;
-  revisionNumber: number | null; currentCycleId: PublicId | null;
-  createdAt: UTCDateTime; updatedAt: UTCDateTime; submittedAt: UTCDateTime | null;
+  revisionNumber: number | null;
+  currentCycleId: PublicId | null;
+  createdAt: UTCDateTime;
+  updatedAt: UTCDateTime;
+  submittedAt: UTCDateTime | null;
   version: number;
 };
 type ApproverSummary = {
-  slotId: PublicId; stageNumber: 1 | 2;
+  slotId: PublicId;
+  stageNumber: 1 | 2;
   reviewer: Pick<UserSummary, "id" | "displayName">;
-  status: "WAITING" | "ACTIONABLE" | "APPROVED" | "REJECTED" | "RETURNED" | "CANCELLED";
+  status:
+    | "WAITING"
+    | "ACTIONABLE"
+    | "APPROVED"
+    | "REJECTED"
+    | "RETURNED"
+    | "CANCELLED";
 };
 type RequestDetail = RequestSummary & {
-  justification: string; workingRevision: RequestRevision | null;
+  justification: string;
+  workingRevision: RequestRevision | null;
   submittedRevision: RequestRevision | null;
-  currentStageNumber: 1 | 2 | null; currentApprovers: ApproverSummary[];
+  currentStageNumber: 1 | 2 | null;
+  currentApprovers: ApproverSummary[];
   availableActions: string[];
 };
 ```
@@ -301,39 +372,66 @@ type RequestDetail = RequestSummary & {
 
 ```ts
 type ApprovalTask = {
-  id: PublicId; slotId: PublicId; requestId: PublicId;
-  cycleId: PublicId; revisionId: PublicId; stageNumber: 1 | 2;
+  id: PublicId;
+  slotId: PublicId;
+  requestId: PublicId;
+  cycleId: PublicId;
+  revisionId: PublicId;
+  stageNumber: 1 | 2;
   assignedReviewer: Pick<UserSummary, "id" | "displayName">;
-  status: "WAITING" | "ACTIONABLE" | "APPROVED" | "REJECTED" | "RETURNED" | "CANCELLED";
-  dueAt: UTCDateTime | null; canCurrentUserDecide: boolean; version: number;
+  status:
+    | "WAITING"
+    | "ACTIONABLE"
+    | "APPROVED"
+    | "REJECTED"
+    | "RETURNED"
+    | "CANCELLED";
+  dueAt: UTCDateTime | null;
+  canCurrentUserDecide: boolean;
+  version: number;
 };
-type DecisionRequest = { decision: DecisionType; reason?: string; expectedVersion: number };
+type DecisionRequest = {
+  decision: DecisionType;
+  reason?: string;
+  expectedVersion: number;
+};
 type DecisionResult = {
-  taskId: PublicId; slotId: PublicId; decisionId: PublicId;
-  decision: DecisionType; decidedBy: PublicId; decidedAt: UTCDateTime;
-  requestStatus: RequestStatus; currentStageNumber: 1 | 2 | null;
-  requestVersion: number; taskVersion: number;
+  taskId: PublicId;
+  slotId: PublicId;
+  decisionId: PublicId;
+  decision: DecisionType;
+  decidedBy: PublicId;
+  decidedAt: UTCDateTime;
+  requestStatus: RequestStatus;
+  currentStageNumber: 1 | 2 | null;
+  requestVersion: number;
+  taskVersion: number;
 };
 type Notification = {
-  id: PublicId; kind: string; title: string; message: string;
-  requestId?: PublicId; taskId?: PublicId; createdAt: UTCDateTime;
+  id: PublicId;
+  kind: string;
+  title: string;
+  message: string;
+  requestId?: PublicId;
+  taskId?: PublicId;
+  createdAt: UTCDateTime;
   readAt: UTCDateTime | null;
 };
 ```
 
-**API-UI-ADD-01 (additive v1.0.1): Administrator task routing summary.** This is deliberately *not* the regular `ApprovalTask` or private `RequestDetail` DTO.
+**API-UI-ADD-01 (additive v1.0.1): Administrator task routing summary.** This is deliberately _not_ the regular `ApprovalTask` or private `RequestDetail` DTO.
 
 ```ts
 type AdminApprovalTaskSummary = {
-  id: PublicId;            // approval task UUID (also used by existing reassign endpoint)
-  requestId: PublicId;     // opaque request UUID, not permission for request detail
-  requestNumber: string;   // minimal human routing label, no title/description
+  id: PublicId; // approval task UUID (also used by existing reassign endpoint)
+  requestId: PublicId; // opaque request UUID, not permission for request detail
+  requestNumber: string; // minimal human routing label, no title/description
   stageNumber: 1 | 2;
   status: "WAITING" | "ACTIONABLE";
   assignedReviewer: { id: PublicId; displayName: string };
   dueAt: UTCDateTime | null;
-  overdue: boolean;        // computed from server time, true only if ACTIONABLE and past due
-  version: number;         // required by existing reassignment expectedVersion
+  overdue: boolean; // computed from server time, true only if ACTIONABLE and past due
+  version: number; // required by existing reassignment expectedVersion
   createdAt: UTCDateTime;
   updatedAt: UTCDateTime;
 };
@@ -345,21 +443,21 @@ The response MUST NOT include request title, form answers, item amounts/quantiti
 
 ## 4. Authorization and confidentiality matrix
 
-| API operation | Requester | Reviewer | Administrator |
-|---|---|---|---|
-| Public register/login/recover | Public endpoints with appropriate rate limits | Same | Same |
-| Own `GET /auth/me`, password, codes | Own session | Own session | Own session |
-| Own request draft/submit/return edit/withdraw | Own eligible request | Only if also acting as owner Requester | Only own request in Requester capacity |
-| Request content/history/comments/files | Own records | Current assigned/delegated context; handled historical snapshot only | **Not** automatically by admin role |
-| Review/approve/reject/return | Never own request | Eligible current actionable slot; not own request | Only if independently eligible Reviewer; not own request |
-| Reviewer queue | Own actionable slots, if eligible Reviewer role | Own current/delegated slots | Only if also independently eligible Reviewer |
-| Reassign outstanding slot | No | No | Admin, with minimum required request metadata |
-| Search escalation/reassignment routing metadata | No | No | Admin only; limited `AdminApprovalTaskSummary`, never request detail |
-| Configure request types/policies/assignments | No | No | Admin only |
-| User/department operations | Own basic identity read only | Own basic identity read only | Admin; no blanket access to requests |
-| Delegation create/revoke | Only if also eligible Reviewer | Own eligible reviewer scope | Own Reviewer scope, not universal act-as |
-| Notifications | Own inbox only | Own inbox only | Own inbox only |
-| Dashboard/reports/PDF | Own authorized records | Own permitted tasks/records | Policy-safe organizational counts and minimal metadata, no private payloads by default |
+| API operation                                   | Requester                                       | Reviewer                                                             | Administrator                                                                          |
+| ----------------------------------------------- | ----------------------------------------------- | -------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| Public register/login/recover                   | Public endpoints with appropriate rate limits   | Same                                                                 | Same                                                                                   |
+| Own `GET /auth/me`, password, codes             | Own session                                     | Own session                                                          | Own session                                                                            |
+| Own request draft/submit/return edit/withdraw   | Own eligible request                            | Only if also acting as owner Requester                               | Only own request in Requester capacity                                                 |
+| Request content/history/comments/files          | Own records                                     | Current assigned/delegated context; handled historical snapshot only | **Not** automatically by admin role                                                    |
+| Review/approve/reject/return                    | Never own request                               | Eligible current actionable slot; not own request                    | Only if independently eligible Reviewer; not own request                               |
+| Reviewer queue                                  | Own actionable slots, if eligible Reviewer role | Own current/delegated slots                                          | Only if also independently eligible Reviewer                                           |
+| Reassign outstanding slot                       | No                                              | No                                                                   | Admin, with minimum required request metadata                                          |
+| Search escalation/reassignment routing metadata | No                                              | No                                                                   | Admin only; limited `AdminApprovalTaskSummary`, never request detail                   |
+| Configure request types/policies/assignments    | No                                              | No                                                                   | Admin only                                                                             |
+| User/department operations                      | Own basic identity read only                    | Own basic identity read only                                         | Admin; no blanket access to requests                                                   |
+| Delegation create/revoke                        | Only if also eligible Reviewer                  | Own eligible reviewer scope                                          | Own Reviewer scope, not universal act-as                                               |
+| Notifications                                   | Own inbox only                                  | Own inbox only                                                       | Own inbox only                                                                         |
+| Dashboard/reports/PDF                           | Own authorized records                          | Own permitted tasks/records                                          | Policy-safe organizational counts and minimal metadata, no private payloads by default |
 
 - For direct resource access, a request from someone who may not learn that a private object exists returns the **same `404 NOT_FOUND`** as an absent object. A known-own-resource action with a wrong role may return `403 FORBIDDEN`.
 - A **former reviewer** may read only a revision/decision that they actually handled during a completed assignment. They cannot see later revisions, reopen task decisions, access files/comments by historical status alone, or enumerate general requests. Historical access requires a decision/handling record, not simply knowledge of a prior assignment ID. It is exposed through historical revision and task-context reads, **not** the current `/requests/:id` full detail or current-revision listing.
@@ -372,118 +470,118 @@ Every path below is **relative to `/api/v1`**. Unless labeled Public or Internal
 
 ### 5.1 Authentication and account recovery
 
-| Method | Route | Audience | Result |
-|---|---|---|---|
-| POST | `/auth/register` | Public | `201 RegisterResponse`, one-time recovery codes |
-| POST | `/auth/login` | Public | `200 LoginResponse`, refresh cookie |
-| POST | `/auth/refresh` | Cookie holder, origin/CSRF checks | `200 RefreshResponse`, rotated refresh cookie |
-| POST | `/auth/logout` | Authenticated or valid refresh-session holder, origin/CSRF checks | `200 MessageResponse`, revoke current session/clear cookie |
-| POST | `/auth/logout-all` | Authenticated | `200 MessageResponse`, revoke all sessions |
-| GET | `/auth/me` | Authenticated | `200 UserSummary` |
-| POST | `/auth/password/change` | Authenticated | `200 MessageResponse`, revoke existing sessions |
-| POST | `/auth/recovery/password` | Public, rate-limited | `200 MessageResponse` on verified code reset |
-| POST | `/auth/recovery/codes/regenerate` | Authenticated and reauthenticated | `200 {recoveryCodes:string[]}` once |
-| POST | `/auth/recovery/admin-grants/redeem` | Public, rate-limited | `200 MessageResponse` on valid grant |
-| POST | `/admin/users/:id/recovery-grants` | Administrator | `201 AdminRecoveryGrant` once |
+| Method | Route                                | Audience                                                          | Result                                                     |
+| ------ | ------------------------------------ | ----------------------------------------------------------------- | ---------------------------------------------------------- |
+| POST   | `/auth/register`                     | Public                                                            | `201 RegisterResponse`, one-time recovery codes            |
+| POST   | `/auth/login`                        | Public                                                            | `200 LoginResponse`, refresh cookie                        |
+| POST   | `/auth/refresh`                      | Cookie holder, origin/CSRF checks                                 | `200 RefreshResponse`, rotated refresh cookie              |
+| POST   | `/auth/logout`                       | Authenticated or valid refresh-session holder, origin/CSRF checks | `200 MessageResponse`, revoke current session/clear cookie |
+| POST   | `/auth/logout-all`                   | Authenticated                                                     | `200 MessageResponse`, revoke all sessions                 |
+| GET    | `/auth/me`                           | Authenticated                                                     | `200 UserSummary`                                          |
+| POST   | `/auth/password/change`              | Authenticated                                                     | `200 MessageResponse`, revoke existing sessions            |
+| POST   | `/auth/recovery/password`            | Public, rate-limited                                              | `200 MessageResponse` on verified code reset               |
+| POST   | `/auth/recovery/codes/regenerate`    | Authenticated and reauthenticated                                 | `200 {recoveryCodes:string[]}` once                        |
+| POST   | `/auth/recovery/admin-grants/redeem` | Public, rate-limited                                              | `200 MessageResponse` on valid grant                       |
+| POST   | `/admin/users/:id/recovery-grants`   | Administrator                                                     | `201 AdminRecoveryGrant` once                              |
 
 ### 5.2 Users, departments and reviewer eligibility
 
-| Method | Route | Audience | Result |
-|---|---|---|---|
-| POST | `/users/search` | Administrator | `200 UserSummary[]` + `X-Pagination` |
-| POST | `/users` | Administrator | `201 UserSummary` |
-| GET | `/users/:id` | Administrator | `200 UserSummary` |
-| PATCH | `/users/:id` | Administrator | `200 UserSummary` |
-| PUT | `/users/:id/roles` | Administrator | `200 UserSummary` |
-| PUT | `/users/:id/department` | Administrator | `200 UserSummary` |
-| POST | `/departments/search` | Administrator | `200 DepartmentSummary[]` + `X-Pagination` |
-| GET | `/departments/:id` | Authorized admin or current department member (limited DTO) | `200 DepartmentSummary` |
-| POST | `/departments` | Administrator | `201 DepartmentSummary` |
-| PATCH | `/departments/:id` | Administrator | `200 DepartmentSummary` |
-| POST | `/reviewers/eligible/search` | Administrator configuring roles/rules | `200 reviewer summaries[]` + `X-Pagination` |
+| Method | Route                        | Audience                                                    | Result                                      |
+| ------ | ---------------------------- | ----------------------------------------------------------- | ------------------------------------------- |
+| POST   | `/users/search`              | Administrator                                               | `200 UserSummary[]` + `X-Pagination`        |
+| POST   | `/users`                     | Administrator                                               | `201 UserSummary`                           |
+| GET    | `/users/:id`                 | Administrator                                               | `200 UserSummary`                           |
+| PATCH  | `/users/:id`                 | Administrator                                               | `200 UserSummary`                           |
+| PUT    | `/users/:id/roles`           | Administrator                                               | `200 UserSummary`                           |
+| PUT    | `/users/:id/department`      | Administrator                                               | `200 UserSummary`                           |
+| POST   | `/departments/search`        | Administrator                                               | `200 DepartmentSummary[]` + `X-Pagination`  |
+| GET    | `/departments/:id`           | Authorized admin or current department member (limited DTO) | `200 DepartmentSummary`                     |
+| POST   | `/departments`               | Administrator                                               | `201 DepartmentSummary`                     |
+| PATCH  | `/departments/:id`           | Administrator                                               | `200 DepartmentSummary`                     |
+| POST   | `/reviewers/eligible/search` | Administrator configuring roles/rules                       | `200 reviewer summaries[]` + `X-Pagination` |
 
 ### 5.3 Request-type definitions
 
-| Method | Route | Audience | Result |
-|---|---|---|---|
-| POST | `/request-types/search` | Authenticated, public active-type metadata only; admin may request disabled | `200 type summaries[]` + `X-Pagination` |
-| GET | `/request-types/:id` | Authorized user | `200 PublishedRequestType` or admin draft metadata |
-| GET | `/request-types/:id/versions/:versionId` | Admin, or request participant with legitimate pinned-version context | `200 PublishedRequestType` |
-| POST | `/admin/request-types` | Administrator | `201 type draft DTO` |
-| PATCH | `/admin/request-types/:id/draft` | Administrator | `200 type draft DTO` |
-| POST | `/admin/request-types/:id/draft` | Administrator | `201 type draft DTO` — branch latest published definition to a new draft |
-| POST | `/admin/request-types/:id/publish` | Administrator | `201 PublishedRequestType` |
-| POST | `/admin/request-types/:id/enable` | Administrator | `200 type summary` |
-| POST | `/admin/request-types/:id/disable` | Administrator | `200 type summary` |
+| Method | Route                                    | Audience                                                                    | Result                                                                   |
+| ------ | ---------------------------------------- | --------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| POST   | `/request-types/search`                  | Authenticated, public active-type metadata only; admin may request disabled | `200 type summaries[]` + `X-Pagination`                                  |
+| GET    | `/request-types/:id`                     | Authorized user                                                             | `200 PublishedRequestType` or admin draft metadata                       |
+| GET    | `/request-types/:id/versions/:versionId` | Admin, or request participant with legitimate pinned-version context        | `200 PublishedRequestType`                                               |
+| POST   | `/admin/request-types`                   | Administrator                                                               | `201 type draft DTO`                                                     |
+| PATCH  | `/admin/request-types/:id/draft`         | Administrator                                                               | `200 type draft DTO`                                                     |
+| POST   | `/admin/request-types/:id/draft`         | Administrator                                                               | `201 type draft DTO` — branch latest published definition to a new draft |
+| POST   | `/admin/request-types/:id/publish`       | Administrator                                                               | `201 PublishedRequestType`                                               |
+| POST   | `/admin/request-types/:id/enable`        | Administrator                                                               | `200 type summary`                                                       |
+| POST   | `/admin/request-types/:id/disable`       | Administrator                                                               | `200 type summary`                                                       |
 
 ### 5.4 Requests, revisions and status
 
-| Method | Route | Audience | Result |
-|---|---|---|---|
-| POST | `/requests/search` | Authenticated; visibility scope | `200 RequestSummary[]` + `X-Pagination` |
-| POST | `/requests` | Requester with active account | `201 RequestDetail` (DRAFT) |
-| GET | `/requests/:id` | Owner or current authorized reviewer only; no historic-only detail access | `200 RequestDetail` |
-| PATCH | `/requests/:id/draft` | Owner with `DRAFT`/`RETURNED` working revision | `200 RequestDetail` |
-| POST | `/requests/:id/submit` | Owner DRAFT, assigned department | `200 RequestDetail` |
-| POST | `/requests/:id/resubmit` | Owner RETURNED, assigned department | `200 RequestDetail` |
-| POST | `/requests/:id/withdraw` | Owner PENDING | `200 RequestDetail` |
-| GET | `/requests/:id/revisions` | Owner/current reviewer only | `200 revision metadata[]` |
-| GET | `/requests/:id/revisions/:revisionId` | Owner/current reviewer or qualifying historic handler | `200 RequestRevision` |
-| GET | `/requests/:id/timeline` | Authorized request participant | `200 audit timeline item[]` |
-| GET | `/requests/:id/approvers` | Authorized request participant; minimal reviewer summaries | `200 ApproverSummary[]` |
+| Method | Route                                 | Audience                                                                  | Result                                  |
+| ------ | ------------------------------------- | ------------------------------------------------------------------------- | --------------------------------------- |
+| POST   | `/requests/search`                    | Authenticated; visibility scope                                           | `200 RequestSummary[]` + `X-Pagination` |
+| POST   | `/requests`                           | Requester with active account                                             | `201 RequestDetail` (DRAFT)             |
+| GET    | `/requests/:id`                       | Owner or current authorized reviewer only; no historic-only detail access | `200 RequestDetail`                     |
+| PATCH  | `/requests/:id/draft`                 | Owner with `DRAFT`/`RETURNED` working revision                            | `200 RequestDetail`                     |
+| POST   | `/requests/:id/submit`                | Owner DRAFT, assigned department                                          | `200 RequestDetail`                     |
+| POST   | `/requests/:id/resubmit`              | Owner RETURNED, assigned department                                       | `200 RequestDetail`                     |
+| POST   | `/requests/:id/withdraw`              | Owner PENDING                                                             | `200 RequestDetail`                     |
+| GET    | `/requests/:id/revisions`             | Owner/current reviewer only                                               | `200 revision metadata[]`               |
+| GET    | `/requests/:id/revisions/:revisionId` | Owner/current reviewer or qualifying historic handler                     | `200 RequestRevision`                   |
+| GET    | `/requests/:id/timeline`              | Authorized request participant                                            | `200 audit timeline item[]`             |
+| GET    | `/requests/:id/approvers`             | Authorized request participant; minimal reviewer summaries                | `200 ApproverSummary[]`                 |
 
 ### 5.5 Approval tasks and decisions
 
-| Method | Route | Audience | Result |
-|---|---|---|---|
-| POST | `/approval-tasks/search` | Reviewer own current/delegated tasks only | `200 ApprovalTask[]` + `X-Pagination` |
-| POST | `/admin/approval-tasks/search` | Administrator only; routing metadata for undecided active PENDING-cycle slots | `200 AdminApprovalTaskSummary[]` + `X-Pagination` |
-| GET | `/approval-tasks/:id` | Current eligible reviewer; approved historical projection to handler | `200 ApprovalTask` |
-| POST | `/approval-tasks/:id/decisions` | Eligible reviewer/delegate | `201 DecisionResult` |
-| POST | `/approval-tasks/bulk-decisions` | Eligible reviewer/delegate | `200 BulkDecisionResult` |
-| POST | `/approval-tasks/:id/reassign` | Administrator, any undecided slot in active PENDING cycle | `200 ApprovalTask` |
+| Method | Route                            | Audience                                                                      | Result                                            |
+| ------ | -------------------------------- | ----------------------------------------------------------------------------- | ------------------------------------------------- |
+| POST   | `/approval-tasks/search`         | Reviewer own current/delegated tasks only                                     | `200 ApprovalTask[]` + `X-Pagination`             |
+| POST   | `/admin/approval-tasks/search`   | Administrator only; routing metadata for undecided active PENDING-cycle slots | `200 AdminApprovalTaskSummary[]` + `X-Pagination` |
+| GET    | `/approval-tasks/:id`            | Current eligible reviewer; approved historical projection to handler          | `200 ApprovalTask`                                |
+| POST   | `/approval-tasks/:id/decisions`  | Eligible reviewer/delegate                                                    | `201 DecisionResult`                              |
+| POST   | `/approval-tasks/bulk-decisions` | Eligible reviewer/delegate                                                    | `200 BulkDecisionResult`                          |
+| POST   | `/approval-tasks/:id/reassign`   | Administrator, any undecided slot in active PENDING cycle                     | `200 ApprovalTask`                                |
 
 ### 5.6 Approval policies, reviewer mapping and delegation
 
-| Method | Route | Audience | Result |
-|---|---|---|---|
-| POST | `/admin/approval-policies/search` | Administrator | `200 policy summaries[]` + `X-Pagination` |
-| POST | `/admin/approval-policies` | Administrator | `201 policy draft DTO` |
-| PATCH | `/admin/approval-policies/:id/draft` | Administrator | `200 policy draft DTO` |
-| POST | `/admin/approval-policies/:id/draft` | Administrator | `201 policy draft DTO` — create next editable version |
-| POST | `/admin/approval-policies/:id/publish` | Administrator | `201 published policy DTO` |
-| POST | `/admin/approval-policies/:id/disable` | Administrator | `200 policy summary`; future cycles only |
-| POST | `/admin/reviewer-assignments/search` | Administrator | `200 assignment summaries[]` + `X-Pagination` |
-| POST | `/admin/reviewer-assignments` | Administrator | `201 assignment DTO` |
-| PATCH | `/admin/reviewer-assignments/:id` | Administrator | `200 assignment DTO` |
-| POST | `/admin/budget-policies/search` | Administrator | `200 budget policy summaries[]` + `X-Pagination` |
-| POST | `/admin/budget-policies` | Administrator | `201 budget policy DTO` |
-| PATCH | `/admin/budget-policies/:id` | Administrator | `200 budget policy DTO` |
-| POST | `/delegations/search` | Eligible Reviewer, own delegation scope | `200 delegation DTO[]` + `X-Pagination` |
-| POST | `/delegations` | Eligible Reviewer | `201 delegation DTO` |
-| POST | `/delegations/:id/revoke` | Delegation owner or authorized Admin | `200 delegation DTO` |
+| Method | Route                                  | Audience                                | Result                                                |
+| ------ | -------------------------------------- | --------------------------------------- | ----------------------------------------------------- |
+| POST   | `/admin/approval-policies/search`      | Administrator                           | `200 policy summaries[]` + `X-Pagination`             |
+| POST   | `/admin/approval-policies`             | Administrator                           | `201 policy draft DTO`                                |
+| PATCH  | `/admin/approval-policies/:id/draft`   | Administrator                           | `200 policy draft DTO`                                |
+| POST   | `/admin/approval-policies/:id/draft`   | Administrator                           | `201 policy draft DTO` — create next editable version |
+| POST   | `/admin/approval-policies/:id/publish` | Administrator                           | `201 published policy DTO`                            |
+| POST   | `/admin/approval-policies/:id/disable` | Administrator                           | `200 policy summary`; future cycles only              |
+| POST   | `/admin/reviewer-assignments/search`   | Administrator                           | `200 assignment summaries[]` + `X-Pagination`         |
+| POST   | `/admin/reviewer-assignments`          | Administrator                           | `201 assignment DTO`                                  |
+| PATCH  | `/admin/reviewer-assignments/:id`      | Administrator                           | `200 assignment DTO`                                  |
+| POST   | `/admin/budget-policies/search`        | Administrator                           | `200 budget policy summaries[]` + `X-Pagination`      |
+| POST   | `/admin/budget-policies`               | Administrator                           | `201 budget policy DTO`                               |
+| PATCH  | `/admin/budget-policies/:id`           | Administrator                           | `200 budget policy DTO`                               |
+| POST   | `/delegations/search`                  | Eligible Reviewer, own delegation scope | `200 delegation DTO[]` + `X-Pagination`               |
+| POST   | `/delegations`                         | Eligible Reviewer                       | `201 delegation DTO`                                  |
+| POST   | `/delegations/:id/revoke`              | Delegation owner or authorized Admin    | `200 delegation DTO`                                  |
 
 ### 5.7 Comments and attachments
 
-| Method | Route | Audience | Result |
-|---|---|---|---|
-| GET | `/requests/:id/comments` | Authorized current request participant | `200 comment DTO[]` (bounded pagination) |
-| POST | `/requests/:id/comments` | Authorized current request participant | `201 comment DTO` |
-| GET | `/requests/:id/attachments` | Authorized current request participant | `200 attachment metadata[]` |
-| POST | `/requests/:id/attachments` | Owner only when DRAFT/RETURNED | `201 attachment metadata`, Elysia multipart |
-| DELETE | `/requests/:id/attachments/:attachmentId` | Owner only on working revision | `204 No Content`; submitted evidence cannot be deleted |
-| GET | `/attachments/:id/download` | Authorized currently entitled requester/reviewer | Binary stream, safe download headers |
+| Method | Route                                     | Audience                                         | Result                                                 |
+| ------ | ----------------------------------------- | ------------------------------------------------ | ------------------------------------------------------ |
+| GET    | `/requests/:id/comments`                  | Authorized current request participant           | `200 comment DTO[]` (bounded pagination)               |
+| POST   | `/requests/:id/comments`                  | Authorized current request participant           | `201 comment DTO`                                      |
+| GET    | `/requests/:id/attachments`               | Authorized current request participant           | `200 attachment metadata[]`                            |
+| POST   | `/requests/:id/attachments`               | Owner only when DRAFT/RETURNED                   | `201 attachment metadata`, Elysia multipart            |
+| DELETE | `/requests/:id/attachments/:attachmentId` | Owner only on working revision                   | `204 No Content`; submitted evidence cannot be deleted |
+| GET    | `/attachments/:id/download`               | Authorized currently entitled requester/reviewer | Binary stream, safe download headers                   |
 
 ### 5.8 In-app notifications, SLA jobs and reports
 
-| Method | Route | Audience | Result |
-|---|---|---|---|
-| POST | `/notifications/search` | Own authenticated inbox | `200 Notification[]` + `X-Pagination` |
-| PATCH | `/notifications/:id/read` | Own notification | `200 Notification` |
-| POST | `/notifications/mark-all-read` | Own notification inbox | `200 {updatedCount:number}` |
-| GET | `/dashboard` | Authenticated | `200 role-appropriate dashboard DTO` |
-| POST | `/reports/requests/search` | Authenticated authorized report scope | `200 report aggregate DTO[]` + `X-Pagination` when collection |
-| POST | `/reports/requests/pdf` | Authenticated authorized report scope | `200 application/pdf` stream |
+| Method | Route                          | Audience                              | Result                                                        |
+| ------ | ------------------------------ | ------------------------------------- | ------------------------------------------------------------- |
+| POST   | `/notifications/search`        | Own authenticated inbox               | `200 Notification[]` + `X-Pagination`                         |
+| PATCH  | `/notifications/:id/read`      | Own notification                      | `200 Notification`                                            |
+| POST   | `/notifications/mark-all-read` | Own notification inbox                | `200 {updatedCount:number}`                                   |
+| GET    | `/dashboard`                   | Authenticated                         | `200 role-appropriate dashboard DTO`                          |
+| POST   | `/reports/requests/search`     | Authenticated authorized report scope | `200 report aggregate DTO[]` + `X-Pagination` when collection |
+| POST   | `/reports/requests/pdf`        | Authenticated authorized report scope | `200 application/pdf` stream                                  |
 
 **Internal-only:** `POST /internal/jobs/sla-process` is deliberately **outside `/api/v1`** and accepts a trusted machine/service identity, not user Bearer tokens or a public caller flag. `GET /healthz` may be unauthenticated liveness only; `GET /api/versions` is public. Swagger/OpenAPI is generated from the route/static Zod contracts and can be hidden or secured depending on deployment.
 
@@ -491,19 +589,19 @@ Every path below is **relative to `/api/v1`**. Unless labeled Public or Internal
 
 ### 6.1 Authentication and recovery
 
-| Operation | Request JSON | Important output / rule |
-|---|---|---|
-| `POST /auth/register` | `{email,password,displayName}` | `201 {user,recoveryCodes}`; Requester only, no department; codes shown once |
-| `POST /auth/login` | `{email,password}` | `200 {accessToken,user}` + refresh cookie; no partial session on failure |
-| `POST /auth/refresh` | No JSON body; HttpOnly cookie | `200 {accessToken}` + new one-time refresh cookie; reuse revokes family |
-| `POST /auth/logout` | Empty | `200 {message}`; revoke current refresh session, clear cookie; origin defense for cookie use |
-| `POST /auth/logout-all` | Empty | `200 {message}`; revoke all current-user sessions |
-| `GET /auth/me` | None | `200 UserSummary` read from current authoritative account/role status |
-| `POST /auth/password/change` | `{currentPassword,newPassword}` | `200 {message}`; invalidate old sessions |
-| `POST /auth/recovery/password` | `{email,recoveryCode,newPassword}` | Single-use code, password hash replacement, session revocation, audit; failures do not reveal account membership |
-| `POST /auth/recovery/codes/regenerate` | `{currentPassword}` | `200 {recoveryCodes}` once; old codes invalidated |
-| `POST /admin/users/:id/recovery-grants` | `{verificationAttestation,reason,expectedVersion}` + key | `201 {grantId,expiresAt,oneTimeCode}` once (replay `oneTimeCode:null`), audited; admin must have independently verified identity |
-| `POST /auth/recovery/admin-grants/redeem` | `{email,oneTimeCode,newPassword}` | `200 {message}` after one-time grant consumption, password update and session revocation |
+| Operation                                 | Request JSON                                             | Important output / rule                                                                                                          |
+| ----------------------------------------- | -------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `POST /auth/register`                     | `{email,password,displayName}`                           | `201 {user,recoveryCodes}`; Requester only, no department; codes shown once                                                      |
+| `POST /auth/login`                        | `{email,password}`                                       | `200 {accessToken,user}` + refresh cookie; no partial session on failure                                                         |
+| `POST /auth/refresh`                      | No JSON body; HttpOnly cookie                            | `200 {accessToken}` + new one-time refresh cookie; reuse revokes family                                                          |
+| `POST /auth/logout`                       | Empty                                                    | `200 {message}`; revoke current refresh session, clear cookie; origin defense for cookie use                                     |
+| `POST /auth/logout-all`                   | Empty                                                    | `200 {message}`; revoke all current-user sessions                                                                                |
+| `GET /auth/me`                            | None                                                     | `200 UserSummary` read from current authoritative account/role status                                                            |
+| `POST /auth/password/change`              | `{currentPassword,newPassword}`                          | `200 {message}`; invalidate old sessions                                                                                         |
+| `POST /auth/recovery/password`            | `{email,recoveryCode,newPassword}`                       | Single-use code, password hash replacement, session revocation, audit; failures do not reveal account membership                 |
+| `POST /auth/recovery/codes/regenerate`    | `{currentPassword}`                                      | `200 {recoveryCodes}` once; old codes invalidated                                                                                |
+| `POST /admin/users/:id/recovery-grants`   | `{verificationAttestation,reason,expectedVersion}` + key | `201 {grantId,expiresAt,oneTimeCode}` once (replay `oneTimeCode:null`), audited; admin must have independently verified identity |
+| `POST /auth/recovery/admin-grants/redeem` | `{email,oneTimeCode,newPassword}`                        | `200 {message}` after one-time grant consumption, password update and session revocation                                         |
 
 - Register/login and recovery operations are rate-limited; password-recovery failures return indistinguishable safe responses/codes for unknown accounts vs invalid credentials, except that a successful reset is observable to the holder of valid proof.
 - A request to issue a grant does **not** programmatically verify a claimant's identity; administrative off-system verification is required and attested. The grant must be handed over through a secure, separately authenticated channel. Do not log or email it automatically.
@@ -512,14 +610,14 @@ Every path below is **relative to `/api/v1`**. Unless labeled Public or Internal
 
 ### 6.2 User and department mutations
 
-| Endpoint | Request JSON | Constraints |
-|---|---|---|
-| `POST /users` | `{email,displayName,initialPassword,roles?,departmentId?}` | Admin only; effective role creation restricted to approved values; no plaintext password on read; safe first-login process |
-| `PATCH /users/:id` | `{displayName?,isActive?,expectedVersion}` | Last active Admin cannot be disabled; role/session eligibility rechecked |
-| `PUT /users/:id/roles` | `{roles:UserRole[],expectedVersion}` | At least one role, only Admin may change; protect last active Admin; session invalidation on change |
-| `PUT /users/:id/department` | `{departmentId:PublicId|null,expectedVersion}` | Department must be active; trusted membership audit; affects future submissions, not historical department snapshots |
-| `POST /departments` | `{code,name}` | Unique stable code; creates active department |
-| `PATCH /departments/:id` | `{name?,isActive?,expectedVersion}` | Do not silently rewrite in-flight requests or reviewer slots |
+| Endpoint                    | Request JSON                                               | Constraints                                                                                                                |
+| --------------------------- | ---------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `POST /users`               | `{email,displayName,initialPassword,roles?,departmentId?}` | Admin only; effective role creation restricted to approved values; no plaintext password on read; safe first-login process |
+| `PATCH /users/:id`          | `{displayName?,isActive?,expectedVersion}`                 | Last active Admin cannot be disabled; role/session eligibility rechecked                                                   |
+| `PUT /users/:id/roles`      | `{roles:UserRole[],expectedVersion}`                       | At least one role, only Admin may change; protect last active Admin; session invalidation on change                        |
+| `PUT /users/:id/department` | `{departmentId:PublicId                                    | null,expectedVersion}`                                                                                                     | Department must be active; trusted membership audit; affects future submissions, not historical department snapshots |
+| `POST /departments`         | `{code,name}`                                              | Unique stable code; creates active department                                                                              |
+| `PATCH /departments/:id`    | `{name?,isActive?,expectedVersion}`                        | Do not silently rewrite in-flight requests or reviewer slots                                                               |
 
 Admin account changes must not authorize administrative reading of unrelated confidential forms. All write actors and changed fields appear in the administrative audit stream.
 
@@ -530,15 +628,32 @@ Create admin draft:
 ```json
 {
   "code": "PURCHASE",
-  "name": {"en": "Purchase request", "th": "คำขอจัดซื้อ"},
-  "description": {"en": "Request equipment or supplies"},
+  "name": { "en": "Purchase request", "th": "คำขอจัดซื้อ" },
+  "description": { "en": "Request equipment or supplies" },
   "monetary": true,
   "supportsLineItems": true,
   "fields": [
-    {"key":"category","kind":"SELECT","label":{"en":"Category"},"required":true,
-      "constraints":{"options":[{"value":"IT","label":{"en":"IT"}},{"value":"OTHER","label":{"en":"Other"}}]}},
-    {"key":"reason","kind":"TEXTAREA","label":{"en":"Reason"},"required":false,
-      "visibleWhen":{"all":[{"fieldKey":"category","operator":"EQ","value":"OTHER"}]}}
+    {
+      "key": "category",
+      "kind": "SELECT",
+      "label": { "en": "Category" },
+      "required": true,
+      "constraints": {
+        "options": [
+          { "value": "IT", "label": { "en": "IT" } },
+          { "value": "OTHER", "label": { "en": "Other" } }
+        ]
+      }
+    },
+    {
+      "key": "reason",
+      "kind": "TEXTAREA",
+      "label": { "en": "Reason" },
+      "required": false,
+      "visibleWhen": {
+        "all": [{ "fieldKey": "category", "operator": "EQ", "value": "OTHER" }]
+      }
+    }
   ]
 }
 ```
@@ -547,7 +662,7 @@ Create admin draft:
 - `POST /admin/request-types/:id/publish` sends `{expectedVersion}` + `Idempotency-Key`, validates the complete field/condition graph and returns the published immutable version. Concurrent or stale publication returns `409` with no new version.
 - `POST /admin/request-types/:id/disable` sends `{expectedVersion}`; no new requests of that type are permitted, but existing returned requests may still edit/resubmit their pinned version as long as other current policies remain valid.
 - `GET /request-types/:id` for an ordinary requester exposes only necessary active published metadata; admin endpoints can inspect unpublished drafts. Returned owners can retrieve their pinned historical definition through an authorized read context.
-- A request draft includes `typeId` and the form version the user rendered. Before *first* submission, the server requires the currently active published form version. A stale `formDefinitionVersionId` returns `409 FORM_DEFINITION_CHANGED`; the user must review/revalidate their saved draft against the latest version. It must **not** silently transform a submitted revision.
+- A request draft includes `typeId` and the form version the user rendered. Before _first_ submission, the server requires the currently active published form version. A stale `formDefinitionVersionId` returns `409 FORM_DEFINITION_CHANGED`; the user must review/revalidate their saved draft against the latest version. It must **not** silently transform a submitted revision.
 
 ### 6.4 Request draft and submission
 
@@ -560,8 +675,10 @@ Create a DRAFT:
   "title": "New laptops",
   "justification": "New equipment for onboarding",
   "priority": "MEDIUM",
-  "fields": {"category": "IT"},
-  "lineItems": [ {"description":"Laptop","quantity":"2","unitAmount":"19000.00"} ]
+  "fields": { "category": "IT" },
+  "lineItems": [
+    { "description": "Laptop", "quantity": "2", "unitAmount": "19000.00" }
+  ]
 }
 ```
 
@@ -574,14 +691,18 @@ Create a DRAFT:
 - `POST /requests/:id/submit` body `{expectedVersion}` + `Idempotency-Key`; only DRAFT, mandatory trusted active department, full dynamic validation, authoritative amount/limit, current policy/slot eligibility. On success first assign number and create immutable revision/cycle/stages/slots/audit and `PENDING`.
 - `POST /requests/:id/resubmit` body `{expectedVersion}` + `Idempotency-Key`; only RETURNED, pinned form definition, current policy and new approval cycle. Earlier votes never transfer.
 - `POST /requests/:id/withdraw` body `{expectedVersion,reason?}` + `Idempotency-Key`; only owner of PENDING request; closes unfinished tasks, preserves past history.
-- `GET /requests/:id/revisions` lists revisions only for the owner or currently authorized participant; `GET /requests/:id/revisions/:revisionId` allows an explicitly entitled former handler to read *only* their handled revision. `GET .../timeline` returns typed, timestamped audit items with actor and scope-safe details. History reads must use bounded paging for potentially long collections.
+- `GET /requests/:id/revisions` lists revisions only for the owner or currently authorized participant; `GET /requests/:id/revisions/:revisionId` allows an explicitly entitled former handler to read _only_ their handled revision. `GET .../timeline` returns typed, timestamped audit items with actor and scope-safe details. History reads must use bounded paging for potentially long collections.
 
 ### 6.5 Reviewer decisions, reassignment and bulk
 
 Single decision request:
 
 ```json
-{ "decision": "REJECT", "reason": "Please provide a breakdown of expenses.", "expectedVersion": 3 }
+{
+  "decision": "REJECT",
+  "reason": "Please provide a breakdown of expenses.",
+  "expectedVersion": 3
+}
 ```
 
 `POST /approval-tasks/:id/decisions` requires `Idempotency-Key`, validates active actor/slot/stage/cycle/revision, and creates **one effective decision**. For `REJECT`/`RETURN`, `reason` is required. `APPROVE` may include an optional reason. It returns a direct `DecisionResult` with request/task versions and current request status.
@@ -598,14 +719,14 @@ Single decision request:
 
 **Request body:** Uses the standard §2.3 `POST /search` body with `pageNumber`, `pageSize`, `search`, `searchTerm`, and `orderBy`. Only the following searchable/sortable public fields are allowed:
 
-| Public field | Conditions | Notes |
-|---|---|---|
-| `status` | `EQUAL`, `NOTEQUAL` | Only `WAITING` or `ACTIONABLE`; no terminal tasks |
-| `overdue` | `EQUAL` | Boolean; derived by server, not stored client assertion |
-| `stageNumber` | `EQUAL` | 1 or 2 |
-| `assignedReviewerId` | `EQUAL` | Reviewer UUID; candidate reviewer scope still checked on reassignment |
-| `dueAt` | `GREATER`, `LESSER`, `GREATEROREQUAL`, `LESSEROREQUAL`, `ISNULL`, `ISNOTNULL` | UTC timestamp, server compares to current clock for overdue |
-| `requestNumber` | `EQUAL`, `CONTAINS`, `STARTWITH` | Safe routing label only, not title/body search |
+| Public field         | Conditions                                                                    | Notes                                                                 |
+| -------------------- | ----------------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| `status`             | `EQUAL`, `NOTEQUAL`                                                           | Only `WAITING` or `ACTIONABLE`; no terminal tasks                     |
+| `overdue`            | `EQUAL`                                                                       | Boolean; derived by server, not stored client assertion               |
+| `stageNumber`        | `EQUAL`                                                                       | 1 or 2                                                                |
+| `assignedReviewerId` | `EQUAL`                                                                       | Reviewer UUID; candidate reviewer scope still checked on reassignment |
+| `dueAt`              | `GREATER`, `LESSER`, `GREATEROREQUAL`, `LESSEROREQUAL`, `ISNULL`, `ISNOTNULL` | UTC timestamp, server compares to current clock for overdue           |
+| `requestNumber`      | `EQUAL`, `CONTAINS`, `STARTWITH`                                              | Safe routing label only, not title/body search                        |
 
 Allowlisted `orderBy` values are `dueAt asc|desc`, `updatedAt asc|desc`, `createdAt asc|desc`, and `requestNumber asc|desc` with stable UUID tiebreaker. `searchTerm` may target only `requestNumber`. Unknown fields, unsupported sorting, hidden relations, and unbounded queries return `422 VALIDATION_ERROR`. Normal pagination maximums and CORS `X-Pagination` exposure apply.
 
@@ -634,8 +755,16 @@ Example:
   "minAmount": "0.00",
   "maxAmount": "10000.00",
   "stages": [
-    {"stageNumber":1,"slaBusinessMinutes":480,"reviewerAssignmentKeys":["DEPT_APPROVER"]},
-    {"stageNumber":2,"slaBusinessMinutes":480,"reviewerAssignmentKeys":["FINANCE_REVIEWER_A","FINANCE_REVIEWER_B"]}
+    {
+      "stageNumber": 1,
+      "slaBusinessMinutes": 480,
+      "reviewerAssignmentKeys": ["DEPT_APPROVER"]
+    },
+    {
+      "stageNumber": 2,
+      "slaBusinessMinutes": 480,
+      "reviewerAssignmentKeys": ["FINANCE_REVIEWER_A", "FINANCE_REVIEWER_B"]
+    }
   ]
 }
 ```
@@ -675,56 +804,110 @@ The following are **binding field groups**, expressed in TypeScript-like notatio
 
 ```ts
 type AuditTimelineItem = {
-  id: PublicId; requestId: PublicId; cycleId: PublicId | null;
-  revisionId: PublicId | null; eventType: string; actor: { id: PublicId; displayName: string } | null;
-  occurredAt: UTCDateTime; note: string | null; metadata: Record<string, string | number | boolean | null>;
+  id: PublicId;
+  requestId: PublicId;
+  cycleId: PublicId | null;
+  revisionId: PublicId | null;
+  eventType: string;
+  actor: { id: PublicId; displayName: string } | null;
+  occurredAt: UTCDateTime;
+  note: string | null;
+  metadata: Record<string, string | number | boolean | null>;
 };
 type CommentDTO = {
-  id: PublicId; requestId: PublicId; author: { id: PublicId; displayName: string };
-  body: string; createdAt: UTCDateTime;
+  id: PublicId;
+  requestId: PublicId;
+  author: { id: PublicId; displayName: string };
+  body: string;
+  createdAt: UTCDateTime;
 };
 type AttachmentDTO = {
-  id: PublicId; requestId: PublicId; workingOrSubmittedRevisionId: PublicId;
-  fileName: string; mediaType: string; sizeBytes: number;
-  uploadedBy: PublicId; uploadedAt: UTCDateTime;
+  id: PublicId;
+  requestId: PublicId;
+  workingOrSubmittedRevisionId: PublicId;
+  fileName: string;
+  mediaType: string;
+  sizeBytes: number;
+  uploadedBy: PublicId;
+  uploadedAt: UTCDateTime;
 };
 type DelegationDTO = {
-  id: PublicId; originalReviewerId: PublicId; delegateUserId: PublicId;
-  startsAt: UTCDateTime; endsAt: UTCDateTime; scope: {taskIds: PublicId[]};
+  id: PublicId;
+  originalReviewerId: PublicId;
+  delegateUserId: PublicId;
+  startsAt: UTCDateTime;
+  endsAt: UTCDateTime;
+  scope: { taskIds: PublicId[] };
   status: "ACTIVE" | "SCHEDULED" | "EXPIRED" | "REVOKED";
   version: number;
 };
 type BudgetPolicyDTO = {
-  id: PublicId; typeId: PublicId; departmentId: PublicId | null;
-  maxAmount: DecimalString; isActive: boolean; version: number;
+  id: PublicId;
+  typeId: PublicId;
+  departmentId: PublicId | null;
+  maxAmount: DecimalString;
+  isActive: boolean;
+  version: number;
 };
 type AssignmentRuleDTO = {
-  id: PublicId; key: string; departmentId: PublicId | null;
-  reviewerUserIds: PublicId[]; isActive: boolean; version: number;
+  id: PublicId;
+  key: string;
+  departmentId: PublicId | null;
+  reviewerUserIds: PublicId[];
+  isActive: boolean;
+  version: number;
 };
 type ApprovalPolicyDTO = {
-  id: PublicId; code: string; versionId: PublicId | null;
-  versionNumber: number | null; isPublished: boolean; isEnabled: boolean;
-  priority: number; typeId: PublicId; departmentId: PublicId | null;
-  minAmount: DecimalString | null; maxAmount: DecimalString | null;
-  stages: Array<{stageNumber:1|2; reviewerAssignmentKeys:string[]; slaBusinessMinutes:number}>;
+  id: PublicId;
+  code: string;
+  versionId: PublicId | null;
+  versionNumber: number | null;
+  isPublished: boolean;
+  isEnabled: boolean;
+  priority: number;
+  typeId: PublicId;
+  departmentId: PublicId | null;
+  minAmount: DecimalString | null;
+  maxAmount: DecimalString | null;
+  stages: Array<{
+    stageNumber: 1 | 2;
+    reviewerAssignmentKeys: string[];
+    slaBusinessMinutes: number;
+  }>;
   version: number;
 };
 type BulkDecisionItem = {
-  taskId: PublicId; decision: DecisionType; reason?: string; expectedVersion: number;
+  taskId: PublicId;
+  decision: DecisionType;
+  reason?: string;
+  expectedVersion: number;
 };
 type BulkDecisionResult = {
-  results: Array<{ taskId: PublicId; ok: true; result: DecisionResult } |
-                 { taskId: PublicId; ok: false; error: {statusCode:number; code:string; message:string} }>;
-  succeeded: number; failed: number;
+  results: Array<
+    | { taskId: PublicId; ok: true; result: DecisionResult }
+    | {
+        taskId: PublicId;
+        ok: false;
+        error: { statusCode: number; code: string; message: string };
+      }
+  >;
+  succeeded: number;
+  failed: number;
 };
 type ReportAggregateRow = {
   dimension: "STATUS" | "TYPE" | "DEPARTMENT" | "OUTCOME";
-  key: string; label: string; count: number;
+  key: string;
+  label: string;
+  count: number;
 };
 type DashboardDTO = {
   roleContext: UserRole[];
-  summary: { ownRequests: number; pendingReviews: number; returnedRequests: number; overdueTasks: number };
+  summary: {
+    ownRequests: number;
+    pendingReviews: number;
+    returnedRequests: number;
+    overdueTasks: number;
+  };
   recentRequests: RequestSummary[];
   pendingTasks: ApprovalTask[];
   unreadNotifications: number;
@@ -736,46 +919,46 @@ A response may **omit fields not authorized for that viewer** (particularly dash
 
 ### 6.10 Endpoint write-body matrix and required errors
 
-| Endpoint or family | Required request fields | Required gate and conflict/error |
-|---|---|---|
-| `POST /auth/register` | `email,password,displayName` | Registration Requester-only, normalized unique email (`409` duplicate) |
-| `POST /auth/login` | `email,password` | Unknown/invalid password indistinguishable (`401`) |
-| `POST /auth/refresh` | Cookie only | Valid unspent refresh session, valid origin (`401` on invalid/reuse) |
-| `POST /auth/password/change` | `currentPassword,newPassword` | Current authenticated password, revoke sessions |
-| `POST /auth/recovery/password` | `email,recoveryCode,newPassword` | One-time verified code, rate limit, no account enumeration |
-| `POST /auth/recovery/codes/regenerate` | `currentPassword` | Auth + reauthentication; invalidate prior codes |
-| `POST /admin/users/:id/recovery-grants` | `verificationAttestation,reason,expectedVersion` + key | Admin only, short-lived one-time grant, audit; never trust attestation as automatic identity proof |
-| `POST /auth/recovery/admin-grants/redeem` | `email,oneTimeCode,newPassword` | Valid unspent grant, revoke old sessions; generic public errors |
-| `PATCH /users/:id` | `expectedVersion` and allowed profile/active fields | Admin, last-active-admin guard, session revocation on disable |
-| `PUT /users/:id/roles` | `roles,expectedVersion` | Admin, no self privilege escalation, no loss of final Admin |
-| `PUT /users/:id/department` | `departmentId,expectedVersion` | Admin, active department, no historical rewrite |
-| `PATCH /departments/:id` | `expectedVersion` + allowed fields | Admin, no retroactive policy edits |
-| `POST /admin/request-types/:id/draft` | `expectedVersion` | Branch immutable published version into editable draft |
-| `PATCH /admin/request-types/:id/draft` | `expectedVersion` + editable type fields | Admin, valid conditions; no mutation of published version |
-| `POST /admin/request-types/:id/publish` | `expectedVersion` + key | Admin, dependency graph valid; stale -> `409` |
-| `POST /admin/request-types/:id/enable` / `disable` | `expectedVersion` | Admin, past submitted revisions remain valid |
-| `PATCH /requests/:id/draft` | `expectedVersion` + changed working fields | Owner, editable state, no stale update, hidden values rejected |
-| `POST /requests/:id/submit` / `resubmit` | `expectedVersion` + key | Owner, complete eligible policy; no ambiguity or self-approval |
-| `POST /requests/:id/withdraw` | `expectedVersion,reason?` + key | Owner, PENDING only, cancels unfinished tasks |
-| `POST /approval-tasks/:id/decisions` | `decision,reason?,expectedVersion` + key | Current slot, role/assignment/delegation, one vote, no self-approval |
-| `POST /approval-tasks/:id/reassign` | `reviewerId,reason,expectedVersion` + key | Admin, eligible undecided pending-cycle slot |
-| `POST /approval-tasks/bulk-decisions` | `items[{taskId,decision,reason?,expectedVersion}]` + key | Item-wise independent commit; deterministic ordered results |
-| `POST /admin/approval-policies/:id/draft` | `expectedVersion` | Branch latest published immutable policy |
-| `PATCH /admin/approval-policies/:id/draft` | `expectedVersion` + editable fields | Admin, max 2 stages, ALL |
-| `POST /admin/approval-policies/:id/publish` | `expectedVersion` + key | Admin, immutable new version |
-| `POST /admin/approval-policies/:id/disable` | `expectedVersion` | Admin, only future cycles affected |
-| `POST /admin/reviewer-assignments` | `key,departmentId?,reviewerUserIds,isActive` | Admin; candidates active, reviewer-eligible |
-| `PATCH /admin/reviewer-assignments/:id` | `expectedVersion` + changed fields | Admin, affects future resolutions only |
-| `POST /admin/budget-policies` | `typeId,departmentId?,maxAmount,isActive` | Admin, one effective hard limit per type/department scope |
-| `PATCH /admin/budget-policies/:id` | `expectedVersion` + changed fields | Admin, positive amount; preserve past accepted decisions |
-| `POST /delegations` | `delegateUserId,startsAt,endsAt,scope` | Eligible original reviewer, no self-delegation or request self-approval |
-| `POST /delegations/:id/revoke` | `expectedVersion` | Owner or authorized Admin; idempotently close delegation |
-| `POST /requests/:id/comments` | `body` | Auth current participant; no status change |
-| `POST /requests/:id/attachments` | Multipart `file`, optional `workingRevisionId` | Owner, DRAFT/RETURNED only, private storage |
-| `PATCH /notifications/:id/read` | Empty body | Recipient only; repeated calls harmless |
-| `POST /notifications/mark-all-read` | Empty body | Recipient only; return `updatedCount` |
-| `POST /reports/requests/search` / `pdf` | Authorized report filter + dimension; no private body fields | Scope isolation; PDF and JSON use same visibility rules |
-| `POST /internal/jobs/sla-process` | Internal invocation identity, optional bounded batch size | Machine authentication; event deduplication; forbidden on public credentials |
+| Endpoint or family                                 | Required request fields                                      | Required gate and conflict/error                                                                   |
+| -------------------------------------------------- | ------------------------------------------------------------ | -------------------------------------------------------------------------------------------------- |
+| `POST /auth/register`                              | `email,password,displayName`                                 | Registration Requester-only, normalized unique email (`409` duplicate)                             |
+| `POST /auth/login`                                 | `email,password`                                             | Unknown/invalid password indistinguishable (`401`)                                                 |
+| `POST /auth/refresh`                               | Cookie only                                                  | Valid unspent refresh session, valid origin (`401` on invalid/reuse)                               |
+| `POST /auth/password/change`                       | `currentPassword,newPassword`                                | Current authenticated password, revoke sessions                                                    |
+| `POST /auth/recovery/password`                     | `email,recoveryCode,newPassword`                             | One-time verified code, rate limit, no account enumeration                                         |
+| `POST /auth/recovery/codes/regenerate`             | `currentPassword`                                            | Auth + reauthentication; invalidate prior codes                                                    |
+| `POST /admin/users/:id/recovery-grants`            | `verificationAttestation,reason,expectedVersion` + key       | Admin only, short-lived one-time grant, audit; never trust attestation as automatic identity proof |
+| `POST /auth/recovery/admin-grants/redeem`          | `email,oneTimeCode,newPassword`                              | Valid unspent grant, revoke old sessions; generic public errors                                    |
+| `PATCH /users/:id`                                 | `expectedVersion` and allowed profile/active fields          | Admin, last-active-admin guard, session revocation on disable                                      |
+| `PUT /users/:id/roles`                             | `roles,expectedVersion`                                      | Admin, no self privilege escalation, no loss of final Admin                                        |
+| `PUT /users/:id/department`                        | `departmentId,expectedVersion`                               | Admin, active department, no historical rewrite                                                    |
+| `PATCH /departments/:id`                           | `expectedVersion` + allowed fields                           | Admin, no retroactive policy edits                                                                 |
+| `POST /admin/request-types/:id/draft`              | `expectedVersion`                                            | Branch immutable published version into editable draft                                             |
+| `PATCH /admin/request-types/:id/draft`             | `expectedVersion` + editable type fields                     | Admin, valid conditions; no mutation of published version                                          |
+| `POST /admin/request-types/:id/publish`            | `expectedVersion` + key                                      | Admin, dependency graph valid; stale -> `409`                                                      |
+| `POST /admin/request-types/:id/enable` / `disable` | `expectedVersion`                                            | Admin, past submitted revisions remain valid                                                       |
+| `PATCH /requests/:id/draft`                        | `expectedVersion` + changed working fields                   | Owner, editable state, no stale update, hidden values rejected                                     |
+| `POST /requests/:id/submit` / `resubmit`           | `expectedVersion` + key                                      | Owner, complete eligible policy; no ambiguity or self-approval                                     |
+| `POST /requests/:id/withdraw`                      | `expectedVersion,reason?` + key                              | Owner, PENDING only, cancels unfinished tasks                                                      |
+| `POST /approval-tasks/:id/decisions`               | `decision,reason?,expectedVersion` + key                     | Current slot, role/assignment/delegation, one vote, no self-approval                               |
+| `POST /approval-tasks/:id/reassign`                | `reviewerId,reason,expectedVersion` + key                    | Admin, eligible undecided pending-cycle slot                                                       |
+| `POST /approval-tasks/bulk-decisions`              | `items[{taskId,decision,reason?,expectedVersion}]` + key     | Item-wise independent commit; deterministic ordered results                                        |
+| `POST /admin/approval-policies/:id/draft`          | `expectedVersion`                                            | Branch latest published immutable policy                                                           |
+| `PATCH /admin/approval-policies/:id/draft`         | `expectedVersion` + editable fields                          | Admin, max 2 stages, ALL                                                                           |
+| `POST /admin/approval-policies/:id/publish`        | `expectedVersion` + key                                      | Admin, immutable new version                                                                       |
+| `POST /admin/approval-policies/:id/disable`        | `expectedVersion`                                            | Admin, only future cycles affected                                                                 |
+| `POST /admin/reviewer-assignments`                 | `key,departmentId?,reviewerUserIds,isActive`                 | Admin; candidates active, reviewer-eligible                                                        |
+| `PATCH /admin/reviewer-assignments/:id`            | `expectedVersion` + changed fields                           | Admin, affects future resolutions only                                                             |
+| `POST /admin/budget-policies`                      | `typeId,departmentId?,maxAmount,isActive`                    | Admin, one effective hard limit per type/department scope                                          |
+| `PATCH /admin/budget-policies/:id`                 | `expectedVersion` + changed fields                           | Admin, positive amount; preserve past accepted decisions                                           |
+| `POST /delegations`                                | `delegateUserId,startsAt,endsAt,scope`                       | Eligible original reviewer, no self-delegation or request self-approval                            |
+| `POST /delegations/:id/revoke`                     | `expectedVersion`                                            | Owner or authorized Admin; idempotently close delegation                                           |
+| `POST /requests/:id/comments`                      | `body`                                                       | Auth current participant; no status change                                                         |
+| `POST /requests/:id/attachments`                   | Multipart `file`, optional `workingRevisionId`               | Owner, DRAFT/RETURNED only, private storage                                                        |
+| `PATCH /notifications/:id/read`                    | Empty body                                                   | Recipient only; repeated calls harmless                                                            |
+| `POST /notifications/mark-all-read`                | Empty body                                                   | Recipient only; return `updatedCount`                                                              |
+| `POST /reports/requests/search` / `pdf`            | Authorized report filter + dimension; no private body fields | Scope isolation; PDF and JSON use same visibility rules                                            |
+| `POST /internal/jobs/sla-process`                  | Internal invocation identity, optional bounded batch size    | Machine authentication; event deduplication; forbidden on public credentials                       |
 
 | `POST /admin/approval-tasks/search` | Standard bounded `POST /search` object; omitted filters default overdue actionable | Admin only; minimum routing metadata, no private request payload; `422` for invalid filter |
 
@@ -820,26 +1003,26 @@ The first accepted submission **pins** its form-definition version and the depar
 
 ## 8. Error mapping and protocol examples
 
-| Situation | HTTP | Machine `code` | Invariant |
-|---|---:|---|---|
-| Invalid credentials or missing bearer | 401 | `UNAUTHENTICATED` | No session/data leak |
-| Wrong role on known permitted resource | 403 | `FORBIDDEN` | No forbidden business effect |
-| Private request/task belongs to another user | 404 | `NOT_FOUND` | No cross-user existence leak |
-| Static or dynamic schema failure | 422 | `VALIDATION_ERROR` | No accepted mutation |
-| Monetary hard ceiling exceeded | 422 | `BUDGET_LIMIT_EXCEEDED` | No pending cycle or ledger mutation |
-| Hidden/nonapplicable dynamic key submitted | 422 | `FORM_FIELD_NOT_APPLICABLE` | Key not persisted as effective value |
-| Current draft form version changed before first submit | 409 | `FORM_DEFINITION_CHANGED` | No silent migration |
-| No applicable policy or reviewer eligibility failure | 409 | `CONFIGURATION_INCOMPLETE` | No pending cycle |
-| Two highest-priority applicable policies tie | 409 | `AMBIGUOUS_APPROVAL_POLICY` | No arbitrary policy choice |
-| Attempted self-approval | 403 | `SELF_APPROVAL_FORBIDDEN` | Actor cannot bypass rule |
-| Task decision already taken or stale version/assignment | 409 | `APPROVAL_TASK_STALE` | One effective slot vote |
-| Illegal request state transition | 409 | `INVALID_REQUEST_TRANSITION` | Prior state preserved |
-| Assignment/delegate candidate invalid | 422 | `ASSIGNMENT_NOT_ELIGIBLE` | No unauthorized reviewer |
-| Reusing key with different canonical payload | 409 | `IDEMPOTENCY_CONFLICT` | No duplicate effect |
-| Public recovery proof invalid/used/expired | 400 | `RECOVERY_CREDENTIAL_INVALID` | No account-existence disclosure |
-| Auth/recovery rate limit exceeded | 429 | `RATE_LIMITED` | Retry safe; optional Retry-After |
-| File size/type invalid | 413/415 | `FILE_TOO_LARGE` / `UNSUPPORTED_MEDIA_TYPE` | No unsafe file stored |
-| Unexpected failure | 500 | `INTERNAL_ERROR` | No secret/SQL/stack exposure |
+| Situation                                               |    HTTP | Machine `code`                              | Invariant                            |
+| ------------------------------------------------------- | ------: | ------------------------------------------- | ------------------------------------ |
+| Invalid credentials or missing bearer                   |     401 | `UNAUTHENTICATED`                           | No session/data leak                 |
+| Wrong role on known permitted resource                  |     403 | `FORBIDDEN`                                 | No forbidden business effect         |
+| Private request/task belongs to another user            |     404 | `NOT_FOUND`                                 | No cross-user existence leak         |
+| Static or dynamic schema failure                        |     422 | `VALIDATION_ERROR`                          | No accepted mutation                 |
+| Monetary hard ceiling exceeded                          |     422 | `BUDGET_LIMIT_EXCEEDED`                     | No pending cycle or ledger mutation  |
+| Hidden/nonapplicable dynamic key submitted              |     422 | `FORM_FIELD_NOT_APPLICABLE`                 | Key not persisted as effective value |
+| Current draft form version changed before first submit  |     409 | `FORM_DEFINITION_CHANGED`                   | No silent migration                  |
+| No applicable policy or reviewer eligibility failure    |     409 | `CONFIGURATION_INCOMPLETE`                  | No pending cycle                     |
+| Two highest-priority applicable policies tie            |     409 | `AMBIGUOUS_APPROVAL_POLICY`                 | No arbitrary policy choice           |
+| Attempted self-approval                                 |     403 | `SELF_APPROVAL_FORBIDDEN`                   | Actor cannot bypass rule             |
+| Task decision already taken or stale version/assignment |     409 | `APPROVAL_TASK_STALE`                       | One effective slot vote              |
+| Illegal request state transition                        |     409 | `INVALID_REQUEST_TRANSITION`                | Prior state preserved                |
+| Assignment/delegate candidate invalid                   |     422 | `ASSIGNMENT_NOT_ELIGIBLE`                   | No unauthorized reviewer             |
+| Reusing key with different canonical payload            |     409 | `IDEMPOTENCY_CONFLICT`                      | No duplicate effect                  |
+| Public recovery proof invalid/used/expired              |     400 | `RECOVERY_CREDENTIAL_INVALID`               | No account-existence disclosure      |
+| Auth/recovery rate limit exceeded                       |     429 | `RATE_LIMITED`                              | Retry safe; optional Retry-After     |
+| File size/type invalid                                  | 413/415 | `FILE_TOO_LARGE` / `UNSUPPORTED_MEDIA_TYPE` | No unsafe file stored                |
+| Unexpected failure                                      |     500 | `INTERNAL_ERROR`                            | No secret/SQL/stack exposure         |
 
 ### 8.1 Single decision example
 
@@ -900,26 +1083,26 @@ Use the stable FR/BR/AC IDs in `specifications.md` to connect endpoint contract 
 
 ## 10. Implementation defaults — NOT FROZEN
 
-| Area | Proposed default; can change via documented technical decision |
-|---|---|
-| Access token | JWT, 15-minute TTL, browser-memory storage |
-| Refresh token | Opaque rotated token, 7-day TTL, hashed at rest, HttpOnly Secure cookie |
-| Password hashing | Argon2id |
-| UUID form | UUID v4 server-side |
-| Pagination | Page 1, size 20, max 100; 20 filters and 5 searchTerm fields |
-| Conditional forms | Max 50 fields, max 16 condition atoms, one AND/OR grouping layer |
-| Priority enum | LOW / MEDIUM / HIGH / URGENT (v1 wire vocabulary; changing the set requires compatibility review) |
-| Currency | THB, exact decimal strings; no conversion |
-| Request number | `REQ-YYYY-NNNNNN`, unique transactional allocation |
-| Bulk decisions | 25 distinct tasks maximum |
-| Attachments | 10 MiB each; PDF/PNG/JPEG; 10 per editable revision |
-| Recovery codes | 10 random codes, hashed and shown once |
-| Admin recovery grant | Single-use, 15-minute expiry; issuer's attestation audited |
-| Default SLA | 480 business minutes (8 hours), overrideable per stage/policy — **accepted API-13 behavior; not a freely changeable implementation default** |
-| Notifications | Poll inbox every ~45 seconds while visible |
-| Swagger/OpenAPI | Generate from shared static Zod contracts and route bindings |
-| Database operations | Drizzle transactions, constraints and locks for races |
-| Scheduled service auth | Private scheduler-to-API identity; no public job access |
+| Area                   | Proposed default; can change via documented technical decision                                                                               |
+| ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| Access token           | JWT, 15-minute TTL, browser-memory storage                                                                                                   |
+| Refresh token          | Opaque rotated token, 7-day TTL, hashed at rest, HttpOnly Secure cookie                                                                      |
+| Password hashing       | Argon2id                                                                                                                                     |
+| UUID form              | UUID v4 server-side                                                                                                                          |
+| Pagination             | Page 1, size 20, max 100; 20 filters and 5 searchTerm fields                                                                                 |
+| Conditional forms      | Max 50 fields, max 16 condition atoms, one AND/OR grouping layer                                                                             |
+| Priority enum          | LOW / MEDIUM / HIGH / URGENT (v1 wire vocabulary; changing the set requires compatibility review)                                            |
+| Currency               | THB, exact decimal strings; no conversion                                                                                                    |
+| Request number         | `REQ-YYYY-NNNNNN`, unique transactional allocation                                                                                           |
+| Bulk decisions         | 25 distinct tasks maximum                                                                                                                    |
+| Attachments            | 10 MiB each; PDF/PNG/JPEG; 10 per editable revision                                                                                          |
+| Recovery codes         | 10 random codes, hashed and shown once                                                                                                       |
+| Admin recovery grant   | Single-use, 15-minute expiry; issuer's attestation audited                                                                                   |
+| Default SLA            | 480 business minutes (8 hours), overrideable per stage/policy — **accepted API-13 behavior; not a freely changeable implementation default** |
+| Notifications          | Poll inbox every ~45 seconds while visible                                                                                                   |
+| Swagger/OpenAPI        | Generate from shared static Zod contracts and route bindings                                                                                 |
+| Database operations    | Drizzle transactions, constraints and locks for races                                                                                        |
+| Scheduled service auth | Private scheduler-to-API identity; no public job access                                                                                      |
 
 A change to a default must not weaken authorization, version pinning, one-vote-per-slot, atomicity, privacy, or the other frozen requirements.
 
@@ -933,67 +1116,66 @@ A change to a default must not weaken authorization, version pinning, one-vote-p
 - The reference Maintenance System provides structural inspiration only; its resource names and older auth path are not copied into this product's live wire surface.
 - This document is a specification, not evidence of completed implementation, testing or deployment.
 
-
 ## 12. Complete feature-to-API traceability (54 selected features)
 
 Feature-level FR/AC mapping is authoritative in `specifications.md`. This crosswalk shows where the selected capability is satisfied or, for UI-only features, why no special endpoint is required.
 
-| Feature | API contract coverage |
-|---|---|
-| `M01` | Auth login |
-| `M02` | Logout/current user |
-| `M03` | Authorization matrix and guards |
-| `M04` | Create and submit request |
-| `M05` | Owner-scoped request search |
-| `M06` | Request detail/status |
-| `M07` | Approval plan resolution |
-| `M08` | Approval task search |
-| `M09` | Formal APPROVE decision |
-| `M10` | Formal REJECT decision |
-| `M11` | Formal RETURN decision |
-| `M12` | State-transition guards |
-| `M13` | Self-approval guard |
-| `M14` | Immutable decision/audit timeline |
-| `M15` | Editable-state/version guards |
-| `M16` | Reporting summaries |
-| `M17` | Zod/domain validation + atomic persistence |
-| `R01` | Persist draft |
-| `R02` | Edit RETURNED working revision |
-| `R03` | Resubmit, new cycle |
-| `R04` | Immutable revision history |
-| `R05` | Withdraw request |
-| `R06` | Server-generated request number |
-| `R07` | Line-item amount schema/total |
-| `R08` | Up to 2 stages |
-| `R09` | Conditional policy resolution |
-| `R10` | Current approvers endpoint |
-| `R11` | Cycle/revision/slot-aware decisions |
-| `R12` | Request search |
-| `R13` | Status/date filters |
-| `R14` | Bounded sort/pagination |
-| `R15` | Role-aware dashboard |
-| `R16` | Timeline DTO |
-| `R17` | Stable API feedback/error states; UI owns visual layout |
-| `O01` | Comments |
-| `O02` | Private multipart attachments |
-| `O03` | Persistent notifications |
-| `O07` | Reassignment |
-| `O08` | Time-limited delegation |
-| `O09` | User administration |
-| `O10` | Reviewer assignment configuration |
-| `O11` | Stage SLA deadlines |
-| `O12` | Scheduler reminders/admin escalation |
-| `O13` | Parallel ALL voting |
-| `O15` | Bulk decisions |
-| `O16` | Admin-configurable versioned request types |
-| `O17` | Priority validation |
-| `O18` | Amount ceilings/thresholds |
-| `O19` | Department-based reviewer routing |
-| `O21` | PDF report stream |
-| `O24` | UI-only theme; no API needed |
-| `O25` | Localized definition labels and stable error codes; UI translations |
-| `O26` | Public registration |
-| `O27` | Recovery codes/admin-assisted grants |
+| Feature | API contract coverage                                               |
+| ------- | ------------------------------------------------------------------- |
+| `M01`   | Auth login                                                          |
+| `M02`   | Logout/current user                                                 |
+| `M03`   | Authorization matrix and guards                                     |
+| `M04`   | Create and submit request                                           |
+| `M05`   | Owner-scoped request search                                         |
+| `M06`   | Request detail/status                                               |
+| `M07`   | Approval plan resolution                                            |
+| `M08`   | Approval task search                                                |
+| `M09`   | Formal APPROVE decision                                             |
+| `M10`   | Formal REJECT decision                                              |
+| `M11`   | Formal RETURN decision                                              |
+| `M12`   | State-transition guards                                             |
+| `M13`   | Self-approval guard                                                 |
+| `M14`   | Immutable decision/audit timeline                                   |
+| `M15`   | Editable-state/version guards                                       |
+| `M16`   | Reporting summaries                                                 |
+| `M17`   | Zod/domain validation + atomic persistence                          |
+| `R01`   | Persist draft                                                       |
+| `R02`   | Edit RETURNED working revision                                      |
+| `R03`   | Resubmit, new cycle                                                 |
+| `R04`   | Immutable revision history                                          |
+| `R05`   | Withdraw request                                                    |
+| `R06`   | Server-generated request number                                     |
+| `R07`   | Line-item amount schema/total                                       |
+| `R08`   | Up to 2 stages                                                      |
+| `R09`   | Conditional policy resolution                                       |
+| `R10`   | Current approvers endpoint                                          |
+| `R11`   | Cycle/revision/slot-aware decisions                                 |
+| `R12`   | Request search                                                      |
+| `R13`   | Status/date filters                                                 |
+| `R14`   | Bounded sort/pagination                                             |
+| `R15`   | Role-aware dashboard                                                |
+| `R16`   | Timeline DTO                                                        |
+| `R17`   | Stable API feedback/error states; UI owns visual layout             |
+| `O01`   | Comments                                                            |
+| `O02`   | Private multipart attachments                                       |
+| `O03`   | Persistent notifications                                            |
+| `O07`   | Reassignment                                                        |
+| `O08`   | Time-limited delegation                                             |
+| `O09`   | User administration                                                 |
+| `O10`   | Reviewer assignment configuration                                   |
+| `O11`   | Stage SLA deadlines                                                 |
+| `O12`   | Scheduler reminders/admin escalation                                |
+| `O13`   | Parallel ALL voting                                                 |
+| `O15`   | Bulk decisions                                                      |
+| `O16`   | Admin-configurable versioned request types                          |
+| `O17`   | Priority validation                                                 |
+| `O18`   | Amount ceilings/thresholds                                          |
+| `O19`   | Department-based reviewer routing                                   |
+| `O21`   | PDF report stream                                                   |
+| `O24`   | UI-only theme; no API needed                                        |
+| `O25`   | Localized definition labels and stable error codes; UI translations |
+| `O26`   | Public registration                                                 |
+| `O27`   | Recovery codes/admin-assisted grants                                |
 
 **Amendment mapping:** The administrator escalation search is a narrow read surface supporting the existing escalation/reassignment capabilities; no new feature ID or change to the 54-feature scope.
 

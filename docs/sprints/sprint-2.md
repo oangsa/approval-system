@@ -3,7 +3,6 @@
 > **Planning draft — not frozen.** This is a proposed allocation of the user-selected **54 capabilities** (M01–M17, R01–R17, and 20 selected O-series). IDs are project planning labels, **not instructor-issued requirement IDs**. No feature is deleted or duplicated between sprints.
 >
 > **Status:** All listed features are **PLANNED**, none is claimed implemented or tested. Architecture choices are already finalized separately; this file does not change them.
->
 
 ## Sprint 2: Core Workflow Expansion
 
@@ -16,64 +15,64 @@
 
 ### Request Management (5)
 
-| ID | Feature | Target behavior / compact implementation |
-|---|---|---|
-| `R01` | **Save as Draft** | Save an unfinished request without creating an approval task. |
-| `R05` | **Withdraw Request** | Allow an owner to withdraw an eligible pending request; preserve audit history. |
-| `R07` | **Request Line Items** | Support multiple line items, positive quantities, validated values, and server-calculated totals. |
-| `O16` | **Multiple Request Types** | Support multiple request types sharing one lifecycle with type-specific Zod schemas. |
-| `O17` | **Priority Levels** | Capture and display request priority with validation; document whether priority changes routing. |
+| ID    | Feature                    | Target behavior / compact implementation                                                          |
+| ----- | -------------------------- | ------------------------------------------------------------------------------------------------- |
+| `R01` | **Save as Draft**          | Save an unfinished request without creating an approval task.                                     |
+| `R05` | **Withdraw Request**       | Allow an owner to withdraw an eligible pending request; preserve audit history.                   |
+| `R07` | **Request Line Items**     | Support multiple line items, positive quantities, validated values, and server-calculated totals. |
+| `O16` | **Multiple Request Types** | Support multiple request types sharing one lifecycle with type-specific Zod schemas.              |
+| `O17` | **Priority Levels**        | Capture and display request priority with validation; document whether priority changes routing.  |
 
 ### Assignment & Policy (5)
 
-| ID | Feature | Target behavior / compact implementation |
-|---|---|---|
-| `R09` | **Conditional Approval Rules** | Select workflow route/stages based on typed request attributes and policy. |
-| `R10` | **Current Approver Display** | Show current review stage and assignee(s) from authorized workflow data. |
-| `O10` | **Reviewer Assignment Management** | Authorized staff configure department/stage reviewer mappings. |
-| `O18` | **Budget Limit Validation** | Enforce a documented budget ceiling/policy on eligible requests; no accounting ledger assumed. |
-| `O19` | **Department-based Routing** | Resolve initial reviewer(s) by department and selected workflow policy. |
+| ID    | Feature                            | Target behavior / compact implementation                                                       |
+| ----- | ---------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `R09` | **Conditional Approval Rules**     | Select workflow route/stages based on typed request attributes and policy.                     |
+| `R10` | **Current Approver Display**       | Show current review stage and assignee(s) from authorized workflow data.                       |
+| `O10` | **Reviewer Assignment Management** | Authorized staff configure department/stage reviewer mappings.                                 |
+| `O18` | **Budget Limit Validation**        | Enforce a documented budget ceiling/policy on eligible requests; no accounting ledger assumed. |
+| `O19` | **Department-based Routing**       | Resolve initial reviewer(s) by department and selected workflow policy.                        |
 
 ### Approval Workflow (4)
 
-| ID | Feature | Target behavior / compact implementation |
-|---|---|---|
-| `M11` | **Return Request** | Assigned reviewer returns a request for changes with a required reason. |
-| `R08` | **Two-stage Approval** | Support a sequential two-stage approval route where required by policy. |
-| `R11` | **Revision-aware Decisions** | Bind approvals to request revision + approval cycle, making stale decisions invalid. |
-| `O13` | **Parallel Approval** | Support multiple reviewers within a stage using a defined completion policy (initial candidate: ALL). |
+| ID    | Feature                      | Target behavior / compact implementation                                                              |
+| ----- | ---------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `M11` | **Return Request**           | Assigned reviewer returns a request for changes with a required reason.                               |
+| `R08` | **Two-stage Approval**       | Support a sequential two-stage approval route where required by policy.                               |
+| `R11` | **Revision-aware Decisions** | Bind approvals to request revision + approval cycle, making stale decisions invalid.                  |
+| `O13` | **Parallel Approval**        | Support multiple reviewers within a stage using a defined completion policy (initial candidate: ALL). |
 
 ### Revision & Collaboration (4)
 
-| ID | Feature | Target behavior / compact implementation |
-|---|---|---|
-| `R02` | **Edit Returned Request** | Let the requester modify only their returned request. |
-| `R03` | **Resubmit Request** | Submit an edited returned request into a fresh authorized review cycle. |
-| `R04` | **Revision History** | Retain immutable submitted revisions and their linked decisions. |
-| `R16` | **Visual Status Timeline** | Render status/decision/revision events in an accessible chronology. |
+| ID    | Feature                    | Target behavior / compact implementation                                |
+| ----- | -------------------------- | ----------------------------------------------------------------------- |
+| `R02` | **Edit Returned Request**  | Let the requester modify only their returned request.                   |
+| `R03` | **Resubmit Request**       | Submit an edited returned request into a fresh authorized review cycle. |
+| `R04` | **Revision History**       | Retain immutable submitted revisions and their linked decisions.        |
+| `R16` | **Visual Status Timeline** | Render status/decision/revision events in an accessible chronology.     |
 
 ### Search & Experience (1)
 
-| ID | Feature | Target behavior / compact implementation |
-|---|---|---|
+| ID    | Feature                  | Target behavior / compact implementation                                     |
+| ----- | ------------------------ | ---------------------------------------------------------------------------- |
 | `R15` | **Role-based Dashboard** | Expose requester and reviewer summaries/actions based on role and ownership. |
 
 ### Reporting (1)
 
-| ID | Feature | Target behavior / compact implementation |
-|---|---|---|
+| ID    | Feature             | Target behavior / compact implementation                            |
+| ----- | ------------------- | ------------------------------------------------------------------- |
 | `M16` | **Basic Reporting** | Summarize authorized request counts by status and decision outcome. |
 
 ## Dependency bundles (implement as cohesive vertical slices)
 
-| Bundle | Related IDs | Required predecessor / implementation intent |
-|---|---|---|
-| Draft + correction lifecycle | `R01`, `M11`, `R02`, `R03`, `R04`, `R05`, `R11` | Sprint 1 requests/decisions/history; immutable snapshots and revision-aware approval cycles. |
-| Typed request forms | `R07`, `O16`, `O17` | Shared Zod discriminated validation per request type, server-calculated totals for applicable line items. |
-| Workflow policies & stages | `R08`, `R09`, `O13`, `R10` | Single approval engine with sequential stages and parallel reviewer decisions; define per-stage ALL/ANY policy before coding. |
-| Reviewer configuration | `O10`, `O19` | Seeded departments/users; restricted administrative assignment configuration and deterministic routing. |
-| Budget rule | `O18` | Request type/amount + documented policy. **Proposal:** enforce ceiling/policy only; a live budget ledger is a separate complexity decision. |
-| Presentation + summary | `R15`, `R16`, `M16` | Reuse role-scoped list/summary/history data and a common timeline component. |
+| Bundle                       | Related IDs                                     | Required predecessor / implementation intent                                                                                                |
+| ---------------------------- | ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| Draft + correction lifecycle | `R01`, `M11`, `R02`, `R03`, `R04`, `R05`, `R11` | Sprint 1 requests/decisions/history; immutable snapshots and revision-aware approval cycles.                                                |
+| Typed request forms          | `R07`, `O16`, `O17`                             | Shared Zod discriminated validation per request type, server-calculated totals for applicable line items.                                   |
+| Workflow policies & stages   | `R08`, `R09`, `O13`, `R10`                      | Single approval engine with sequential stages and parallel reviewer decisions; define per-stage ALL/ANY policy before coding.               |
+| Reviewer configuration       | `O10`, `O19`                                    | Seeded departments/users; restricted administrative assignment configuration and deterministic routing.                                     |
+| Budget rule                  | `O18`                                           | Request type/amount + documented policy. **Proposal:** enforce ceiling/policy only; a live budget ledger is a separate complexity decision. |
+| Presentation + summary       | `R15`, `R16`, `M16`                             | Reuse role-scoped list/summary/history data and a common timeline component.                                                                |
 
 ## Integration / acceptance journeys
 

@@ -3,7 +3,6 @@
 > **Planning draft — not frozen.** This is a proposed allocation of the user-selected **54 capabilities** (M01–M17, R01–R17, and 20 selected O-series). IDs are project planning labels, **not instructor-issued requirement IDs**. No feature is deleted or duplicated between sprints.
 >
 > **Status:** All listed features are **PLANNED**, none is claimed implemented or tested. Architecture choices are already finalized separately; this file does not change them.
->
 
 ## Sprint 1: Working Vertical Slice
 
@@ -16,43 +15,43 @@
 
 ### Identity & Access (3)
 
-| ID | Feature | Target behavior / compact implementation |
-|---|---|---|
-| `M01` | **Login** | Authenticate using email + application password; reject invalid credentials. |
+| ID    | Feature                   | Target behavior / compact implementation                                                             |
+| ----- | ------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `M01` | **Login**                 | Authenticate using email + application password; reject invalid credentials.                         |
 | `M02` | **Logout & Current User** | Expose current identity; revoke/rotate sessions according to the agreed JWT + refresh-cookie design. |
-| `M03` | **Role-based Access** | Enforce requester/reviewer permissions and record ownership in Elysia, not only in UI. |
+| `M03` | **Role-based Access**     | Enforce requester/reviewer permissions and record ownership in Elysia, not only in UI.               |
 
 ### Request Management (6)
 
-| ID | Feature | Target behavior / compact implementation |
-|---|---|---|
-| `M04` | **Create & Submit Request** | Create a valid request, submit it into the review workflow, persist the result. |
-| `M05` | **My Requests** | List requests owned by the authenticated requester without leaking other users’ records. |
-| `M06` | **Request Detail & Status** | Show persisted request details and current status subject to authorization. |
-| `M15` | **Editing Policy** | Define and enforce when a request may be edited; in Sprint 1 submitted requests are immutable. |
-| `M17` | **Validation & Persistence** | Validate input, return safe errors, enforce database constraints, and survive restart. |
-| `R06` | **Request Number** | Generate a unique human-readable request identifier with server-side collision protection. |
+| ID    | Feature                      | Target behavior / compact implementation                                                       |
+| ----- | ---------------------------- | ---------------------------------------------------------------------------------------------- |
+| `M04` | **Create & Submit Request**  | Create a valid request, submit it into the review workflow, persist the result.                |
+| `M05` | **My Requests**              | List requests owned by the authenticated requester without leaking other users’ records.       |
+| `M06` | **Request Detail & Status**  | Show persisted request details and current status subject to authorization.                    |
+| `M15` | **Editing Policy**           | Define and enforce when a request may be edited; in Sprint 1 submitted requests are immutable. |
+| `M17` | **Validation & Persistence** | Validate input, return safe errors, enforce database constraints, and survive restart.         |
+| `R06` | **Request Number**           | Generate a unique human-readable request identifier with server-side collision protection.     |
 
 ### Assignment & Policy (2)
 
-| ID | Feature | Target behavior / compact implementation |
-|---|---|---|
-| `M07` | **Reviewer Assignment** | Resolve a valid assigned reviewer for each submitted request (seeded configuration is acceptable initially). |
-| `M13` | **Self-approval Prevention** | Never permit a requester to approve their own request, including via assignment changes. |
+| ID    | Feature                      | Target behavior / compact implementation                                                                     |
+| ----- | ---------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `M07` | **Reviewer Assignment**      | Resolve a valid assigned reviewer for each submitted request (seeded configuration is acceptable initially). |
+| `M13` | **Self-approval Prevention** | Never permit a requester to approve their own request, including via assignment changes.                     |
 
 ### Approval Workflow (4)
 
-| ID | Feature | Target behavior / compact implementation |
-|---|---|---|
-| `M08` | **Review Queue** | List only currently actionable requests assigned to the authenticated reviewer. |
-| `M09` | **Approve Request** | Assigned reviewer approves a pending request, persisting a decision and transition. |
-| `M10` | **Reject Request** | Assigned reviewer rejects a pending request with a recorded reason. |
-| `M12` | **State Transition Rules** | Reject invalid, duplicate, out-of-order, or unauthorized state transitions. |
+| ID    | Feature                    | Target behavior / compact implementation                                            |
+| ----- | -------------------------- | ----------------------------------------------------------------------------------- |
+| `M08` | **Review Queue**           | List only currently actionable requests assigned to the authenticated reviewer.     |
+| `M09` | **Approve Request**        | Assigned reviewer approves a pending request, persisting a decision and transition. |
+| `M10` | **Reject Request**         | Assigned reviewer rejects a pending request with a recorded reason.                 |
+| `M12` | **State Transition Rules** | Reject invalid, duplicate, out-of-order, or unauthorized state transitions.         |
 
 ### Revision & Collaboration (1)
 
-| ID | Feature | Target behavior / compact implementation |
-|---|---|---|
+| ID    | Feature                       | Target behavior / compact implementation                                             |
+| ----- | ----------------------------- | ------------------------------------------------------------------------------------ |
 | `M14` | **Decision & Status History** | Persist ordered, auditable status/decision events without rewriting prior decisions. |
 
 ## Slice boundary and design constraints

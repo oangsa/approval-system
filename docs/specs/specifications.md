@@ -8,7 +8,7 @@
 
 > **Authority:** The previously frozen CPE334 Theme 5 v1.0 architecture, feature inventory, and 15 approved product decisions govern this document. `api-specs.md` and `ui-specs.md` will refine this specification without changing it. Any contradictory implementation detail must be reconciled against this baseline before implementation. Unspecified choices are documented as **implementation defaults**, not silently frozen as product rules.
 
-> **Language:** The word **shall** indicates required behavior; **must not** indicates prohibited behavior. *Examples* and *proposed defaults* are non-normative unless explicitly promoted through change control.
+> **Language:** The word **shall** indicates required behavior; **must not** indicates prohibited behavior. _Examples_ and _proposed defaults_ are non-normative unless explicitly promoted through change control.
 
 ## 1. Product Goal
 
@@ -20,27 +20,27 @@ The completed product shall support multiple request types, conditional fields, 
 
 ## 2. Stakeholder Interpretation and Contract Authority
 
-The product is a **single-organization** workflow system. It is not a general ERP, accounting platform, multi-tenant SaaS service, or unrestricted visual workflow builder. The administrator manages business *configuration* (types, conditional fields, departments, reviewers, approval thresholds); the backend owns every authoritative authorization, calculation, approval, and audit decision.
+The product is a **single-organization** workflow system. It is not a general ERP, accounting platform, multi-tenant SaaS service, or unrestricted visual workflow builder. The administrator manages business _configuration_ (types, conditional fields, departments, reviewers, approval thresholds); the backend owns every authoritative authorization, calculation, approval, and audit decision.
 
 ### 2.1 Frozen decision register
 
-| Decision | Frozen behavior |
-|---|---|
-| DEC-01 | Admin-configurable versioned request types |
-| DEC-02 | Sequential stages with parallel **ALL** approvals |
-| DEC-03 | Budget **policy limits only**, no balance ledger |
-| DEC-04 | Single organization, departments, multiple user roles |
-| DEC-05 | Public requester signup and **recovery codes**, no OAuth |
-| DEC-06 | Business-day SLA, reminders and admin escalation |
-| DEC-07 | Every resubmission starts a **new approval cycle** |
-| DEC-08 | Eligible, time-limited reviewer delegation |
-| DEC-09 | Dynamic **conditional visibility and requiredness** |
-| DEC-10 | Maximum **two sequential stages**, with parallel slots allowed |
-| DEC-11 | Administrator assigns trusted department membership |
-| DEC-12 | Mon–Fri **09:00–17:00 Asia/Bangkok**, no holiday-calendar feature |
-| DEC-13 | Returned edits use the **original form-definition version** |
-| DEC-14 | **Admin-assisted reset** if all recovery codes are lost |
-| DEC-15 | Submission blocked when **no eligible reviewer** is resolvable |
+| Decision | Frozen behavior                                                   |
+| -------- | ----------------------------------------------------------------- |
+| DEC-01   | Admin-configurable versioned request types                        |
+| DEC-02   | Sequential stages with parallel **ALL** approvals                 |
+| DEC-03   | Budget **policy limits only**, no balance ledger                  |
+| DEC-04   | Single organization, departments, multiple user roles             |
+| DEC-05   | Public requester signup and **recovery codes**, no OAuth          |
+| DEC-06   | Business-day SLA, reminders and admin escalation                  |
+| DEC-07   | Every resubmission starts a **new approval cycle**                |
+| DEC-08   | Eligible, time-limited reviewer delegation                        |
+| DEC-09   | Dynamic **conditional visibility and requiredness**               |
+| DEC-10   | Maximum **two sequential stages**, with parallel slots allowed    |
+| DEC-11   | Administrator assigns trusted department membership               |
+| DEC-12   | Mon–Fri **09:00–17:00 Asia/Bangkok**, no holiday-calendar feature |
+| DEC-13   | Returned edits use the **original form-definition version**       |
+| DEC-14   | **Admin-assisted reset** if all recovery codes are lost           |
+| DEC-15   | Submission blocked when **no eligible reviewer** is resolvable    |
 
 ### 2.2 Contract hierarchy
 
@@ -79,10 +79,10 @@ If lower-level documents reveal an ambiguity, record it explicitly. Do not reint
 
 ### 3.3 Role and confidentiality boundary
 
-| Actor | Allowed business scope | Important restriction |
-|---|---|---|
-| Requester | Own drafts, requests, revisions, permitted comments/files and status | No review decisions or other requester data |
-| Reviewer | Current assigned/delegated tasks and permitted request context | No unassigned review, no self-approval |
+| Actor         | Allowed business scope                                                                                      | Important restriction                                        |
+| ------------- | ----------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
+| Requester     | Own drafts, requests, revisions, permitted comments/files and status                                        | No review decisions or other requester data                  |
+| Reviewer      | Current assigned/delegated tasks and permitted request context                                              | No unassigned review, no self-approval                       |
 | Administrator | Trusted users/departments, request types, policies, reviewer slots, escalation and minimum routing metadata | No blanket access to private request payloads/comments/files |
 
 A user can hold multiple roles. All permissions are evaluated per operation and resource, not through UI visibility alone.
@@ -253,26 +253,26 @@ Business Rules express domain invariants and required restrictions. The future A
 
 ### 6.1 Primary request states
 
-| State | Description | Editable by requester? |
-|---|---|---|
-| `DRAFT` | Incomplete or unsubmitted working request | Yes (owner) |
-| `PENDING` | Active approval cycle waiting for decisions | No |
-| `RETURNED` | Prior cycle closed; requester may prepare a new revision | Yes, in a new working revision |
-| `APPROVED` | Final required slot of final stage approved | No (terminal) |
-| `REJECTED` | Authorized review rejection | No (terminal) |
-| `WITHDRAWN` | Owner withdrew pending request | No (terminal) |
+| State       | Description                                              | Editable by requester?         |
+| ----------- | -------------------------------------------------------- | ------------------------------ |
+| `DRAFT`     | Incomplete or unsubmitted working request                | Yes (owner)                    |
+| `PENDING`   | Active approval cycle waiting for decisions              | No                             |
+| `RETURNED`  | Prior cycle closed; requester may prepare a new revision | Yes, in a new working revision |
+| `APPROVED`  | Final required slot of final stage approved              | No (terminal)                  |
+| `REJECTED`  | Authorized review rejection                              | No (terminal)                  |
+| `WITHDRAWN` | Owner withdrew pending request                           | No (terminal)                  |
 
 ### 6.2 Permitted transitions
 
-| Current state | Actor / action | New state | Guard and mandatory effects |
-|---|---|---|---|
-| `DRAFT` | Owner submits | `PENDING` | Full validation, department, eligible reviewer plan, new immutable revision/cycle and audit |
-| `PENDING` | Reviewer approves intermediate slot/stage | `PENDING` | One effective slot decision, audit; activate next stage only after ALL votes |
-| `PENDING` | Reviewer completes final stage | `APPROVED` | All required slots approved; write terminal decision and audit atomically |
-| `PENDING` | Reviewer rejects | `REJECTED` | Required reason, terminate tasks and audit atomically |
-| `PENDING` | Reviewer returns | `RETURNED` | Required reason, terminate cycle, permit new working revision |
-| `RETURNED` | Owner resubmits | `PENDING` | Use pinned form definition, current approval policy, fresh cycle and decisions |
-| `PENDING` | Owner withdraws | `WITHDRAWN` | Cancel unfinished tasks, audit and preserve previous decisions |
+| Current state | Actor / action                            | New state   | Guard and mandatory effects                                                                 |
+| ------------- | ----------------------------------------- | ----------- | ------------------------------------------------------------------------------------------- |
+| `DRAFT`       | Owner submits                             | `PENDING`   | Full validation, department, eligible reviewer plan, new immutable revision/cycle and audit |
+| `PENDING`     | Reviewer approves intermediate slot/stage | `PENDING`   | One effective slot decision, audit; activate next stage only after ALL votes                |
+| `PENDING`     | Reviewer completes final stage            | `APPROVED`  | All required slots approved; write terminal decision and audit atomically                   |
+| `PENDING`     | Reviewer rejects                          | `REJECTED`  | Required reason, terminate tasks and audit atomically                                       |
+| `PENDING`     | Reviewer returns                          | `RETURNED`  | Required reason, terminate cycle, permit new working revision                               |
+| `RETURNED`    | Owner resubmits                           | `PENDING`   | Use pinned form definition, current approval policy, fresh cycle and decisions              |
+| `PENDING`     | Owner withdraws                           | `WITHDRAWN` | Cancel unfinished tasks, audit and preserve previous decisions                              |
 
 Any other transition fails without changing business state. An invalid transition is **not** fixed by manipulating a frontend role selector or forcing a route.
 
@@ -288,12 +288,12 @@ Any other transition fails without changing business state. An invalid transitio
 
 ### 6.4 Version boundaries
 
-| Versioned concept | What is pinned? | When resolved? |
-|---|---|---|
-| Request type/form definition | Submitted version and originally pinned definition for returned edits | First accepted submission; continues through returned revisions |
-| Approval policy | Version associated with each **approval cycle** | Each submission / resubmission |
-| Approval assignments | Eligible slots and assignees in each cycle | On cycle creation, then explicit auditable reassignment/delegation only |
-| Request content | Immutable snapshot for each submitted revision | Each submission / resubmission |
+| Versioned concept            | What is pinned?                                                       | When resolved?                                                          |
+| ---------------------------- | --------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| Request type/form definition | Submitted version and originally pinned definition for returned edits | First accepted submission; continues through returned revisions         |
+| Approval policy              | Version associated with each **approval cycle**                       | Each submission / resubmission                                          |
+| Approval assignments         | Eligible slots and assignees in each cycle                            | On cycle creation, then explicit auditable reassignment/delegation only |
+| Request content              | Immutable snapshot for each submitted revision                        | Each submission / resubmission                                          |
 
 These separate boundaries resolve the apparent tension between keeping the original form and applying the latest approval policy to a resubmission.
 
@@ -352,17 +352,17 @@ Logical modules are responsibilities, not a requirement to mirror eight top-leve
 
 ### 8.1 Conceptual entities
 
-| Group | Entities (conceptual; exact physical names defined in the SDS) |
-|---|---|
-| Identity | `users`, `roles`, `user_roles`, `refresh_sessions`, `recovery_codes`, `admin_reset_grants` |
-| Organization | `departments`, `department_memberships` |
-| Request definition | `request_types`, `request_type_versions`, `field_definitions` |
-| Approval configuration | `approval_policies`, `approval_policy_versions`, `reviewer_assignment_rules`, `budget_policies`, `sla_policies` |
-| Requests | `requests`, `request_revisions`, `request_field_values`, `request_items` |
-| Review execution | `approval_cycles`, `approval_stages`, `approval_slots`, `approval_decisions` |
-| Assignment and delegation | `reviewer_delegations`, `assignment_events` |
-| Audit and collaboration | `audit_events`, `request_comments`, `attachments` |
-| Notifications | `notifications`, `scheduled_job_events` |
+| Group                     | Entities (conceptual; exact physical names defined in the SDS)                                                  |
+| ------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| Identity                  | `users`, `roles`, `user_roles`, `refresh_sessions`, `recovery_codes`, `admin_reset_grants`                      |
+| Organization              | `departments`, `department_memberships`                                                                         |
+| Request definition        | `request_types`, `request_type_versions`, `field_definitions`                                                   |
+| Approval configuration    | `approval_policies`, `approval_policy_versions`, `reviewer_assignment_rules`, `budget_policies`, `sla_policies` |
+| Requests                  | `requests`, `request_revisions`, `request_field_values`, `request_items`                                        |
+| Review execution          | `approval_cycles`, `approval_stages`, `approval_slots`, `approval_decisions`                                    |
+| Assignment and delegation | `reviewer_delegations`, `assignment_events`                                                                     |
+| Audit and collaboration   | `audit_events`, `request_comments`, `attachments`                                                               |
+| Notifications             | `notifications`, `scheduled_job_events`                                                                         |
 
 ### 8.2 Required persistence invariants
 
@@ -433,13 +433,13 @@ The frontend may hide unavailable actions for clarity, but a visible or hidden c
 
 ### 11.2 Proposed measurable verification targets — implementation defaults, not frozen product decisions
 
-| Target ID | Proposed target | Verification approach |
-|---|---|---|
-| Q-01 | For defined seeded load, typical list/detail API p95 < 1,000 ms | Timed integration/performance smoke with environment recorded |
-| Q-02 | Core UI usable at desktop, tablet and narrow mobile viewports | Manual keyboard/responsive inspection and selected Playwright flows |
-| Q-03 | 100% of protected API groups have anonymous + forbidden-role/ownership negative checks where relevant | Automated coverage audit |
-| Q-04 | No duplicate effective decision under competing requests or retries | Real PostgreSQL concurrency tests |
-| Q-05 | No partial state/audit commit on injected transaction failure | Fault-injection integration test |
+| Target ID | Proposed target                                                                                       | Verification approach                                               |
+| --------- | ----------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| Q-01      | For defined seeded load, typical list/detail API p95 < 1,000 ms                                       | Timed integration/performance smoke with environment recorded       |
+| Q-02      | Core UI usable at desktop, tablet and narrow mobile viewports                                         | Manual keyboard/responsive inspection and selected Playwright flows |
+| Q-03      | 100% of protected API groups have anonymous + forbidden-role/ownership negative checks where relevant | Automated coverage audit                                            |
+| Q-04      | No duplicate effective decision under competing requests or retries                                   | Real PostgreSQL concurrency tests                                   |
+| Q-05      | No partial state/audit commit on injected transaction failure                                         | Fault-injection integration test                                    |
 
 These quantitative targets are engineering proposals until adopted into feature contracts/STS. They may be tuned with documented reasons, never used to excuse security or data-integrity defects.
 
@@ -529,8 +529,8 @@ Each selected feature has a baseline observable AC. Feature-level contracts may 
 
 ### 13.1 Stable feature-to-requirement-to-acceptance traceability
 
-| Sprint | Feature ID | Catalog feature | FR | AC |
-|---|---|---|---|---|
+| Sprint | Feature ID | Catalog feature | FR  | AC  |
+| ------ | ---------- | --------------- | --- | --- |
 
 | 1 | `M01` | Login | `FR-001` | `AC-001` |
 | 1 | `M02` | Logout & Current User | `FR-002` | `AC-002` |
@@ -589,11 +589,11 @@ Each selected feature has a baseline observable AC. Feature-level contracts may 
 
 ### 13.2 Sprint outcomes and dependencies
 
-| Sprint | Capability count | Completion outcome |
-|---|---:|---|
-| 1 — Foundation | 16 | Seeded type/users/assignments; authenticated submit → assigned review → approve/reject → persisted history, invalid transitions and access negative tests |
-| 2 — Workflow expansion | 20 | Drafts, return/edit/resubmit, immutable revisions, admin request types/conditional fields, routing, budgets, two-stage/parallel ALL decisions, dashboard/report |
-| 3 — Extended capabilities | 18 | Search/pagination, files/comments, notifications, reassignment/delegation, SLA/escalation, bulk, PDFs, admin accounts, signup/recovery, localization/visual polish and regression |
+| Sprint                    | Capability count | Completion outcome                                                                                                                                                                |
+| ------------------------- | ---------------: | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1 — Foundation            |               16 | Seeded type/users/assignments; authenticated submit → assigned review → approve/reject → persisted history, invalid transitions and access negative tests                         |
+| 2 — Workflow expansion    |               20 | Drafts, return/edit/resubmit, immutable revisions, admin request types/conditional fields, routing, budgets, two-stage/parallel ALL decisions, dashboard/report                   |
+| 3 — Extended capabilities |               18 | Search/pagination, files/comments, notifications, reassignment/delegation, SLA/escalation, bulk, PDFs, admin accounts, signup/recovery, localization/visual polish and regression |
 
 **Planned project checkpoints:** 2026-11-08 (Sprint 1); 2026-11-29 (Sprint 2 complete + tested Sprint 3 progress); 2026-12-13 (final accepted product). These are planning checkpoints, not evidence that a feature has been implemented.
 
@@ -629,27 +629,27 @@ These are operational details requiring implementation-ready documentation, not 
 
 The following selections guide the first implementation and may be adjusted with documented rationale, provided product rules above are preserved.
 
-| Concern | Suggested default |
-|---|---|
-| Workspace | `apps/web`, `apps/api`, `packages/contracts`; one `AGENTS.md` and root `bun.lock` |
-| Public IDs | Opaque UUIDs for directly addressable resources |
-| API naming | `/api/v1`, camelCase JSON fields, snake_case DB columns |
-| API errors | Consistent machine code/message with safe structured field errors |
-| Frontend forms | React Hook Form + Zod resolver + metadata-driven inputs |
-| Password hashing | Argon2id |
-| Access JWT | 15-minute TTL, held in browser memory |
-| Refresh | 7-day lifetime with rotating HttpOnly/Secure cookie and server family revocation |
-| Dynamic operators | `equals`, `notEquals`, `in`, `isSet`, optional AND groups; reject condition cycles |
-| Nonapplicable fields | Explicit validation error on submitted nonapplicable values rather than trusting hidden controls |
-| Money | One organization currency, initially THB; PostgreSQL exact `numeric` |
-| Request number | `REQ-YYYY-NNNNNN` with database uniqueness |
-| Priority vocabulary | `LOW`, `NORMAL`, `HIGH`, `URGENT` |
-| Uploads | Private object store; PDF/JPEG/PNG; maximum 10 MiB/file |
-| Collection paging | Default 20, max 100 rows, deterministic tie-breaker |
-| Business SLA example | 8 business hours from stage activation; configurable allowed SLA durations |
-| Tests | Bun test for unit/integration, PostgreSQL-backed tests, Playwright for critical journeys |
-| Infrastructure | Containerized web/API, durable PostgreSQL, private storage, managed scheduler |
-| Internationalized fields | Thai/English labels or documented fallback from one configured label |
+| Concern                  | Suggested default                                                                                |
+| ------------------------ | ------------------------------------------------------------------------------------------------ |
+| Workspace                | `apps/web`, `apps/api`, `packages/contracts`; one `AGENTS.md` and root `bun.lock`                |
+| Public IDs               | Opaque UUIDs for directly addressable resources                                                  |
+| API naming               | `/api/v1`, camelCase JSON fields, snake_case DB columns                                          |
+| API errors               | Consistent machine code/message with safe structured field errors                                |
+| Frontend forms           | React Hook Form + Zod resolver + metadata-driven inputs                                          |
+| Password hashing         | Argon2id                                                                                         |
+| Access JWT               | 15-minute TTL, held in browser memory                                                            |
+| Refresh                  | 7-day lifetime with rotating HttpOnly/Secure cookie and server family revocation                 |
+| Dynamic operators        | `equals`, `notEquals`, `in`, `isSet`, optional AND groups; reject condition cycles               |
+| Nonapplicable fields     | Explicit validation error on submitted nonapplicable values rather than trusting hidden controls |
+| Money                    | One organization currency, initially THB; PostgreSQL exact `numeric`                             |
+| Request number           | `REQ-YYYY-NNNNNN` with database uniqueness                                                       |
+| Priority vocabulary      | `LOW`, `NORMAL`, `HIGH`, `URGENT`                                                                |
+| Uploads                  | Private object store; PDF/JPEG/PNG; maximum 10 MiB/file                                          |
+| Collection paging        | Default 20, max 100 rows, deterministic tie-breaker                                              |
+| Business SLA example     | 8 business hours from stage activation; configurable allowed SLA durations                       |
+| Tests                    | Bun test for unit/integration, PostgreSQL-backed tests, Playwright for critical journeys         |
+| Infrastructure           | Containerized web/API, durable PostgreSQL, private storage, managed scheduler                    |
+| Internationalized fields | Thai/English labels or documented fallback from one configured label                             |
 
 Defaults do not permit weakening frozen session rotation, self-approval, parallel ALL, audit atomicity, or authorization requirements.
 
@@ -671,4 +671,3 @@ A selected capability is **accepted** only when:
 **Document audit:** Exactly 54 features; no duplicate feature or acceptance IDs; 15 frozen decisions; eight logical domains; three sprints; no scope-lowering changes.
 
 **Status:** Normative specification drafted from frozen product baseline. No actual implementation or test execution is asserted.
-

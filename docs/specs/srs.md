@@ -45,13 +45,13 @@ A single organization with multiple departments needs controlled requests, revie
 
 ### 2.2 Supported actors and access boundaries
 
-| Actor | Required capabilities | Constraints |
-|---|---|---|
-| Public visitor | Register, log in and start verified recovery | No access to protected data; registration confers Requester only |
-| Requester | Create, save, submit, edit returned revisions, withdraw and view own request history | Cannot review own request or access others' private records |
-| Reviewer | View own current/delegated approval tasks and necessary request context; decide if eligible | No unassigned task decisions; historical access is restricted to handled revision/decision context |
-| Administrator | Configure users, departments, request types, policies, reviewer assignments, budget ceilings, and escalation handling | No automatic right to inspect all confidential request details; no automatic approval authority |
-| Trusted scheduler | Process due reminders and escalations | Authenticated machine identity; does not autonomously approve or reassign |
+| Actor             | Required capabilities                                                                                                 | Constraints                                                                                        |
+| ----------------- | --------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| Public visitor    | Register, log in and start verified recovery                                                                          | No access to protected data; registration confers Requester only                                   |
+| Requester         | Create, save, submit, edit returned revisions, withdraw and view own request history                                  | Cannot review own request or access others' private records                                        |
+| Reviewer          | View own current/delegated approval tasks and necessary request context; decide if eligible                           | No unassigned task decisions; historical access is restricted to handled revision/decision context |
+| Administrator     | Configure users, departments, request types, policies, reviewer assignments, budget ceilings, and escalation handling | No automatic right to inspect all confidential request details; no automatic approval authority    |
+| Trusted scheduler | Process due reminders and escalations                                                                                 | Authenticated machine identity; does not autonomously approve or reassign                          |
 
 A user may hold several roles; permissions are decided for each operation and record. An administrator may also be a reviewer only when explicitly eligible under ordinary review rules.
 
@@ -78,15 +78,15 @@ OAuth and third-party social sign-in; multi-tenant organizations; verified-email
 
 ## 3. Key User Journeys and Dependencies
 
-| Journey | Preconditions | Observable result | Acceptance coverage |
-|---|---|---|---|
-| Authenticated request | Active Requester, admin-assigned department, published request type and eligible reviewers | One persisted `PENDING` request, submitted revision, approval cycle and audit | `AC-001`–`AC-016`, `S-01`–`S-03` |
-| Parallel staged review | Published one-/two-stage policy and valid review slots | Each effective vote recorded once; stage advances only after all required slots | `AC-025`, `AC-032`, `S-04` |
-| Returned correction | Request previously submitted, authorized reviewer returns with reason | Pin form version, edit new working revision, resubmit under current policy as new cycle | `AC-017`, `AC-020`–`AC-022`, `S-05` |
-| Configurable form | Administrator has draft type metadata | Valid conditional definition publishes; invalid cycles/hidden keys fail | `AC-033`, `S-06`–`S-07` |
-| Staff routing and deadline | Valid slots, role mapping and stage policy | Reassign/delegate without duplicate votes or deadline reset; SLA escalates to admin | `AC-044`–`AC-048`, `S-09`, `S-11` |
-| Account recovery | Recovery codes or independently verified assisted reset | Single-use reset; sessions revoked; audit available | `AC-053`–`AC-054`, `S-10` |
-| Confidential collaboration/report | Entitled request participant | Permitted comments/files, visible lists/reports/PDF/inbox, no foreign private data | `AC-037`–`AC-043`, `AC-050`, `S-12` |
+| Journey                           | Preconditions                                                                              | Observable result                                                                       | Acceptance coverage                 |
+| --------------------------------- | ------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------- | ----------------------------------- |
+| Authenticated request             | Active Requester, admin-assigned department, published request type and eligible reviewers | One persisted `PENDING` request, submitted revision, approval cycle and audit           | `AC-001`–`AC-016`, `S-01`–`S-03`    |
+| Parallel staged review            | Published one-/two-stage policy and valid review slots                                     | Each effective vote recorded once; stage advances only after all required slots         | `AC-025`, `AC-032`, `S-04`          |
+| Returned correction               | Request previously submitted, authorized reviewer returns with reason                      | Pin form version, edit new working revision, resubmit under current policy as new cycle | `AC-017`, `AC-020`–`AC-022`, `S-05` |
+| Configurable form                 | Administrator has draft type metadata                                                      | Valid conditional definition publishes; invalid cycles/hidden keys fail                 | `AC-033`, `S-06`–`S-07`             |
+| Staff routing and deadline        | Valid slots, role mapping and stage policy                                                 | Reassign/delegate without duplicate votes or deadline reset; SLA escalates to admin     | `AC-044`–`AC-048`, `S-09`, `S-11`   |
+| Account recovery                  | Recovery codes or independently verified assisted reset                                    | Single-use reset; sessions revoked; audit available                                     | `AC-053`–`AC-054`, `S-10`           |
+| Confidential collaboration/report | Entitled request participant                                                               | Permitted comments/files, visible lists/reports/PDF/inbox, no foreign private data      | `AC-037`–`AC-043`, `AC-050`, `S-12` |
 
 **Scope sequencing:** Sprint 1 establishes the authenticated vertical slice; Sprint 2 extends request/policy/revision behavior; Sprint 3 adds operational and presentation capabilities. Feature IDs are assigned exactly once. This is a planning allocation, not evidence of implementation.
 
@@ -256,26 +256,26 @@ Business Rules express domain invariants and required restrictions. The future A
 
 ### 6.1 Primary request states
 
-| State | Description | Editable by requester? |
-|---|---|---|
-| `DRAFT` | Incomplete or unsubmitted working request | Yes (owner) |
-| `PENDING` | Active approval cycle waiting for decisions | No |
-| `RETURNED` | Prior cycle closed; requester may prepare a new revision | Yes, in a new working revision |
-| `APPROVED` | Final required slot of final stage approved | No (terminal) |
-| `REJECTED` | Authorized review rejection | No (terminal) |
-| `WITHDRAWN` | Owner withdrew pending request | No (terminal) |
+| State       | Description                                              | Editable by requester?         |
+| ----------- | -------------------------------------------------------- | ------------------------------ |
+| `DRAFT`     | Incomplete or unsubmitted working request                | Yes (owner)                    |
+| `PENDING`   | Active approval cycle waiting for decisions              | No                             |
+| `RETURNED`  | Prior cycle closed; requester may prepare a new revision | Yes, in a new working revision |
+| `APPROVED`  | Final required slot of final stage approved              | No (terminal)                  |
+| `REJECTED`  | Authorized review rejection                              | No (terminal)                  |
+| `WITHDRAWN` | Owner withdrew pending request                           | No (terminal)                  |
 
 ### 6.2 Permitted transitions
 
-| Current state | Actor / action | New state | Guard and mandatory effects |
-|---|---|---|---|
-| `DRAFT` | Owner submits | `PENDING` | Full validation, department, eligible reviewer plan, new immutable revision/cycle and audit |
-| `PENDING` | Reviewer approves intermediate slot/stage | `PENDING` | One effective slot decision, audit; activate next stage only after ALL votes |
-| `PENDING` | Reviewer completes final stage | `APPROVED` | All required slots approved; write terminal decision and audit atomically |
-| `PENDING` | Reviewer rejects | `REJECTED` | Required reason, terminate tasks and audit atomically |
-| `PENDING` | Reviewer returns | `RETURNED` | Required reason, terminate cycle, permit new working revision |
-| `RETURNED` | Owner resubmits | `PENDING` | Use pinned form definition, current approval policy, fresh cycle and decisions |
-| `PENDING` | Owner withdraws | `WITHDRAWN` | Cancel unfinished tasks, audit and preserve previous decisions |
+| Current state | Actor / action                            | New state   | Guard and mandatory effects                                                                 |
+| ------------- | ----------------------------------------- | ----------- | ------------------------------------------------------------------------------------------- |
+| `DRAFT`       | Owner submits                             | `PENDING`   | Full validation, department, eligible reviewer plan, new immutable revision/cycle and audit |
+| `PENDING`     | Reviewer approves intermediate slot/stage | `PENDING`   | One effective slot decision, audit; activate next stage only after ALL votes                |
+| `PENDING`     | Reviewer completes final stage            | `APPROVED`  | All required slots approved; write terminal decision and audit atomically                   |
+| `PENDING`     | Reviewer rejects                          | `REJECTED`  | Required reason, terminate tasks and audit atomically                                       |
+| `PENDING`     | Reviewer returns                          | `RETURNED`  | Required reason, terminate cycle, permit new working revision                               |
+| `RETURNED`    | Owner resubmits                           | `PENDING`   | Use pinned form definition, current approval policy, fresh cycle and decisions              |
+| `PENDING`     | Owner withdraws                           | `WITHDRAWN` | Cancel unfinished tasks, audit and preserve previous decisions                              |
 
 Any other transition fails without changing business state. An invalid transition is **not** fixed by manipulating a frontend role selector or forcing a route.
 
@@ -291,12 +291,12 @@ Any other transition fails without changing business state. An invalid transitio
 
 ### 6.4 Version boundaries
 
-| Versioned concept | What is pinned? | When resolved? |
-|---|---|---|
-| Request type/form definition | Submitted version and originally pinned definition for returned edits | First accepted submission; continues through returned revisions |
-| Approval policy | Version associated with each **approval cycle** | Each submission / resubmission |
-| Approval assignments | Eligible slots and assignees in each cycle | On cycle creation, then explicit auditable reassignment/delegation only |
-| Request content | Immutable snapshot for each submitted revision | Each submission / resubmission |
+| Versioned concept            | What is pinned?                                                       | When resolved?                                                          |
+| ---------------------------- | --------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| Request type/form definition | Submitted version and originally pinned definition for returned edits | First accepted submission; continues through returned revisions         |
+| Approval policy              | Version associated with each **approval cycle**                       | Each submission / resubmission                                          |
+| Approval assignments         | Eligible slots and assignees in each cycle                            | On cycle creation, then explicit auditable reassignment/delegation only |
+| Request content              | Immutable snapshot for each submitted revision                        | Each submission / resubmission                                          |
 
 These separate boundaries resolve the apparent tension between keeping the original form and applying the latest approval policy to a resubmission.
 
@@ -338,13 +338,13 @@ Users, roles, trusted departments, session/recovery credentials; versioned reque
 
 ### 8.2 Proposed measurable verification targets — implementation defaults, not frozen product decisions
 
-| Target ID | Proposed target | Verification approach |
-|---|---|---|
-| Q-01 | For defined seeded load, typical list/detail API p95 < 1,000 ms | Timed integration/performance smoke with environment recorded |
-| Q-02 | Core UI usable at desktop, tablet and narrow mobile viewports | Manual keyboard/responsive inspection and selected Playwright flows |
-| Q-03 | 100% of protected API groups have anonymous + forbidden-role/ownership negative checks where relevant | Automated coverage audit |
-| Q-04 | No duplicate effective decision under competing requests or retries | Real PostgreSQL concurrency tests |
-| Q-05 | No partial state/audit commit on injected transaction failure | Fault-injection integration test |
+| Target ID | Proposed target                                                                                       | Verification approach                                               |
+| --------- | ----------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| Q-01      | For defined seeded load, typical list/detail API p95 < 1,000 ms                                       | Timed integration/performance smoke with environment recorded       |
+| Q-02      | Core UI usable at desktop, tablet and narrow mobile viewports                                         | Manual keyboard/responsive inspection and selected Playwright flows |
+| Q-03      | 100% of protected API groups have anonymous + forbidden-role/ownership negative checks where relevant | Automated coverage audit                                            |
+| Q-04      | No duplicate effective decision under competing requests or retries                                   | Real PostgreSQL concurrency tests                                   |
+| Q-05      | No partial state/audit commit on injected transaction failure                                         | Fault-injection integration test                                    |
 
 These quantitative targets are engineering proposals until adopted into feature contracts/STS. They may be tuned with documented reasons, never used to excuse security or data-integrity defects.
 
@@ -447,19 +447,19 @@ The following are binding and unchanged: configurable published versioned reques
 
 ## 12. Glossary
 
-| Term | Meaning |
-|---|---|
-| Request type | Published, admin-configurable definition of fields and rules |
-| Form-definition version | Immutable version of a request type used to validate submitted content |
-| Working revision | Editable representation in DRAFT or RETURNED state |
-| Submitted revision | Immutable payload snapshot associated with an approval cycle |
-| Approval policy | Published configuration selecting stages and eligible reviewers |
-| Approval cycle | One submission/resubmission attempt and its review execution |
-| Stage | Ordered step; at most two per cycle |
-| Slot | One required vote in a stage; multiple slots are parallel and ALL required |
-| Delegation | Time-bound alternate authority for an existing slot, not a second vote |
-| Reassignment | Audited replacement of the pending slot's assigned reviewer |
-| SLA | Due-date calculation and escalation using the Bangkok business calendar |
-| AC / FT | Acceptance criterion and corresponding planned feature test |
+| Term                    | Meaning                                                                    |
+| ----------------------- | -------------------------------------------------------------------------- |
+| Request type            | Published, admin-configurable definition of fields and rules               |
+| Form-definition version | Immutable version of a request type used to validate submitted content     |
+| Working revision        | Editable representation in DRAFT or RETURNED state                         |
+| Submitted revision      | Immutable payload snapshot associated with an approval cycle               |
+| Approval policy         | Published configuration selecting stages and eligible reviewers            |
+| Approval cycle          | One submission/resubmission attempt and its review execution               |
+| Stage                   | Ordered step; at most two per cycle                                        |
+| Slot                    | One required vote in a stage; multiple slots are parallel and ALL required |
+| Delegation              | Time-bound alternate authority for an existing slot, not a second vote     |
+| Reassignment            | Audited replacement of the pending slot's assigned reviewer                |
+| SLA                     | Due-date calculation and escalation using the Bangkok business calendar    |
+| AC / FT                 | Acceptance criterion and corresponding planned feature test                |
 
 **Baseline status:** Complete requirements document derived from frozen product contracts. Not a report of implemented or executed functionality.

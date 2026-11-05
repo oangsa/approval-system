@@ -43,13 +43,13 @@ flowchart LR
 
 ### 2.1 Proposed deployment units
 
-| Unit | Responsibilities | Persistence and secrets |
-|---|---|---|
-| `apps/web` | Public SSR, hydration, SPA navigation and authenticated client-loaded screens | No durable business state or raw refresh token access |
-| `apps/api` | API routes, use cases, policy engine, uploads, authorized reads | Database credentials, signing keys, storage and trusted-job configuration via secrets |
-| PostgreSQL | Source of truth, constraints, transaction locks, idempotency, audits/outbox | Durable volume/managed DB with backups |
-| Private object storage | Supporting files | Private bucket/container; opaque keys, no public listing |
-| Trusted scheduled caller | Calls `/internal/jobs/sla-process` | Machine identity and retry-safe schedule |
+| Unit                     | Responsibilities                                                              | Persistence and secrets                                                               |
+| ------------------------ | ----------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| `apps/web`               | Public SSR, hydration, SPA navigation and authenticated client-loaded screens | No durable business state or raw refresh token access                                 |
+| `apps/api`               | API routes, use cases, policy engine, uploads, authorized reads               | Database credentials, signing keys, storage and trusted-job configuration via secrets |
+| PostgreSQL               | Source of truth, constraints, transaction locks, idempotency, audits/outbox   | Durable volume/managed DB with backups                                                |
+| Private object storage   | Supporting files                                                              | Private bucket/container; opaque keys, no public listing                              |
+| Trusted scheduled caller | Calls `/internal/jobs/sla-process`                                            | Machine identity and retry-safe schedule                                              |
 
 **[PROPOSED DESIGN]** Separate web/API deployments can share one public origin via a reverse proxy to simplify cookie/origin defenses. This deployment preference is adjustable; cross-origin deployment must implement the exact frozen CORS and session safeguards.
 
@@ -110,31 +110,55 @@ flowchart LR
 ### 3.2 Key injected interfaces — proposed signatures
 
 ```ts
-interface Clock { now(): Date }
-interface Uow { run<T>(fn: (tx: TransactionPorts) => Promise<T>): Promise<T> }
-interface RequestRepository { getForUpdate(id: UUID): Promise<RequestAggregate> }
-interface ApprovalRepository { getSlotForUpdate(id: UUID): Promise<ApprovalSlot> }
-interface DefinitionRepository { getPublishedVersion(id: UUID): Promise<DefinitionVersion> }
-interface ApprovalPolicyResolver { resolve(input: PolicyContext): Promise<ResolvedPlan> }
-interface AuthorizationService { assertAllowed(actor: Actor, action: Action, resource: Resource): Promise<void> }
-interface ObjectStorage { putPrivate(key: string, stream: FileStream): Promise<void>; getPrivate(key: string): Promise<FileStream>; deletePrivate(key: string): Promise<void> }
-interface OutboxWriter { append(event: DomainEvent, tx: TransactionPorts): Promise<void> }
+interface Clock {
+  now(): Date;
+}
+interface Uow {
+  run<T>(fn: (tx: TransactionPorts) => Promise<T>): Promise<T>;
+}
+interface RequestRepository {
+  getForUpdate(id: UUID): Promise<RequestAggregate>;
+}
+interface ApprovalRepository {
+  getSlotForUpdate(id: UUID): Promise<ApprovalSlot>;
+}
+interface DefinitionRepository {
+  getPublishedVersion(id: UUID): Promise<DefinitionVersion>;
+}
+interface ApprovalPolicyResolver {
+  resolve(input: PolicyContext): Promise<ResolvedPlan>;
+}
+interface AuthorizationService {
+  assertAllowed(
+    actor: Actor,
+    action: Action,
+    resource: Resource,
+  ): Promise<void>;
+}
+interface ObjectStorage {
+  putPrivate(key: string, stream: FileStream): Promise<void>;
+  getPrivate(key: string): Promise<FileStream>;
+  deletePrivate(key: string): Promise<void>;
+}
+interface OutboxWriter {
+  append(event: DomainEvent, tx: TransactionPorts): Promise<void>;
+}
 ```
 
 These names are **[PROPOSED DESIGN]**, not frozen signatures. They exist to make logic independently testable and to avoid duplicate approval implementations.
 
 ## 4. Eight Logical Modules
 
-| Module | Core responsibilities | Example use cases/ports | Contract dependencies |
-|---|---|---|---|
-| Identity & Access | Login/session rotation, roles, accounts, department trust, recovery | `Login`, `Refresh`, `Register`, `RedeemRecovery`, `ManageUser` | FR-001–003, FR-046, FR-053–054 |
-| Request Management | Dynamic form drafts, submit, line items, priority, withdrawal | `SaveDraft`, `ValidateDefinition`, `SubmitRequest`, `Withdraw` | FR-004–006, FR-014–016, FR-019, FR-023–024, FR-033–034 |
-| Assignment & Policy | Type/department/amount routing, eligibility, reassignment/delegation, monetary ceilings | `ResolveApprovalPolicy`, `ManageAssignment`, `ReassignSlot`, `DelegateSlot` | FR-007, FR-012, FR-026–027, FR-031, FR-035–036, FR-044–045 |
-| Approval Workflow | Review queue, decisions, state transitions, stages, parallel slots, bulk processing | `GetTasks`, `RecordDecision`, `BulkDecide` | FR-008–011, FR-017, FR-025, FR-028, FR-032, FR-049 |
-| Revision & Collaboration | Immutable version history, comments, attachments, timeline | `Resubmit`, `ListRevisions`, `AppendComment`, `PutAttachment` | FR-013, FR-020–022, FR-030, FR-041–042 |
-| Search & Experience | Typed lists, responsive screen states, roles, theme/language | `SearchAuthorizedRequests`, shared table/wizard/alerts | FR-029, FR-037–040, FR-051–052 |
-| Reporting | Aggregates and authorized PDF | `QueryReport`, `ExportPdf` | FR-018, FR-050 |
-| Notifications & SLA | Inbox, business-clock due dates, reminders and admin escalation | `ProcessSla`, `ListNotifications`, `MarkRead` | FR-043, FR-047–048 |
+| Module                   | Core responsibilities                                                                   | Example use cases/ports                                                     | Contract dependencies                                      |
+| ------------------------ | --------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- | ---------------------------------------------------------- |
+| Identity & Access        | Login/session rotation, roles, accounts, department trust, recovery                     | `Login`, `Refresh`, `Register`, `RedeemRecovery`, `ManageUser`              | FR-001–003, FR-046, FR-053–054                             |
+| Request Management       | Dynamic form drafts, submit, line items, priority, withdrawal                           | `SaveDraft`, `ValidateDefinition`, `SubmitRequest`, `Withdraw`              | FR-004–006, FR-014–016, FR-019, FR-023–024, FR-033–034     |
+| Assignment & Policy      | Type/department/amount routing, eligibility, reassignment/delegation, monetary ceilings | `ResolveApprovalPolicy`, `ManageAssignment`, `ReassignSlot`, `DelegateSlot` | FR-007, FR-012, FR-026–027, FR-031, FR-035–036, FR-044–045 |
+| Approval Workflow        | Review queue, decisions, state transitions, stages, parallel slots, bulk processing     | `GetTasks`, `RecordDecision`, `BulkDecide`                                  | FR-008–011, FR-017, FR-025, FR-028, FR-032, FR-049         |
+| Revision & Collaboration | Immutable version history, comments, attachments, timeline                              | `Resubmit`, `ListRevisions`, `AppendComment`, `PutAttachment`               | FR-013, FR-020–022, FR-030, FR-041–042                     |
+| Search & Experience      | Typed lists, responsive screen states, roles, theme/language                            | `SearchAuthorizedRequests`, shared table/wizard/alerts                      | FR-029, FR-037–040, FR-051–052                             |
+| Reporting                | Aggregates and authorized PDF                                                           | `QueryReport`, `ExportPdf`                                                  | FR-018, FR-050                                             |
+| Notifications & SLA      | Inbox, business-clock due dates, reminders and admin escalation                         | `ProcessSla`, `ListNotifications`, `MarkRead`                               | FR-043, FR-047–048                                         |
 
 The eight groups are logical responsibilities; they do not mandate exactly eight top-level directories in each layer. Module boundaries may share database transactions but must not bypass authorization or the centralized approval engine.
 
@@ -156,15 +180,15 @@ The eight groups are logical responsibilities; they do not mandate exactly eight
 
 ### 5.3 Major screens and interactions
 
-| Screen | Design requirement | API contract |
-|---|---|---|
-| New/edit request wizard | Five steps, Save Draft, conditional fields, line items, review & submit; preserved step-level errors | `/requests`, `/request-types` |
-| Request detail | Tabs: Overview, Approval, History, Discussion/Files; historical access guard | `/requests/:id` and scoped children |
-| Reviews / task detail | Queue, current slot/parallel progress and confirmation dialogs for Approve/Reject/Return; rejected/returned reason mandatory | `/approval-tasks` |
-| Admin request-type builder | Structured field list, conditional rule editor, versioned draft/publish and preview; reject invalid cycles | `/admin/request-types` |
-| Admin routing/escalations | Eligible reviewer lookup, minimal task summaries, authorized reassignment, safe conflict feedback | `/admin/approval-tasks/search`, `/approval-tasks/:id/reassign` |
-| Lists/reports | Same server-filtered data as desktop DataTable and compact mobile cards; report/PDF use identical filters/visibility | `POST /search`, `/reports` |
-| Notification bell/inbox | Persistent polling, recipient isolation, read state | `/notifications` |
+| Screen                     | Design requirement                                                                                                           | API contract                                                   |
+| -------------------------- | ---------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
+| New/edit request wizard    | Five steps, Save Draft, conditional fields, line items, review & submit; preserved step-level errors                         | `/requests`, `/request-types`                                  |
+| Request detail             | Tabs: Overview, Approval, History, Discussion/Files; historical access guard                                                 | `/requests/:id` and scoped children                            |
+| Reviews / task detail      | Queue, current slot/parallel progress and confirmation dialogs for Approve/Reject/Return; rejected/returned reason mandatory | `/approval-tasks`                                              |
+| Admin request-type builder | Structured field list, conditional rule editor, versioned draft/publish and preview; reject invalid cycles                   | `/admin/request-types`                                         |
+| Admin routing/escalations  | Eligible reviewer lookup, minimal task summaries, authorized reassignment, safe conflict feedback                            | `/admin/approval-tasks/search`, `/approval-tasks/:id/reassign` |
+| Lists/reports              | Same server-filtered data as desktop DataTable and compact mobile cards; report/PDF use identical filters/visibility         | `POST /search`, `/reports`                                     |
+| Notification bell/inbox    | Persistent polling, recipient isolation, read state                                                                          | `/notifications`                                               |
 
 **[FROZEN]** Confirm all formal decisions (including Approve); Reject/Return additionally require reasons. Do not show a former reviewer the current full request detail. Don't use UI controls as the permission boundary.
 
@@ -174,34 +198,34 @@ The eight groups are logical responsibilities; they do not mandate exactly eight
 
 ### 6.1 Core tables and constraints
 
-| Table / aggregate | Essential columns (illustrative) | Key constraints / indexes |
-|---|---|---|
-| `users` | `id uuid`, `email_normalized`, `display_name`, `password_hash`, `is_active`, `version`, audit timestamps | UNIQUE(normalized email); no plaintext password; last-active-admin protection through transaction |
-| `roles`, `user_roles` | role code, `user_id`, `role_id` | Unique membership pair, approved roles only |
-| `departments`, `department_memberships` | `id`, stable `code`, localized `name`, active; trusted user↔department mapping | Unique code; active membership checks on submission |
-| `refresh_sessions` | session/family ID, `user_id`, hashed secret, expiry, used/revoked flags, `token_version` | Unique token identity; indexed session family and user |
-| `recovery_codes` | `id`, `user_id`, code hash, `consumed_at` | One successful use by conditional update/lock |
-| `admin_reset_grants` | `id`, `user_id`, hashed one-time grant, expiry, consumed/revoked, verification attestation | One-time consumption, audit and rate limits |
-| `request_types` | `id`, stable code, enabled flag, `published_version_id`, configuration version | Unique code; version pointer valid FK |
-| `request_type_versions` | `id`, `request_type_id`, version ordinal, publication state, immutable `definition_jsonb` | Unique `(request_type_id, version)`; prevent updates after publish |
-| `approval_policies` | `id`, code, active flag, published-version pointer | Stable identity and unique code |
-| `approval_policy_versions` | `id`, policy ID, priority, type/department/amount predicates, stages JSONB/normalized children, publication | Immutable after publish; max 2 stages validated |
-| `reviewer_assignment_rules` | `id`, stable key, department scope, eligible reviewer mapping, active, version | Unique active key/scope; source for cycle snapshots |
-| `budget_policies` | `id`, type, optional department, exact `max_amount`, active, version | Unique allowed most-specific effective policy, numeric ≥0 |
-| `requests` | `id`, request_number nullable until submit, requester, trusted department, type, status, `current_revision_id`, `current_cycle_id`, optimistic version | Unique request number when assigned; owner/status/date indexes |
-| `request_revisions` | `id`, request, revision number, pinned definition version, working/submitted marker, `fields_jsonb`, exact amount, timestamps | Unique `(request,revision)`; immutable submitted rows |
-| `request_items` | `id`, revision ID, description, `quantity numeric`, `unit_amount numeric`, `total_amount numeric` | Positive quantity, nonnegative amount; totals authoritative |
-| `approval_cycles` | `id`, request, submitted revision, policy-version snapshot, lifecycle state, created/closed time | One active cycle per request (partial unique index) |
-| `approval_stages` | `id`, cycle, `stage_number` 1/2, activated/completed times, status, configured business minutes | Unique `(cycle,stage_number)`; range 1..2 |
-| `approval_slots` | `id`, stage, assigned reviewer, status, dueAt, optimistic version | Unique slot identity; API `ApprovalTask.id` is this public slot/task UUID **[PROPOSED]** |
-| `approval_decisions` | `id`, slot, cycle, revision, actual actor, decision, reason, time | UNIQUE(slot ID) enforces one effective formal vote |
-| `reviewer_delegations` | `id`, grantor, delegate, start/end UTC, scope JSONB, status, version | `ends_at > starts_at`; eligibility validated in use case |
-| `assignment_events`, `audit_events` | stable event ID, target, actor, cycle/revision, event type, safe metadata, occurred | Append-only, indexed per request/task/time |
-| `request_comments` | `id`, request, actor, body, created | Parent access checked on read and append |
-| `attachments` | `id`, request, working/submitted revision, uploader, safe name/type/size, private object key, state | Private key unique; cannot mutate submitted historical evidence |
-| `notifications` | `id`, recipient, logical event key, kind, payload safe for recipient, read time | UNIQUE(recipient, logical_event_key), indexed unread |
-| `idempotency_records` | actor/scope/method/path/key/hash, state, lease, response identity | Unique idempotency identity; durable replay fence |
-| `outbox_events`, `scheduled_job_events` | event ID/key, event type, payload/projection, attempts, processed time | Unique logical occurrence key, safe retry |
+| Table / aggregate                       | Essential columns (illustrative)                                                                                                                       | Key constraints / indexes                                                                         |
+| --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------- |
+| `users`                                 | `id uuid`, `email_normalized`, `display_name`, `password_hash`, `is_active`, `version`, audit timestamps                                               | UNIQUE(normalized email); no plaintext password; last-active-admin protection through transaction |
+| `roles`, `user_roles`                   | role code, `user_id`, `role_id`                                                                                                                        | Unique membership pair, approved roles only                                                       |
+| `departments`, `department_memberships` | `id`, stable `code`, localized `name`, active; trusted user↔department mapping                                                                         | Unique code; active membership checks on submission                                               |
+| `refresh_sessions`                      | session/family ID, `user_id`, hashed secret, expiry, used/revoked flags, `token_version`                                                               | Unique token identity; indexed session family and user                                            |
+| `recovery_codes`                        | `id`, `user_id`, code hash, `consumed_at`                                                                                                              | One successful use by conditional update/lock                                                     |
+| `admin_reset_grants`                    | `id`, `user_id`, hashed one-time grant, expiry, consumed/revoked, verification attestation                                                             | One-time consumption, audit and rate limits                                                       |
+| `request_types`                         | `id`, stable code, enabled flag, `published_version_id`, configuration version                                                                         | Unique code; version pointer valid FK                                                             |
+| `request_type_versions`                 | `id`, `request_type_id`, version ordinal, publication state, immutable `definition_jsonb`                                                              | Unique `(request_type_id, version)`; prevent updates after publish                                |
+| `approval_policies`                     | `id`, code, active flag, published-version pointer                                                                                                     | Stable identity and unique code                                                                   |
+| `approval_policy_versions`              | `id`, policy ID, priority, type/department/amount predicates, stages JSONB/normalized children, publication                                            | Immutable after publish; max 2 stages validated                                                   |
+| `reviewer_assignment_rules`             | `id`, stable key, department scope, eligible reviewer mapping, active, version                                                                         | Unique active key/scope; source for cycle snapshots                                               |
+| `budget_policies`                       | `id`, type, optional department, exact `max_amount`, active, version                                                                                   | Unique allowed most-specific effective policy, numeric ≥0                                         |
+| `requests`                              | `id`, request_number nullable until submit, requester, trusted department, type, status, `current_revision_id`, `current_cycle_id`, optimistic version | Unique request number when assigned; owner/status/date indexes                                    |
+| `request_revisions`                     | `id`, request, revision number, pinned definition version, working/submitted marker, `fields_jsonb`, exact amount, timestamps                          | Unique `(request,revision)`; immutable submitted rows                                             |
+| `request_items`                         | `id`, revision ID, description, `quantity numeric`, `unit_amount numeric`, `total_amount numeric`                                                      | Positive quantity, nonnegative amount; totals authoritative                                       |
+| `approval_cycles`                       | `id`, request, submitted revision, policy-version snapshot, lifecycle state, created/closed time                                                       | One active cycle per request (partial unique index)                                               |
+| `approval_stages`                       | `id`, cycle, `stage_number` 1/2, activated/completed times, status, configured business minutes                                                        | Unique `(cycle,stage_number)`; range 1..2                                                         |
+| `approval_slots`                        | `id`, stage, assigned reviewer, status, dueAt, optimistic version                                                                                      | Unique slot identity; API `ApprovalTask.id` is this public slot/task UUID **[PROPOSED]**          |
+| `approval_decisions`                    | `id`, slot, cycle, revision, actual actor, decision, reason, time                                                                                      | UNIQUE(slot ID) enforces one effective formal vote                                                |
+| `reviewer_delegations`                  | `id`, grantor, delegate, start/end UTC, scope JSONB, status, version                                                                                   | `ends_at > starts_at`; eligibility validated in use case                                          |
+| `assignment_events`, `audit_events`     | stable event ID, target, actor, cycle/revision, event type, safe metadata, occurred                                                                    | Append-only, indexed per request/task/time                                                        |
+| `request_comments`                      | `id`, request, actor, body, created                                                                                                                    | Parent access checked on read and append                                                          |
+| `attachments`                           | `id`, request, working/submitted revision, uploader, safe name/type/size, private object key, state                                                    | Private key unique; cannot mutate submitted historical evidence                                   |
+| `notifications`                         | `id`, recipient, logical event key, kind, payload safe for recipient, read time                                                                        | UNIQUE(recipient, logical_event_key), indexed unread                                              |
+| `idempotency_records`                   | actor/scope/method/path/key/hash, state, lease, response identity                                                                                      | Unique idempotency identity; durable replay fence                                                 |
+| `outbox_events`, `scheduled_job_events` | event ID/key, event type, payload/projection, attempts, processed time                                                                                 | Unique logical occurrence key, safe retry                                                         |
 
 **Design note:** `field_definitions` may be normalized into rows or stored in an immutable validated `request_type_versions.definition_jsonb`. Either preserves frozen request-type version semantics. Choose one physical representation in the initial migration and record it in a short ADR. Runtime validation must always read the pinned immutable definition, never infer active rules from the latest editable draft.
 
@@ -282,14 +306,14 @@ stateDiagram-v2
 
 ### 7.3 Version resolver matrix
 
-| Resource | Frozen semantics | When the design consults it |
-|---|---|---|
-| Request type definition | Pin the original published definition on first submission and returned edits | Runtime validation of every working/submitted revision |
-| Approval policy | Resolve current published highest-priority eligible policy; ties at top are errors | Each initial submission and resubmission |
-| Assignment mapping | Resolve eligible reviewer slots; reject missing/inactive/self-only config | Before accepting each approval cycle |
-| Request revision | Snapshot immutable submitted fields/items/attachments | At every accepted submission/resubmission |
-| Approval cycle | Bind exact submitted revision, policy version and required stages | All decisions and history |
-| SLA | Duration selected per stage (default 480 business minutes) | On stage activation; never reset on reassignment/delegation |
+| Resource                | Frozen semantics                                                                   | When the design consults it                                 |
+| ----------------------- | ---------------------------------------------------------------------------------- | ----------------------------------------------------------- |
+| Request type definition | Pin the original published definition on first submission and returned edits       | Runtime validation of every working/submitted revision      |
+| Approval policy         | Resolve current published highest-priority eligible policy; ties at top are errors | Each initial submission and resubmission                    |
+| Assignment mapping      | Resolve eligible reviewer slots; reject missing/inactive/self-only config          | Before accepting each approval cycle                        |
+| Request revision        | Snapshot immutable submitted fields/items/attachments                              | At every accepted submission/resubmission                   |
+| Approval cycle          | Bind exact submitted revision, policy version and required stages                  | All decisions and history                                   |
+| SLA                     | Duration selected per stage (default 480 business minutes)                         | On stage activation; never reset on reassignment/delegation |
 
 ## 8. Dynamic Request Definition and Monetary Policy Design
 
@@ -362,16 +386,16 @@ sequenceDiagram
 
 ### 9.3 Important races
 
-| Race | Required safe outcome |
-|---|---|
-| Two reviewers approve different parallel slots simultaneously | Stage advances once when ALL required slots approved; never premature completion |
-| Reject vs final approve | One serializable terminal result, no contradictory APPROVED and REJECTED |
-| Owner withdraw vs reviewer decision | Exactly one valid ordering; stale loser gets safe conflict |
-| Original reviewer vs delegate | First valid vote wins **one** slot, other is stale |
-| Admin reassign vs old reviewer submit | New version/assignment wins or old vote commits first; loser cannot write stale decision |
-| Admin publish vs existing draft submit | First submit uses active version or `FORM_DEFINITION_CHANGED`; no partial submission |
-| Repeated bulk request | Per-item outcome, no duplicated decision effects; failure of one task does not grant rights on another |
-| Concurrent request-number allocation | Unique backend IDs/numbers even across distinct accepted submissions |
+| Race                                                          | Required safe outcome                                                                                  |
+| ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| Two reviewers approve different parallel slots simultaneously | Stage advances once when ALL required slots approved; never premature completion                       |
+| Reject vs final approve                                       | One serializable terminal result, no contradictory APPROVED and REJECTED                               |
+| Owner withdraw vs reviewer decision                           | Exactly one valid ordering; stale loser gets safe conflict                                             |
+| Original reviewer vs delegate                                 | First valid vote wins **one** slot, other is stale                                                     |
+| Admin reassign vs old reviewer submit                         | New version/assignment wins or old vote commits first; loser cannot write stale decision               |
+| Admin publish vs existing draft submit                        | First submit uses active version or `FORM_DEFINITION_CHANGED`; no partial submission                   |
+| Repeated bulk request                                         | Per-item outcome, no duplicated decision effects; failure of one task does not grant rights on another |
+| Concurrent request-number allocation                          | Unique backend IDs/numbers even across distinct accepted submissions                                   |
 
 ### 9.4 Idempotency and outbox
 
@@ -386,23 +410,23 @@ sequenceDiagram
 ### 10.1 Token/session lifecycle
 
 - Login verifies active account and Argon2id password hash (**implementation default algorithm**), signs a short-lived access JWT and sets a single-use rotated refresh credential in `HttpOnly` cookie.
-- Protected requests validate signed access JWT *and* server-side active-user/session token version/eligibility; changed roles, disabled accounts or revocations are enforced server-side.
+- Protected requests validate signed access JWT _and_ server-side active-user/session token version/eligibility; changed roles, disabled accounts or revocations are enforced server-side.
 - Refresh uses cookie-backed rotation with token-family invalidation on reuse. Logout/logout-all and password resets revoke the relevant session family/all sessions.
 - Cookie-origin/CSRF protections apply to cookie-authenticated endpoints; CORS allowlists are explicit. Access JWT is held only in web memory, never localStorage or sessionStorage.
 
 ### 10.2 Authorization policy matrix
 
-| Action | Requester | Eligible reviewer | Administrator |
-|---|---|---|---|
-| Create/edit/submit/withdraw own request | Owner only, correct state | Only when also Requester owner | Only when also Requester owner |
-| Read current full request | Own | Only permitted current task context | Not by Admin role alone |
-| Read handled historical revision | Own | Previously actually handled revision only | Not by Admin role alone |
-| Decide slot | No self-owned vote | Current assigned/delegated eligible; not requester | Only if separately Reviewer-eligible and not requester |
-| Reassign slot | No | No | Yes; minimum routing metadata |
-| View admin routing queue | No | No | Yes; minimal `AdminApprovalTaskSummary` |
-| Publish type/policy and manage users | No | No | Yes |
-| Comments/files | Owner or current authorized participant | Scoped current participant access | No implicit access |
-| Reports/PDF | Own permitted rows | Permitted task/record scope | Policy-safe aggregates, no confidential payload |
+| Action                                  | Requester                               | Eligible reviewer                                  | Administrator                                          |
+| --------------------------------------- | --------------------------------------- | -------------------------------------------------- | ------------------------------------------------------ |
+| Create/edit/submit/withdraw own request | Owner only, correct state               | Only when also Requester owner                     | Only when also Requester owner                         |
+| Read current full request               | Own                                     | Only permitted current task context                | Not by Admin role alone                                |
+| Read handled historical revision        | Own                                     | Previously actually handled revision only          | Not by Admin role alone                                |
+| Decide slot                             | No self-owned vote                      | Current assigned/delegated eligible; not requester | Only if separately Reviewer-eligible and not requester |
+| Reassign slot                           | No                                      | No                                                 | Yes; minimum routing metadata                          |
+| View admin routing queue                | No                                      | No                                                 | Yes; minimal `AdminApprovalTaskSummary`                |
+| Publish type/policy and manage users    | No                                      | No                                                 | Yes                                                    |
+| Comments/files                          | Owner or current authorized participant | Scoped current participant access                  | No implicit access                                     |
+| Reports/PDF                             | Own permitted rows                      | Permitted task/record scope                        | Policy-safe aggregates, no confidential payload        |
 
 Return indistinguishable `404 NOT_FOUND` for non-public inaccessible records as API requires. A former reviewer cannot call the full current `GET /requests/:id` merely because of historical involvement. For administrative escalation use **only** `POST /api/v1/admin/approval-tasks/search` v1.0.1 and existing reassignment endpoint, never a full request fetch.
 
@@ -459,17 +483,17 @@ A Friday 16:00 start with a **120-business-minute** SLA is due Monday 10:00 in `
 
 ### 12.2 Route boundaries (selected)
 
-| Operation | Frozen route | Module |
-|---|---|---|
-| Login / refresh / recovery | `/api/v1/auth/*` | Identity |
-| Request list / working draft / submit / resubmit | `/api/v1/requests/*` | Request |
-| Reviewer queue and decisions | `/api/v1/approval-tasks/*` | Approval |
-| Admin routing-only escalation queue | `POST /api/v1/admin/approval-tasks/search` | Assignment / SLA |
-| Admin type/policy publish | `/api/v1/admin/request-types/*`, `/api/v1/admin/approval-policies/*` | Configuration |
-| Reviewer delegations | `/api/v1/delegations/*` | Assignment |
-| Comments, files, inbox | `/api/v1/requests/:id/*`, `/api/v1/notifications/*` | Collaboration |
-| Reports and PDFs | `/api/v1/reports/requests/*` | Reporting |
-| Trusted SLA call | `POST /internal/jobs/sla-process` | Operations |
+| Operation                                        | Frozen route                                                         | Module           |
+| ------------------------------------------------ | -------------------------------------------------------------------- | ---------------- |
+| Login / refresh / recovery                       | `/api/v1/auth/*`                                                     | Identity         |
+| Request list / working draft / submit / resubmit | `/api/v1/requests/*`                                                 | Request          |
+| Reviewer queue and decisions                     | `/api/v1/approval-tasks/*`                                           | Approval         |
+| Admin routing-only escalation queue              | `POST /api/v1/admin/approval-tasks/search`                           | Assignment / SLA |
+| Admin type/policy publish                        | `/api/v1/admin/request-types/*`, `/api/v1/admin/approval-policies/*` | Configuration    |
+| Reviewer delegations                             | `/api/v1/delegations/*`                                              | Assignment       |
+| Comments, files, inbox                           | `/api/v1/requests/:id/*`, `/api/v1/notifications/*`                  | Collaboration    |
+| Reports and PDFs                                 | `/api/v1/reports/requests/*`                                         | Reporting        |
+| Trusted SLA call                                 | `POST /internal/jobs/sla-process`                                    | Operations       |
 
 **Error handling:** Controller maps domain errors to the frozen status/code rather than leaking stack traces or internal SQL. Keep authorization from route params and client filter fields explicit and documented.
 
@@ -486,31 +510,31 @@ A Friday 16:00 start with a **120-business-minute** SLA is due Monday 10:00 in `
 
 The test contract is [`test.md`](./test.md). Specific future implementation locations and runner commands may differ, but the verification **behavior** must match.
 
-| Layer | Scope and evidence |
-|---|---|
-| Pure unit | State machine; ALL-vote reducer; policy priority; form DAG; exact decimal math; Bangkok business clock |
-| Shared contract/API | Zod DTO parsing, status codes, headers, current actor scope, invalid/nonapplicable fields |
+| Layer                       | Scope and evidence                                                                                               |
+| --------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| Pure unit                   | State machine; ALL-vote reducer; policy priority; form DAG; exact decimal math; Bangkok business clock           |
+| Shared contract/API         | Zod DTO parsing, status codes, headers, current actor scope, invalid/nonapplicable fields                        |
 | Real PostgreSQL integration | Request/decision/audit atomicity, uniqueness, version pinning, ACL queries, idempotency and recovery transaction |
-| Concurrency/injection | Parallel first-vote wins, approve vs reject, stale reassign, withdraw races, retry and rollback |
-| Private storage integration | Authorized multipart upload/download; failure compensation; revised document immutability |
-| Browser E2E | Five-step wizard, four request tabs, review dialogs, admin builder, mobile cards, theme/language and inbox |
-| Scheduled operations | Friday-to-Monday SLA, deduped reminders, admin-only minimal escalation view |
-| Security | Anonymous and wrong-role denial, cross-owner privacy, self-approval, refresh/recovery abuse and file isolation |
+| Concurrency/injection       | Parallel first-vote wins, approve vs reject, stale reassign, withdraw races, retry and rollback                  |
+| Private storage integration | Authorized multipart upload/download; failure compensation; revised document immutability                        |
+| Browser E2E                 | Five-step wizard, four request tabs, review dialogs, admin builder, mobile cards, theme/language and inbox       |
+| Scheduled operations        | Friday-to-Monday SLA, deduped reminders, admin-only minimal escalation view                                      |
+| Security                    | Anonymous and wrong-role denial, cross-owner privacy, self-approval, refresh/recovery abuse and file isolation   |
 
 Every selected capability maps one-to-one to `FR-NNN`/`AC-NNN`/`FT-NNN`; associated database/API/UI/security tests must additionally pass. No mock-only test can prove transaction durability or concurrent consistency. Record results and tested commit after actually running the suites.
 
 ## 15. Key Risks and Mitigations
 
-| Design risk | Mitigation and acceptance gate |
-|---|---|
-| Admin-configurable conditional forms | Versioned immutable definitions; cycle/unknown-field validator; hidden-key rejection and shared preview tests |
+| Design risk                                 | Mitigation and acceptance gate                                                                                        |
+| ------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| Admin-configurable conditional forms        | Versioned immutable definitions; cycle/unknown-field validator; hidden-key rejection and shared preview tests         |
 | Parallel vote/reassignment/delegation races | One slot identity, unique decision constraint, row locking, expectedVersion, idempotency and true concurrent DB tests |
-| Two different types of version change | Separate pinned form version vs newly resolved approval policy; regression for both on return/resubmit |
-| Identity escalation and recovery | One-time hashed codes, separate session revocation, last-admin guard, out-of-band verified grant delivery |
-| Admin privacy leakage | Narrow routing DTO; prevent full current request reads, comments/file access without participant authority |
-| External storage inconsistency | Private staging and compensation/outbox cleanup, upload failure-injection tests |
-| Jobs running more than once | Durable deduplication keys, transactional claims, no autonomous reassignment |
-| Two-developer integration time | One shared engine, feature-level slices, repeatable seed, bounded tests and reviewed changes |
+| Two different types of version change       | Separate pinned form version vs newly resolved approval policy; regression for both on return/resubmit                |
+| Identity escalation and recovery            | One-time hashed codes, separate session revocation, last-admin guard, out-of-band verified grant delivery             |
+| Admin privacy leakage                       | Narrow routing DTO; prevent full current request reads, comments/file access without participant authority            |
+| External storage inconsistency              | Private staging and compensation/outbox cleanup, upload failure-injection tests                                       |
+| Jobs running more than once                 | Durable deduplication keys, transactional claims, no autonomous reassignment                                          |
+| Two-developer integration time              | One shared engine, feature-level slices, repeatable seed, bounded tests and reviewed changes                          |
 
 ## 16. Frozen vs Adjustable Decisions and Change Control
 
