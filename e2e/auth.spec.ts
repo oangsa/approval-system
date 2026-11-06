@@ -23,7 +23,7 @@ test("IA-E2E-01: a real login reaches the protected shell with the current ident
     await expect(page.getByRole("menu")).toContainText("REQUESTER");
 });
 
-test("IA-E2E-01: wrong credentials show a generic error and never reach the shell", async ({ page }) =>
+test("IA-E2E-04: wrong credentials show a generic error and never reach the shell", async ({ page }) =>
 {
     await page.goto("/auth/login");
     await page.getByLabel("Email", { exact: true }).fill("requester-a@example.test");
@@ -75,7 +75,7 @@ test("IA-E2E-03: switching accounts never renders the previous identity", async 
     await expect(menu).toContainText("ADMINISTRATOR");
 });
 
-test("IA-E2E-04: the mobile drawer is keyboard operable and manages focus", async ({ page }) =>
+test("IA-WEB-05: the mobile drawer is keyboard operable and manages focus", async ({ page }) =>
 {
     await signIn(page, requester);
     await page.setViewportSize({ width: 390, height: 844 });
