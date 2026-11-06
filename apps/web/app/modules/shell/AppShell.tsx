@@ -32,7 +32,7 @@ export function AppShell({ children }: IAppShellProps)
     {
         if (!drawerOpen) return;
         const panel = drawerPanel.current;
-        panel?.querySelector<HTMLElement>("a, button")?.focus();
+        (panel?.querySelector<HTMLElement>("a") ?? panel?.querySelector<HTMLElement>("button"))?.focus();
         function onKeyDown(event: KeyboardEvent)
         {
             if (event.key === "Escape") setDrawerOpen(false);
