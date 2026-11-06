@@ -2,9 +2,9 @@
 
 **Feature IDs:** M01, M02, M03
 
-**Document state:** Prepared for documentation versioning before implementation.
+**Document state:** Versioned before behavior implementation.
 
-**Current implementation status:** NOT RUN.
+**Current implementation status:** IMPLEMENTED and EXECUTED on 2026-11-06. Actual command results are recorded in [testing-verification.md](../../testing-verification.md); teammate-reviewed PR acceptance is still pending. Checks without recorded evidence remain NOT RUN.
 
 Version these four feature documents before beginning behavior implementation. Teammate review of the implementation and evidence is required for the implementation pull request.
 
@@ -55,4 +55,4 @@ Version these four feature documents before beginning behavior implementation. T
 
 ## Status rule
 
-Every check remains PLANNED / NOT RUN until executed and evidenced. This documentation change does not implement identity behavior and does not pass any acceptance criterion.
+Every check remains PLANNED / NOT RUN until executed and evidenced. The 2026-11-06 execution record in [sts.md](./sts.md) §7b and [testing-verification.md](../../testing-verification.md) supersedes that default for the checks it covers; all other checks remain NOT RUN.

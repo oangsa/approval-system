@@ -4,7 +4,7 @@
 
 **Document state:** Versioned test design with a separate record of partial foundation evidence.
 
-**Execution status:** Full planned feature cases remain PLANNED / NOT RUN; foundation checks are recorded separately in section 7.
+**Execution status:** Executed on 2026-11-06 at `20b2769` with suite-level results recorded in section 7 and in [testing-verification.md](../../../testing-verification.md). Cases without recorded per-case evidence below remain PLANNED / NOT RUN.
 
 ## 1. Test rules and fixtures
 
@@ -14,7 +14,7 @@ Use synthetic actors aligned with test.md: U-OWNER and U-OTHER for owner isolati
 
 Protected API checks must use credentials obtained through the real login flow, except malformed/forged/expired-token cases that explicitly test token validation. Use independent PostgreSQL connections plus a synchronization barrier for concurrency cases. Assert database final state, not only response timing or status counts. The owner/foreign/missing private resource is a generic test fixture and route registered only for tests; it is not a business API.
 
-Every full planned case below is PLANNED / NOT RUN. Setup, action, and expected assertions define future evidence; partial foundation checks in section 7 do not complete these cases. Capture command, environment, fixture IDs, tested SHA and dirty state, expected and actual outcome, status, and redacted evidence when a case runs. Never store raw passwords, cookies, JWTs, or refresh values in evidence.
+Cases are executed only when their evidence appears in section 7 or in [testing-verification.md](../../../testing-verification.md); all other cases remain PLANNED / NOT RUN, and the partial foundation checks do not complete them. Capture command, environment, fixture IDs, tested SHA and dirty state, expected and actual outcome, status, and redacted evidence when a case runs. Never store raw passwords, cookies, JWTs, or refresh values in evidence.
 
 ## 2. Contract tests
 
@@ -84,6 +84,24 @@ Inherited predecessor results: `npm run db:test:migrate` passed twice, `npm run 
 Fresh static checks for this record: `git diff --check`, the corrected raw whitespace scan, and Git full-file `diff --no-index --check` passed across 32 paths before and after the evidence edits. The corrected pattern `(?m)^[\t ]* [\t ]*\t` detects spaces before tabs without rejecting ordinary tab indentation. The generated SQL remains unchanged with SHA256 `878DDC464E1DEF175970BADEB46F26D3A9951B10C38C0D916EE09A101D293596`. Formatting these two documents and `npm.cmd run lint` passed. Full-file no-index checks returned 1 for files differing from NUL; CRLF conversion warnings were informational.
 
 This evidence does not prove empty-database setup, the full HTTP lifecycle, races or restart behavior, authorization integration, UI/browser behavior, or feature completion. No full IA-CT, IA-DB, or IA-API case is marked passed.
+
+### 7b. Feature execution record — 2026-11-06
+
+All commands ran in `C:/Users/kitti/approval-system` on `feature/1-identity-auth-access` at `20b2769df5926b17b5b983af220730a9d68350a9` (plus the documentation edits described in [testing-verification.md](../../../testing-verification.md)). Runtime Node v24.22.1, npm 11.19.1, disposable `workflow_test` on `127.0.0.1:55432` (PostgreSQL 17, tmpfs), Chromium 148. Fixtures: the deterministic identity seed (U-OWNER, U-OTHER, U-MULTI, U-ADMIN, U-DISABLED, two departments).
+
+| Group                     | Command                                                                                                     | Result                                                              | Status |
+| ------------------------- | ----------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- | ------ |
+| Contract (`IA-CT-01`)     | `npm run test:contracts`                                                                                    | 2 files, 8 passed                                                   | PASS   |
+| API/security (`IA-API-*`) | `npm run test:api`                                                                                          | 10 files, 162 passed                                                | PASS   |
+| Web (`IA-WEB-*`)          | `npm run test:web`                                                                                          | 4 files, 21 passed                                                  | PASS   |
+| PostgreSQL (`IA-DB-*`)    | `npm run db:test:migrate`, `npm run db:test:seed`, `npm run test:integration` with `RUN_BUILT_HTTP_SMOKE=1` | migration and seed applied to an empty database; 4 files, 31 passed | PASS   |
+| Browser (`IA-E2E-*`)      | `npm run test:e2e`                                                                                          | 12 passed, 0 failed                                                 | PASS   |
+| Static gates              | `npm run check`                                                                                             | typecheck, lint, 191 tests, build                                   | PASS   |
+| Coverage                  | `npm run test:coverage`                                                                                     | statements 72.99%, branches 82.67%, lines 73.22%                    | PASS   |
+
+Browser cases proven end to end: IA-E2E-01 (login to protected shell with correct identity), IA-E2E-02 (refresh-cookie bootstrap, HttpOnly cookie, no account data in public SSR), IA-E2E-03 (logout revocation, redirect with return path, account switch without stale identity), IA-E2E-05 (public HTML free of tokens and identity). IA-E2E-04's generic credential failure is proven in the browser and in component tests, and its throttling half (429 with `Retry-After`, no account enumeration) is proven at API level; the browser network-interruption/recovery portion remains NOT RUN. IA-WEB-05 is proven in component tests and by the drawer journey in the browser suite.
+
+Per-case database final-state assertions for IA-DB-02–05 and the delayed-response half of IA-E2E-03 are covered by the suites above but are not individually itemized here; treat those cases as evidenced at suite level only. GitHub Actions has not run for this branch.
 
 ## 8. Coverage boundary
 

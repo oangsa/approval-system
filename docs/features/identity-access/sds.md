@@ -6,7 +6,7 @@
 
 **Document state:** Versioned design with uncommitted foundation drafts; feature implementation remains incomplete.
 
-**Implementation and test status:** Foundation drafts have partial test evidence in the STS. Full feature cases remain PLANNED / NOT RUN.
+**Implementation and test status:** Implemented and executed on 2026-11-06; suite-level evidence is recorded in [sts.md](./sts.md) §7b and [testing-verification.md](../../testing-verification.md). Cases without recorded evidence remain PLANNED / NOT RUN.
 
 ## 1. Purpose and authority
 
@@ -166,4 +166,4 @@ Apply rate limits to login. Keep security telemetry structured and redacted. Nev
 
 The numbered child acceptance criteria are in [acceptance-criteria.md](./acceptance-criteria.md), and the executable test design is in [sts.md](./sts.md). The implementation completion gate is in [dod.md](./dod.md). The narrow additions to shared traceability and specification documents must preserve all frozen IDs and global PLANNED / NOT RUN statements.
 
-Uncommitted foundation drafts include shared contracts, domain and ports, persistence and a migration, security primitives, a deterministic seed, and tests. The STS records bounded evidence for these drafts. Application and HTTP lifecycle, race and restart behavior, authorization integration, frontend and browser behavior, and feature completion remain PLANNED / NOT RUN. The contracts in this SDS continue to describe intended feature behavior.
+The implementation is committed on `feature/1-identity-auth-access`: shared contracts, domain and application use cases, persistence with a reviewed migration and deterministic seed, security primitives, auth routes and guards, the authenticated frontend transport, login and protected shell, and CI/browser verification. The STS records the executed evidence in section 7b. Downstream business-resource behavior, the delayed-response half of IA-E2E-03, and the browser throttle/network-interruption portion of IA-E2E-04 remain PLANNED / NOT RUN. The contracts in this SDS continue to describe the implemented feature behavior.

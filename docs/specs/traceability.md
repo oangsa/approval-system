@@ -6,7 +6,7 @@
 **Design source:** [`system-sds.md`](./system-sds.md)  
 **Wire/UI sources:** [`api-specs.md`](./api-specs.md) v1.0.1; [`ui-specs.md`](./ui-specs.md) v1.0  
 **Test source:** [`test.md`](./test.md)  
-**Execution status:** **PLANNED / NOT RUN** (no actual results asserted)
+**Execution status:** Identity & Access (`M01`–`M03`) implementation checks were **executed** on 2026-11-06 with actual results recorded in [`testing-verification.md`](../testing-verification.md); teammate-reviewed PR acceptance is still pending. All other features remain **PLANNED / NOT RUN** (no actual results asserted).
 
 > **ID policy:** Preserve the original 54 unique Feature IDs and one-to-one `FR-NNN`, `AC-NNN`, `FT-NNN` mapping. `BR-NNN` and `NFR-NNN` are cross-cutting and can apply to many features. Paths in the matrix are illustrative links to the **existing frozen route directories**, not newly authorized endpoints. Use `api-specs.md` as authoritative for exact methods, schemas, audience and errors.
 
@@ -268,7 +268,7 @@ This is the selected allocation. It does not claim that everything assigned to a
 5. For a failed test, capture expected/actual, sanitized request ID/log, defect link, fix revision and retest.
 6. Do not mark a feature accepted while its important access, persistence, concurrency or UI requirement has not been verified.
 
-**Current evidence statement:** All checks in this matrix are planned. No passing implementation or execution result is asserted.
+**Current evidence statement:** The Identity & Access (`M01`–`M03`) child checks were executed on 2026-11-06; actual results are recorded in [`testing-verification.md`](../testing-verification.md) and remain subject to teammate-reviewed PR acceptance. Every other check in this matrix is planned, and no other passing implementation or execution result is asserted.
 
 ## 10. Identity & Access child criteria (additive)
 
@@ -278,4 +278,4 @@ This is the selected allocation. It does not claim that everything assigned to a
 | M02 — Logout & Current User | FR-002 / AC-002 / FT-002                       | IA-AC-03–05, IA-AC-08–10, IA-AC-12    | IA-DB-02–06, IA-DB-08; IA-API-02–05, IA-API-08; IA-WEB-01–03; IA-E2E-02–03       |
 | M03 — Role-based Access     | FR-003 / AC-003 / FT-003                       | IA-AC-06–12                           | IA-DB-07–08; IA-API-03, IA-API-06–08; IA-WEB-03, IA-WEB-05; IA-E2E-03, IA-E2E-05 |
 
-The child criteria refine, but do not replace, the frozen feature mapping. IA-API-07 proves only generic test-guard behavior and does not satisfy full FT-003 business-resource coverage. These feature documents and all implementation checks remain PLANNED / NOT RUN.
+The child criteria refine, but do not replace, the frozen feature mapping. IA-API-07 proves only generic test-guard behavior and does not satisfy full FT-003 business-resource coverage. The identity feature's implementation checks are executed with recorded evidence in [`testing-verification.md`](../testing-verification.md); downstream `FT-003` business-resource coverage and every non-identity check remain PLANNED / NOT RUN.

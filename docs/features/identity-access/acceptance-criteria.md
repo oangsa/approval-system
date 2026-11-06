@@ -4,7 +4,7 @@
 
 **Document state:** Prepared for documentation versioning before implementation.
 
-**Execution status:** PLANNED / NOT RUN. No implementation or test results are asserted.
+**Execution status:** Executed on 2026-11-06 with suite-level results in [sts.md](./sts.md) §7b and [testing-verification.md](../../testing-verification.md). Cases without recorded evidence remain NOT RUN; no criterion is accepted until teammate-reviewed PR acceptance.
 
 These child criteria refine the frozen AC-001–AC-003. They do not replace or renumber the frozen product criteria. Access is always enforced by the API.
 
@@ -25,4 +25,4 @@ These child criteria refine the frozen AC-001–AC-003. They do not replace or r
 
 ## Acceptance status
 
-All twelve criteria are planned and NOT RUN. A passing document check does not implement or satisfy any feature criterion. Global FT-001–FT-003 remain incomplete until their owning behavior and all required evidence exist.
+Criteria are satisfied only by the evidence recorded in [sts.md](./sts.md) §7b and [testing-verification.md](../../testing-verification.md); anything else remains planned and NOT RUN. A passing document check does not implement or satisfy any feature criterion. Global FT-001–FT-003 remain incomplete until their owning behavior and all required evidence exist.
