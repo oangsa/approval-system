@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { isRouteErrorResponse, Links, Meta, Outlet, Scripts, ScrollRestoration, useRouteError } from "react-router";
+import { SessionProvider } from "~/modules/auth/sessionContext";
 import "./app.css";
 
 interface ILayoutProps
@@ -28,7 +29,11 @@ export function Layout({ children }: ILayoutProps)
 
 export default function App()
 {
-    return <Outlet />;
+    return (
+        <SessionProvider>
+            <Outlet />
+        </SessionProvider>
+    );
 }
 
 export function ErrorBoundary()
