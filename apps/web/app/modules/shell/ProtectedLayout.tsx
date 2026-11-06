@@ -5,7 +5,7 @@ import { AppShell } from "~/modules/shell/AppShell";
 /** Client-side guard: authenticated actors get the shell, anonymous visitors return to login with a return path. */
 export function ProtectedLayout()
 {
-    const { status } = useSession();
+    const { status, generation } = useSession();
     const location = useLocation();
 
     if (status === "loading" || status === "idle")
@@ -24,7 +24,7 @@ export function ProtectedLayout()
     }
 
     return (
-        <AppShell>
+        <AppShell key={generation}>
             <Outlet />
         </AppShell>
     );

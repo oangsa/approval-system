@@ -1,149 +1,136 @@
-import { ApiFailure, isAuthenticationFailure, parseErrorEnvelope } from "./errors";
-import { currentGeneration, readAccessToken, writeAccessToken } from "./tokenStore";
+import { refreshResponseSchema } from "@workflow/contracts";
+import { ApiFailure } from "./errors";
+import { currentGeneration, endSession, readAccessToken, writeAccessToken } from "./tokenStore";
+import { parseErrorEnvelope } from "./errors";
 
 export interface IHttpOptions extends Omit<RequestInit, "body">
 {
     body?: unknown;
-    /** Identity generation that scopes this request; stale generations never install tokens or resolve. */
     generation?: number;
-}
-
-interface IRefreshResponse
-{
-    accessToken: string;
 }
 
 function baseUrl(): string
 {
-    return import.meta.env.VITE_API_BASE_URL || "/api";
+ return import.meta.env.VITE_API_BASE_URL || "/api";
 }
-
-function abortFailure(): ApiFailure
+export function abortFailure(): ApiFailure
 {
     return new ApiFailure({ kind: "network", message: "Request cancelled", cause: new DOMException("Aborted", "AbortError") });
 }
-
 async function readBody(response: Response): Promise<unknown>
 {
     if (response.status === 204) return undefined;
     const text = await response.text();
     if (!text) return undefined;
     try
-    {
-        return JSON.parse(text);
-    }
-    catch
-    {
-        return undefined;
-    }
+{
+ return JSON.parse(text);
 }
-
+ catch
+{
+ return undefined;
+}
+}
 function failureFor(response: Response, body: unknown): ApiFailure
 {
     const envelope = parseErrorEnvelope(response, body);
-    return new ApiFailure({
-        kind: "http",
-        status: response.status,
-        code: envelope.code,
-        message: envelope.message,
-        requestId: envelope.requestId,
-        details: envelope.details,
-    });
+    return new ApiFailure({ kind: "http", status: response.status, code: envelope.code, message: envelope.message, requestId: envelope.requestId, details: envelope.details });
 }
 
-let refreshInFlight: Promise<boolean> | null = null;
-
-/**
- * Exchanges the HttpOnly refresh cookie for a new access token.
- * Single-flight: concurrent 401s share one network round trip per browser runtime.
- */
-export function refreshAccessToken(generation?: number): Promise<boolean>
+let cookieQueue: Promise<void> = Promise.resolve();
+function enqueue<T>(work: () => Promise<T>): Promise<T>
 {
-    if (generation !== undefined && generation !== currentGeneration()) return Promise.resolve(false);
-    refreshInFlight ??= (async () =>
+    const result = cookieQueue.then(work);
+    cookieQueue = result.then(() => undefined, () => undefined);
+    return result;
+}
+const authPaths = new Set(["/v1/auth/login", "/v1/auth/refresh", "/v1/auth/logout", "/v1/auth/logout-all"]);
+let refreshInFlight: { generation: number; promise: Promise<boolean> } | null = null;
+
+export function refreshAccessToken(generation = currentGeneration()): Promise<boolean>
+{
+    if (generation !== currentGeneration()) return Promise.resolve(false);
+    if (refreshInFlight?.generation === generation) return refreshInFlight.promise;
+    const promise = enqueue(async () =>
     {
+        if (generation !== currentGeneration()) return false;
         try
         {
             const response = await fetch(`${baseUrl()}/v1/auth/refresh`, { method: "POST", credentials: "include", headers: { Accept: "application/json" } });
-            if (!response.ok) return false;
             const payload = await readBody(response);
-            if (!payload || typeof payload !== "object" || typeof (payload as IRefreshResponse).accessToken !== "string") return false;
-            return writeAccessToken((payload as IRefreshResponse).accessToken, generation ?? currentGeneration());
+            if (generation !== currentGeneration()) return false;
+            const parsed = refreshResponseSchema.safeParse(payload);
+            if (!response.ok || !parsed.success)
+            {
+                endSession(generation);
+                return false;
+            }
+            return writeAccessToken(parsed.data.accessToken, generation);
         }
         catch
         {
+            endSession(generation);
             return false;
         }
-        finally
-        {
-            refreshInFlight = null;
-        }
-    })();
-    return refreshInFlight;
+    });
+    refreshInFlight = { generation, promise };
+    void promise.finally(() =>
+{
+ if (refreshInFlight?.promise === promise) refreshInFlight = null;
+});
+    return promise;
 }
 
-async function send(path: string, options: IHttpOptions, allowRefresh: boolean): Promise<unknown>
+async function send(path: string, options: IHttpOptions, generation: number, allowRefresh: boolean, capturedRevocation = false): Promise<unknown>
 {
-    const { body, generation, headers, ...init } = options;
-    const requestedGeneration = generation ?? currentGeneration();
+    if (!capturedRevocation && generation !== currentGeneration()) throw abortFailure();
+    const { body, generation: ignoredGeneration, headers, ...init } = options;
+    void ignoredGeneration;
     const requestHeaders = new Headers(headers);
     requestHeaders.set("Accept", "application/json");
     if (body !== undefined) requestHeaders.set("Content-Type", "application/json");
     const token = readAccessToken();
-    if (token && token.generation === requestedGeneration) requestHeaders.set("Authorization", `Bearer ${token.token}`);
-
+    if (!requestHeaders.has("Authorization") && token?.generation === generation) requestHeaders.set("Authorization", `Bearer ${token.token}`);
+    const eligible = allowRefresh && !authPaths.has(path) && requestHeaders.has("Authorization");
     let response: Response;
+    let payload: unknown;
     try
     {
-        response = await fetch(`${baseUrl()}${path}`, {
-            ...init,
-            headers: requestHeaders,
-            credentials: "include",
-            body: body === undefined ? undefined : JSON.stringify(body),
-        });
+        response = await fetch(`${baseUrl()}${path}`, { ...init, headers: requestHeaders, credentials: "include", body: body === undefined ? undefined : JSON.stringify(body) });
+        payload = await readBody(response);
     }
     catch (cause)
     {
+        if (!capturedRevocation && generation !== currentGeneration()) throw abortFailure();
         throw new ApiFailure({ kind: "network", message: "Network request failed", cause });
     }
-
-    if (response.ok)
+    if (!capturedRevocation && generation !== currentGeneration()) throw abortFailure();
+    if (response.ok) return payload;
+    if (response.status === 401 && eligible)
     {
-        if (requestedGeneration !== currentGeneration()) throw abortFailure();
-        return readBody(response);
+        if (await refreshAccessToken(generation)) return send(path, options, generation, false);
+        if (generation !== currentGeneration()) throw failureFor(response, payload);
     }
-
-    if (response.status === 401 && allowRefresh)
-    {
-        const refreshed = await refreshAccessToken(requestedGeneration);
-        const active = readAccessToken();
-        if (!refreshed || !active || active.generation !== requestedGeneration) throw failureFor(response, await readBody(response));
-        return send(path, { ...options, generation: requestedGeneration }, false);
-    }
-
-    throw failureFor(response, await readBody(response));
+    else if (response.status === 401 && !allowRefresh && !authPaths.has(path) && requestHeaders.has("Authorization")) endSession(generation);
+    throw failureFor(response, payload);
 }
 
-/**
- * Typed API transport: injects the in-memory Bearer token, parses the frozen error
- * envelope, refreshes once on 401 (single-flight, at most one retry per request),
- * and discards responses from superseded identity generations.
- */
-export async function http(path: string, options: IHttpOptions = {}): Promise<unknown>
+export function http(path: string, options: IHttpOptions = {}): Promise<unknown>
 {
-    const requestedGeneration = options.generation ?? currentGeneration();
-    try
-    {
-        return await send(path, options, true);
-    }
-    catch (error)
-    {
-        if (isAuthenticationFailure(error) && currentGeneration() !== requestedGeneration) throw abortFailure();
-        throw error;
-    }
+    const generation = options.generation ?? currentGeneration();
+    if (authPaths.has(path)) return enqueue(() => send(path, options, generation, false));
+    return send(path, options, generation, true);
 }
-
-/** Typed variant that validates the response body with a shared Zod schema. */
+export function revokeSession(token: string | null, retryGeneration?: number): Promise<unknown>
+{
+    const generation = currentGeneration();
+    const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
+    return enqueue(() =>
+    {
+        if (retryGeneration !== undefined && retryGeneration !== currentGeneration()) throw abortFailure();
+        return send("/v1/auth/logout", { method: "POST", headers }, generation, false, true);
+    });
+}
 export async function httpFor<T>(path: string, schema: { parse(value: unknown): T }, options: IHttpOptions = {}): Promise<T>
 {
     return schema.parse(await http(path, options));

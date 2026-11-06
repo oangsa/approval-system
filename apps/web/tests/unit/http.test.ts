@@ -3,7 +3,7 @@ import { expect, test, vi } from "vitest";
 import { healthResponseSchema } from "@workflow/contracts";
 import { http, refreshAccessToken } from "../../app/api/http";
 import { isApiFailure } from "../../app/api/errors";
-import { beginSession, currentGeneration, endSession, readAccessToken } from "../../app/api/tokenStore";
+import { beginSession, currentGeneration, endSession, readAccessToken, subscribeInvalidation } from "../../app/api/tokenStore";
 import { server } from "../helpers/server";
 
 const endpoint = "http://localhost/api/health";
@@ -94,6 +94,12 @@ test("a request is retried at most once and a second 401 surfaces as an authenti
 {
     stubBase();
     beginSession("stale");
+    const generation = currentGeneration();
+    let invalidations = 0;
+    const unsubscribe = subscribeInvalidation(() =>
+{
+ invalidations += 1;
+});
     let protectedCalls = 0;
     let refreshCalls = 0;
     server.use(
@@ -109,13 +115,22 @@ test("a request is retried at most once and a second 401 surfaces as an authenti
         }),
     );
 
-    const failure = await http("/health").catch((error: unknown) => error);
-    expect(isApiFailure(failure)).toBe(true);
-    if (!isApiFailure(failure)) throw new Error("expected ApiFailure");
-    expect(failure.status).toBe(401);
-    expect(protectedCalls).toBe(2);
-    expect(refreshCalls).toBe(1);
-    endSession();
+    try
+    {
+        const failure = await http("/health").catch((error: unknown) => error);
+        expect(isApiFailure(failure)).toBe(true);
+        if (!isApiFailure(failure)) throw new Error("expected ApiFailure");
+        expect(failure.status).toBe(401);
+        expect(protectedCalls).toBe(2);
+        expect(refreshCalls).toBe(1);
+        expect(readAccessToken()).toBeNull();
+        expect(currentGeneration()).toBe(generation + 1);
+        expect(invalidations).toBe(1);
+    }
+    finally
+{
+ unsubscribe(); endSession();
+}
 });
 
 test("a failed refresh leaves the original 401 and installs no token", async () =>
@@ -128,7 +143,7 @@ test("a failed refresh leaves the original 401 and installs no token", async () 
     );
     const failure = await http("/health").catch((error: unknown) => error);
     expect(isApiFailure(failure)).toBe(true);
-    expect(readAccessToken()?.token).toBe("stale");
+    expect(readAccessToken()).toBeNull();
     endSession();
 });
 
@@ -175,4 +190,227 @@ test("network failures are reported as transport failures, not HTTP failures", a
     expect(isApiFailure(failure)).toBe(true);
     if (!isApiFailure(failure)) throw new Error("expected ApiFailure");
     expect(failure.kind).toBe("network");
+});
+
+test("public login 401 never refreshes or retries", async () =>
+{
+    stubBase();
+    endSession();
+    let loginCalls = 0;
+    let refreshCalls = 0;
+    server.use(
+        mockHttp.post("http://localhost/api/v1/auth/login", () =>
+{
+ loginCalls += 1; return new HttpResponse(null, { status: 401 });
+}),
+        mockHttp.post(refreshEndpoint, () =>
+{
+ refreshCalls += 1; return HttpResponse.json({ accessToken: "old" });
+}),
+    );
+    await expect(http("/v1/auth/login", { method: "POST", body: {} })).rejects.toBeDefined();
+    expect(loginCalls).toBe(1);
+    expect(refreshCalls).toBe(0);
+    expect(readAccessToken()).toBeNull();
+});
+
+test("response body arriving after identity replacement is rejected", async () =>
+{
+    stubBase();
+    beginSession("token-a");
+    let release!: (value: string) => void;
+    let started!: () => void;
+    const bodyStarted = new Promise<void>((resolve) =>
+{
+ started = resolve;
+});
+    const body = new Promise<string>((resolve) =>
+{
+ release = resolve;
+});
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce({ ok: true, status: 200, text: () =>
+{
+ started(); return body;
+} } as Response);
+    const pending = http("/health");
+    await bodyStarted;
+    endSession();
+    beginSession("token-b");
+    release('{"status":"ok"}');
+    await expect(pending).rejects.toBeDefined();
+    expect(readAccessToken()?.token).toBe("token-b");
+    vi.restoreAllMocks();
+    endSession();
+});
+
+
+test.each(["401", "503", "network", "malformed200"])("terminal refresh %s clears identity without retry", async (kind) =>
+{
+    stubBase();
+    beginSession("stale");
+    let protectedCalls = 0;
+    let refreshCalls = 0;
+    server.use(
+        mockHttp.get(endpoint, () =>
+{
+ protectedCalls += 1; return new HttpResponse(null, { status: 401 });
+}),
+        mockHttp.post(refreshEndpoint, () =>
+        {
+            refreshCalls += 1;
+            if (kind === "network") return HttpResponse.error();
+            if (kind === "malformed200") return HttpResponse.json({ accessToken: 42 });
+            return new HttpResponse(null, { status: Number(kind) });
+        }),
+    );
+    await expect(http("/health")).rejects.toBeDefined();
+    expect(protectedCalls).toBe(1);
+    expect(refreshCalls).toBe(1);
+    expect(readAccessToken()).toBeNull();
+    endSession();
+});
+
+test.each(["403", "503", "network"])("ordinary protected %s preserves identity", async (kind) =>
+{
+    stubBase();
+    beginSession("current");
+    const generation = currentGeneration();
+    let calls = 0;
+    let refreshCalls = 0;
+    server.use(
+        mockHttp.get(endpoint, () =>
+{
+ calls += 1; return kind === "network" ? HttpResponse.error() : new HttpResponse(null, { status: Number(kind) });
+}),
+        mockHttp.post(refreshEndpoint, () =>
+{
+ refreshCalls += 1; return HttpResponse.json({ accessToken: "wrong" });
+}),
+    );
+    await expect(http("/health")).rejects.toBeDefined();
+    expect(calls).toBe(1);
+    expect(refreshCalls).toBe(0);
+    expect(readAccessToken()).toEqual({ token: "current", generation });
+    expect(currentGeneration()).toBe(generation);
+    endSession();
+});
+
+test("public 401 without bearer and authenticated auth endpoint 401 do not refresh", async () =>
+{
+    stubBase();
+    endSession();
+    let publicCalls = 0;
+    let authCalls = 0;
+    let refreshCalls = 0;
+    server.use(
+        mockHttp.get(endpoint, () =>
+{
+ publicCalls += 1; return new HttpResponse(null, { status: 401 });
+}),
+        mockHttp.post("http://localhost/api/v1/auth/logout", () =>
+{
+ authCalls += 1; return new HttpResponse(null, { status: 401 });
+}),
+        mockHttp.post(refreshEndpoint, () =>
+{
+ refreshCalls += 1; return HttpResponse.json({ accessToken: "wrong" });
+}),
+    );
+    await expect(http("/health")).rejects.toBeDefined();
+    beginSession("current");
+    await expect(http("/v1/auth/logout", { method: "POST" })).rejects.toBeDefined();
+    expect([publicCalls, authCalls, refreshCalls]).toEqual([1, 1, 0]);
+    expect(readAccessToken()?.token).toBe("current");
+    endSession();
+});
+
+test("late error body cancels after identity replacement", async () =>
+{
+    stubBase();
+    beginSession("a");
+    let release!: (value: string) => void;
+    let entered!: () => void;
+    const body = new Promise<string>((resolve) =>
+{
+ release = resolve;
+});
+    const started = new Promise<void>((resolve) =>
+{
+ entered = resolve;
+});
+    const spy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce({ ok: false, status: 503, text: () =>
+{
+ entered(); return body;
+} } as Response);
+    try
+    {
+        const pending = http("/health").catch((error: unknown) => error);
+        await started;
+        beginSession("b");
+        release("{}");
+        const failure = await pending;
+        expect(isApiFailure(failure)).toBe(true);
+        if (!isApiFailure(failure)) throw new Error("expected ApiFailure");
+        expect(failure.message).toBe("Request cancelled");
+        expect(readAccessToken()?.token).toBe("b");
+    }
+    finally
+{
+ spy.mockRestore(); endSession();
+}
+});
+
+test("refresh ownership remains single-flight for the replacement generation", async () =>
+{
+    stubBase();
+    beginSession("a");
+    const generationA = currentGeneration();
+    let releaseA!: () => void;
+    let releaseB!: () => void;
+    let enterA!: () => void;
+    let enterB!: () => void;
+    const gateA = new Promise<void>((resolve) =>
+{
+ releaseA = resolve;
+});
+    const gateB = new Promise<void>((resolve) =>
+{
+ releaseB = resolve;
+});
+    const startedA = new Promise<void>((resolve) =>
+{
+ enterA = resolve;
+});
+    const startedB = new Promise<void>((resolve) =>
+{
+ enterB = resolve;
+});
+    let calls = 0;
+    server.use(mockHttp.post(refreshEndpoint, async () =>
+    {
+        calls += 1;
+        if (calls === 1)
+{
+ enterA(); await gateA; return HttpResponse.json({ accessToken: "refreshed-a" });
+}
+        enterB(); await gateB; return HttpResponse.json({ accessToken: "refreshed-b" });
+    }));
+    const a = refreshAccessToken(generationA);
+    await startedA;
+    beginSession("b");
+    const generationB = currentGeneration();
+    const b1 = refreshAccessToken(generationB);
+    const b2 = refreshAccessToken(generationB);
+    releaseA();
+    expect(await a).toBe(false);
+    await startedB;
+    expect(readAccessToken()).toEqual({ token: "b", generation: generationB });
+    const b3 = refreshAccessToken(generationB);
+    expect(b1).toBe(b2);
+    expect(b1).toBe(b3);
+    releaseB();
+    expect(await Promise.all([b1, b2, b3])).toEqual([true, true, true]);
+    expect(calls).toBe(2);
+    expect(readAccessToken()).toEqual({ token: "refreshed-b", generation: generationB });
+    endSession();
 });

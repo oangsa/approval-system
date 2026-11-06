@@ -1,52 +1,42 @@
-import { loginRequestSchema, refreshResponseSchema, userSummarySchema, type LoginRequest, type UserSummary } from "@workflow/contracts";
-import { http, httpFor } from "~/api/http";
-import { isApiFailure } from "~/api/errors";
-import { beginSession, endSession } from "~/api/tokenStore";
+import { loginRequestSchema, loginResponseSchema, userSummarySchema, type LoginRequest, type UserSummary } from "@workflow/contracts";
+import { abortFailure, http, httpFor, refreshAccessToken, revokeSession } from "~/api/http";
+import { currentGeneration, endSession, readAccessToken, writeAccessToken } from "~/api/tokenStore";
 
-/** Exchanges credentials for an access token (memory only) and the current identity. */
 export async function login(credentials: LoginRequest, generation?: number): Promise<UserSummary>
 {
     const request = loginRequestSchema.parse(credentials);
-    const payload = await http("/v1/auth/login", { method: "POST", body: request, generation }) as { accessToken?: unknown; user?: unknown };
-    if (typeof payload.accessToken !== "string") throw new Error("Unexpected login response");
-    beginSession(payload.accessToken);
-    return userSummarySchema.parse(payload.user);
+    if (generation === undefined)
+    {
+        endSession();
+        generation = currentGeneration();
+    }
+    const payload = loginResponseSchema.parse(await http("/v1/auth/login", { method: "POST", body: request, generation }));
+    if (!writeAccessToken(payload.accessToken, generation)) throw abortFailure();
+    return payload.user;
 }
-
-/** Bootstraps identity for a protected page using the refresh cookie; returns null when signed out. */
-export async function bootstrapSession(generation?: number): Promise<UserSummary | null>
+export async function bootstrapSession(generation = currentGeneration()): Promise<UserSummary | null>
 {
+    if (!await refreshAccessToken(generation)) return null;
     try
-    {
-        const refreshed = await http("/v1/auth/refresh", { method: "POST", generation });
-        const token = refreshResponseSchema.safeParse(refreshed);
-        if (!token.success) return null;
-        beginSession(token.data.accessToken);
-        return await currentUser(generation);
-    }
-    catch (error)
-    {
-        // An aborted bootstrap (page unloading) must not tear down a still-valid session.
-        if (!(isApiFailure(error) && error.kind === "network" && error.cause instanceof DOMException && error.cause.name === "AbortError")) endSession();
-        return null;
-    }
+{
+ return await currentUser(generation);
 }
-
-/** Authoritative identity lookup for the current access token. */
-export function currentUser(generation?: number): Promise<UserSummary>
+    catch
+{
+ endSession(generation); return null;
+}
+}
+export function currentUser(generation = currentGeneration()): Promise<UserSummary>
 {
     return httpFor("/v1/auth/me", userSummarySchema, { generation });
 }
-
-/** Revokes the server session and always clears local identity state. */
-export async function logout(generation?: number): Promise<void>
+export async function logout(): Promise<void>
 {
-    try
-    {
-        await http("/v1/auth/logout", { method: "POST", generation });
-    }
-    finally
-    {
-        endSession();
-    }
+    const token = readAccessToken()?.token ?? null;
+    endSession();
+    await revokeSession(token);
+}
+export async function retryLogout(token: string | null, generation: number): Promise<void>
+{
+    await revokeSession(token, generation);
 }

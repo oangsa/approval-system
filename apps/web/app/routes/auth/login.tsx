@@ -14,7 +14,7 @@ function safeReturnPath(value: string | null): string
 
 export default function LoginRoute()
 {
-    const { status, signIn } = useSession();
+    const { status, signIn, logoutWarning, retryPending, retrySignOut } = useSession();
     const [searchParams] = useSearchParams();
     const navigate = useNavigate();
     const from = safeReturnPath(searchParams.get("from"));
@@ -28,6 +28,7 @@ export default function LoginRoute()
                     <h1 className="text-xl font-semibold">Sign in</h1>
                     <p className="text-sm text-muted-foreground">Use your work email and password.</p>
                 </div>
+                {logoutWarning && <div role="alert">Signed out on this device. Server sign-out could not be confirmed. <button type="button" disabled={retryPending} onClick={() => void retrySignOut()}>Retry sign out</button></div>}
                 <LoginForm
                     onSubmit={async (credentials) =>
                     {
