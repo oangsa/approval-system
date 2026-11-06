@@ -19,13 +19,13 @@ export class Application
     {
         if (this.closed) return;
         this.closed = true;
-        try 
+        try
 {
- await this.app.stop(); 
+ await this.app.stop();
 }
-        finally 
+        finally
 {
- await this.close?.(); 
+ await this.close?.();
 }
     }
 }

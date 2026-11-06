@@ -28,9 +28,9 @@ test("HTTP-CONTINUE red: unknown route uses complete error envelope", async () =
 test("unexpected errors do not expose secrets or stack traces", async () =>
 {
     const log = vi.spyOn(console, "error").mockImplementation(() => undefined);
-    const app = createApplication().get("/test-error", () => 
+    const app = createApplication().get("/test-error", () =>
 {
- throw new Error("sensitive-infrastructure-value"); 
+ throw new Error("sensitive-infrastructure-value");
 });
     const response = await app.handle(new Request("http://localhost/test-error"));
     const result = await expectHttpError(response, 500);

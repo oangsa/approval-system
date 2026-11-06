@@ -33,9 +33,9 @@ export function createApplication(adapter?: ElysiaAdapter, identity?: IIdentityH
                     const origin = checkOrigin(request, identity.allowedOrigins, required);
                     const headers = new Headers();
                     corsHeaders(headers, origin);
-                    headers.forEach((value, key) => 
+                    headers.forEach((value, key) =>
 {
- set.headers[key] = value; 
+ set.headers[key] = value;
 });
                 }
             }

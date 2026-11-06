@@ -18,13 +18,13 @@ async function main(): Promise<void>
         {
             if (shuttingDown) return;
             shuttingDown = true;
-            try 
+            try
 {
- await application.Stop(); 
+ await application.Stop();
 }
-            catch 
+            catch
 {
- console.error({ code: "SHUTDOWN_FAILED" }); process.exitCode = 1; 
+ console.error({ code: "SHUTDOWN_FAILED" }); process.exitCode = 1;
 }
         };
         process.once("SIGINT", shutdown);
