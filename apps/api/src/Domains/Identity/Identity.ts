@@ -15,7 +15,7 @@ export interface IRefreshHistory
 }
 export interface IActor
 {
-    account: IAccount; family: ISessionFamily; roles: UserRole[]; department: DepartmentSummary | null;
+    account: IAccount; family: ISessionFamily; roles: readonly UserRole[]; department: DepartmentSummary | null;
 }
 export function isCurrentIdentity(actor: IActor, version: number, now: Date): boolean
 {
