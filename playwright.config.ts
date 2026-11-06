@@ -1,12 +1,16 @@
+import { loadTestEnvironment } from "./apps/api/tests/helpers/testEnvironment";
+import { assertTestDatabaseTarget } from "./apps/api/src/Infrastructures/Database/testDatabaseTargetGuard";
 import { defineConfig, devices } from "@playwright/test";
 import { webUrl, apiUrl } from "./e2e/helpers/environment";
 
-const testDatabaseUrl = process.env.TEST_DATABASE_URL || "postgresql://127.0.0.1:55432/workflow_test";
+loadTestEnvironment();
+const testDatabaseUrl = assertTestDatabaseTarget();
 
 export default defineConfig({
     testDir: "./e2e",
-    fullyParallel: true,
-    workers: process.env.CI ? 2 : undefined,
+    fullyParallel: false,
+    // Keep browser tests sequential locally and in CI to limit CPU and RAM usage.
+    workers: 1,
     retries: 0,
     outputDir: "artifacts/playwright/results",
     reporter: [
