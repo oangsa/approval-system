@@ -32,8 +32,8 @@ GitHub Kanban setup, automatic status transitions, and manual recovery steps are
 | ----------------------------------- | ------------------------------------------------------------------------ |
 | `npm run dev`                       | Start both development servers with reload                               |
 | `npm run typecheck`                 | Generate React Router types; check every workspace, test, and root tool  |
-| `npm run lint`                      | ESLint including Allman braces, plus non-TypeScript formatting           |
-| `npm run format`                    | Fix lint style and format configuration, CSS, and documentation          |
+| `npm run lint`                      | Lint `.ts` and `.tsx` files, including Allman braces                     |
+| `npm run format`                    | Fix lint style in `.ts` and `.tsx` files                                |
 | `npm run build`                     | Build web SSR/client assets, API bundle, and contracts declarations      |
 | `npm run check`                     | Typecheck, lint, ordinary tests, and builds                              |
 | `npm run db:up` / `npm run db:down` | Start/stop development PostgreSQL; retain its named volume               |
