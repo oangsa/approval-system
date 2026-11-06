@@ -46,14 +46,15 @@ export function createApplication(adapter?: ElysiaAdapter, identity?: IIdentityH
             const result = errorResponse(error, code, id);
             set.status = result.statusCode;
             set.headers["X-Request-Id"] = id;
-            set.headers["Cache-Control"] = "no-store";
+            const responseHeaders = error && typeof error === "object" && "responseHeaders" in error && error.responseHeaders instanceof Headers ? error.responseHeaders : null;
+            if (!responseHeaders?.has("Cache-Control")) set.headers["Cache-Control"] = "no-store";
             if (result.code === "RATE_LIMITED") set.headers["Retry-After"] = "900";
-            if (error && typeof error === "object" && "responseHeaders" in error && error.responseHeaders instanceof Headers)
+            if (responseHeaders)
             {
-                error.responseHeaders.forEach((value, key) => 
-{
- set.headers[key] = value; 
-});
+                responseHeaders.forEach((value, key) =>
+                {
+                    set.headers[key] = value;
+                });
             }
             if (result.statusCode >= 500) console.error({ code: result.code, requestId: id });
             return result;

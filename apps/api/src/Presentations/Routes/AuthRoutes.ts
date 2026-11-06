@@ -71,7 +71,8 @@ export function registerAuthRoutes(app: {
     {
         app.route(descriptor.method, descriptor.path, async ({ request }) =>
         {
-            const headers = new Headers({ "Cache-Control": "no-store" });
+            // Cache-Control: no-store is already applied by the application-level onRequest hook for auth paths.
+            const headers = new Headers();
             const authorization = request.headers.get("authorization");
             const secret = refreshCookie(request);
             try
