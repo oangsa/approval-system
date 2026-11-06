@@ -4,7 +4,7 @@
 
 **Document state:** Versioned test design with a separate record of partial foundation evidence.
 
-**Execution status:** Executed on 2026-11-06 at `20b2769` with suite-level results recorded in section 7 and in [testing-verification.md](../../../testing-verification.md). Cases without recorded per-case evidence below remain PLANNED / NOT RUN.
+**Execution status:** Executed on 2026-11-06 across the PR18 packet commits ending at `5ed9696` with suite-level results recorded in section 7 and in [testing-verification.md](../../../testing-verification.md). Cases without recorded per-case evidence below remain PLANNED / NOT RUN.
 
 ## 1. Test rules and fixtures
 
@@ -85,23 +85,23 @@ Fresh static checks for this record: `git diff --check`, the corrected raw white
 
 This evidence does not prove empty-database setup, the full HTTP lifecycle, races or restart behavior, authorization integration, UI/browser behavior, or feature completion. No full IA-CT, IA-DB, or IA-API case is marked passed.
 
-### 7b. Feature execution record — 2026-11-06
+### 7b. Feature execution record — 2026-11-06 (PR18 packets)
 
-All commands ran in `C:/Users/kitti/approval-system` on `feature/1-identity-auth-access` at `20b2769df5926b17b5b983af220730a9d68350a9` (plus the documentation edits described in [testing-verification.md](../../../testing-verification.md)). Runtime Node v24.22.1, npm 11.19.1, disposable `workflow_test` on `127.0.0.1:55432` (PostgreSQL 17, tmpfs), Chromium 148. Fixtures: the deterministic identity seed (U-OWNER, U-OTHER, U-MULTI, U-ADMIN, U-DISABLED, two departments).
+All commands ran in `C:/Users/kitti/approval-system` on `feature/1-identity-auth-access` at `5ed96961...` (the four PR18 packet commits) plus the documentation edits described in [testing-verification.md](../../../testing-verification.md). Runtime Node v24.22.1, npm 11.19.1, disposable `workflow_test` on `127.0.0.1:55432` (PostgreSQL 17, tmpfs), Chromium 148. Fixtures: the deterministic identity seed (U-OWNER, U-OTHER, U-MULTI, U-ADMIN, U-DISABLED, two departments).
 
 | Group                     | Command                                                                                                     | Result                                                              | Status |
 | ------------------------- | ----------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- | ------ |
 | Contract (`IA-CT-01`)     | `npm run test:contracts`                                                                                    | 2 files, 8 passed                                                   | PASS   |
-| API/security (`IA-API-*`) | `npm run test:api`                                                                                          | 10 files, 162 passed                                                | PASS   |
-| Web (`IA-WEB-*`)          | `npm run test:web`                                                                                          | 4 files, 21 passed                                                  | PASS   |
+| API/security (`IA-API-*`) | `npm run test:api`                                                                                          | 11 files, 167 passed                                                | PASS   |
+| Web (`IA-WEB-*`)          | `npm run test:web`                                                                                          | 6 files, 75 passed                                                  | PASS   |
 | PostgreSQL (`IA-DB-*`)    | `npm run db:test:migrate`, `npm run db:test:seed`, `npm run test:integration` with `RUN_BUILT_HTTP_SMOKE=1` | migration and seed applied to an empty database; 4 files, 31 passed | PASS   |
-| Browser (`IA-E2E-*`)      | `npm run test:e2e`                                                                                          | 12 passed, 0 failed                                                 | PASS   |
-| Static gates              | `npm run check`                                                                                             | typecheck, lint, 191 tests, build                                   | PASS   |
+| Browser (`IA-E2E-*`)      | `npm run test:e2e`                                                                                          | 16 passed, 0 failed                                                 | PASS   |
+| Static gates              | `npm run check`                                                                                             | typecheck, lint, 250 tests, build                                   | PASS   |
 | Coverage                  | `npm run test:coverage`                                                                                     | statements 72.99%, branches 82.67%, lines 73.22%                    | PASS   |
 
-Browser cases proven end to end: IA-E2E-01 (login to protected shell with correct identity), IA-E2E-02 (refresh-cookie bootstrap, HttpOnly cookie, no account data in public SSR), IA-E2E-03 (logout revocation, redirect with return path, account switch without stale identity), IA-E2E-05 (public HTML free of tokens and identity). IA-E2E-04's generic credential failure is proven in the browser and in component tests, and its throttling half (429 with `Retry-After`, no account enumeration) is proven at API level; the browser network-interruption/recovery portion remains NOT RUN. IA-WEB-05 is proven in component tests and by the drawer journey in the browser suite.
+Browser cases proven end to end: IA-E2E-01 (login to protected shell with correct identity), IA-E2E-02 (refresh-cookie bootstrap, HttpOnly cookie, no account data in public SSR), IA-E2E-03 (logout revocation, redirect with return path, account switch without stale identity, delayed bootstrap identity rejected, failed-logout retry revoking both credentials), IA-E2E-04 (generic credential failure, equivalent denials, injected 429, and network abort/recovery), IA-E2E-05 (public HTML free of tokens and identity). The throttling half of IA-E2E-04 (429 with `Retry-After`, no account enumeration) is additionally proven at API level against the validated socket peer. IA-WEB-05 is proven in component tests and in the browser by the native mobile modal and the desktop collapse rail.
 
-Per-case database final-state assertions for IA-DB-02–05 and the delayed-response half of IA-E2E-03 are covered by the suites above but are not individually itemized here; treat those cases as evidenced at suite level only. GitHub Actions passed the full pipeline (including browser E2E, 12 passed) for PR #18 on 2026-11-06; teammate-reviewed PR acceptance remains pending.
+Per-case database final-state assertions for IA-DB-02–05 are covered by the suites above but are not individually itemized here; treat those cases as evidenced at suite level only. GitHub Actions passed the full pipeline (including browser E2E) for PR #18 on 2026-11-06 at the earlier revision; teammate-reviewed PR acceptance remains pending, and a fresh CI run is expected for the PR18 packet commits.
 
 ## 8. Coverage boundary
 
