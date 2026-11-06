@@ -5,11 +5,11 @@ export class LoginThrottle implements ILoginThrottle
     // ponytail: process-local limits do not aggregate across instances; use a shared store when scaling out.
     private readonly entries = new Map<string, number[]>();
     constructor(private readonly clock: IClock, private readonly capacity = 10000)
-{}
-    private Keys(ip: string | null, email: string): [string, string]
+    {}
+    private Keys(ip: string | null, email: string): string[]
     {
-        const source = ip || "unknown";
-        return [`source:${source}`, `pair:${JSON.stringify([source, email.trim().toLowerCase()])}`];
+        const identifier = email.trim().toLowerCase();
+        return ip ? [`source:${ip}`, `pair:${JSON.stringify([ip, identifier])}`] : [`identifier:${identifier}`];
     }
     private Clean(): void
     {
@@ -23,9 +23,9 @@ export class LoginThrottle implements ILoginThrottle
     public Check(ip: string | null, email: string): boolean
     {
         this.Clean();
-        const [source, pair] = this.Keys(ip, email);
-        const needed = Number(!this.entries.has(source)) + Number(!this.entries.has(pair));
-        return this.entries.size + needed <= this.capacity && (this.entries.get(source)?.length ?? 0) < 30 && (this.entries.get(pair)?.length ?? 0) < 5;
+        const keys = this.Keys(ip, email);
+        const needed = keys.filter((key) => !this.entries.has(key)).length;
+        return this.entries.size + needed <= this.capacity && keys.every((key, index) => (this.entries.get(key)?.length ?? 0) < (ip && index === 0 ? 30 : 5));
     }
     public RecordFailure(ip: string | null, email: string): void
     {
@@ -33,7 +33,8 @@ export class LoginThrottle implements ILoginThrottle
         for (const key of this.Keys(ip, email)) this.entries.set(key, [...(this.entries.get(key) ?? []), this.clock.Now().getTime()]);
     }
     public RecordSuccess(ip: string | null, email: string): void
-{
- this.entries.delete(this.Keys(ip, email)[1]);
-}
+    {
+        const keys = this.Keys(ip, email);
+        this.entries.delete(keys[keys.length - 1]!);
+    }
 }

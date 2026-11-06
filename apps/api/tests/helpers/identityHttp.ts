@@ -23,9 +23,9 @@ export function identityHttpFixture()
 {
     let now = new Date();
     const clock = { Now: () => new Date(now) };
-    const advance = (milliseconds: number) => 
+    const advance = (milliseconds: number) =>
 {
- now = new Date(now.getTime() + milliseconds); 
+ now = new Date(now.getTime() + milliseconds);
 };
     const account: IAccount = { id: "00000000-0000-4000-8000-000000000001", email: "user@example.test", displayName: "User", passwordHash: "hash", isActive: true, authVersion: 0, createdAt: now, updatedAt: now };
     const other: IAccount = { ...account, id: "00000000-0000-4000-8000-000000000002", email: "other@example.test", displayName: "Other" };
@@ -46,9 +46,9 @@ export function identityHttpFixture()
         for (const method of Object.keys(calls) as ControlledMethod[]) calls[method] = 0;
     };
     const repository: IIdentityRepository = {
-        FindUserByEmail: async (email) => 
+        FindUserByEmail: async (email) =>
 {
- check("FindUserByEmail"); return [...accounts.values()].find((item) => item.email === email); 
+ check("FindUserByEmail"); return [...accounts.values()].find((item) => item.email === email);
 },
         FindUserById: async (id) => accounts.get(id),
         FindRefreshTokenByHash: async (hash) =>
@@ -68,13 +68,13 @@ export function identityHttpFixture()
             const family = families.get(familyId);
             return current && identity && family ? { account: current, family, ...identity } : undefined;
         },
-        InsertFamily: async (family) => 
+        InsertFamily: async (family) =>
 {
- families.set(family.id, family); 
+ families.set(family.id, family);
 },
-        InsertRefreshToken: async (token) => 
+        InsertRefreshToken: async (token) =>
 {
- history.set(token.id, token); 
+ history.set(token.id, token);
 },
         ConsumeRefreshToken: async (id, at) =>
         {
@@ -83,17 +83,17 @@ export function identityHttpFixture()
             token.consumedAt = at;
             return true;
         },
-        RevokeFamily: async (id, at) => 
+        RevokeFamily: async (id, at) =>
 {
- const family = families.get(id); if (family) family.revokedAt = at; 
+ const family = families.get(id); if (family) family.revokedAt = at;
 },
-        RevokeAllFamilies: async (id, at) => 
+        RevokeAllFamilies: async (id, at) =>
 {
- for (const family of families.values()) if (family.userId === id) family.revokedAt = at; 
+ for (const family of families.values()) if (family.userId === id) family.revokedAt = at;
 },
-        IncrementAuthVersion: async (id) => 
+        IncrementAuthVersion: async (id) =>
 {
- const current = accounts.get(id); if (current) current.authVersion++; 
+ const current = accounts.get(id); if (current) current.authVersion++;
 },
     };
     const unit: IIdentityUnitOfWork = { Run: async (operation) =>
@@ -126,9 +126,9 @@ export function identityHttpFixture()
     const tokens = new TokenProvider(testSecret, clock, testIssuer, testAudience);
     const refreshTokens = new RefreshTokenProvider();
     const passwordCalls: Array<[string, string]> = [];
-    const passwords = { Hash: async () => "hash", Verify: async (password: string, hash: string) => 
+    const passwords = { Hash: async () => "hash", Verify: async (password: string, hash: string) =>
 {
- passwordCalls.push([password, hash]); return hash === "hash" && password === "password"; 
+ passwordCalls.push([password, hash]); return hash === "hash" && password === "password";
 } };
     const dependencies: IIdentityHttpDependencies = {
         login: new Login(repository, unit, passwords, tokens, refreshTokens, new LoginThrottle(clock), clock, "dummy"),

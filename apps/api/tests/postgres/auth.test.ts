@@ -249,14 +249,14 @@ test.skipIf(process.env.RUN_BUILT_HTTP_SMOKE !== "1")("built listener completes 
         for (let attempt = 0; attempt < 100; attempt++)
         {
             if (child.exitCode !== null) throw new Error("Owned listener exited before health check");
-            try 
+            try
 {
- if ((await request(`${base}/health`)).status === 200) 
+ if ((await request(`${base}/health`)).status === 200)
 {
- ready = true; break; 
-} 
+ ready = true; break;
 }
- catch 
+}
+ catch
 { /* Listener is starting. */ }
             await new Promise((resolveWait) => setTimeout(resolveWait, 100));
         }
@@ -276,6 +276,24 @@ test.skipIf(process.env.RUN_BUILT_HTTP_SMOKE !== "1")("built listener completes 
         expect((await request(`${base}/api/v1/auth/me`, { headers: { authorization: `Bearer ${access}` } })).status).toBe(401);
         expect((await request(`${base}/api/v1/auth/refresh`, { method: "POST", headers: { origin, cookie } })).status).toBe(401);
         expect((await read.select().from(sessionFamilies).where(eq(sessionFamilies.userId, id)))[0]?.revokedAt).not.toBeNull();
+        const { request: httpRequest } = await import("node:http");
+        const peerLogin = (localAddress: string, email: string, suppliedPassword: string, forwarded: string) => new Promise<number>((resolveStatus, reject) =>
+        {
+            const body = JSON.stringify({ email, password: suppliedPassword });
+            const outgoing = httpRequest({ host: "127.0.0.1", port, localAddress, path: "/api/v1/auth/login", method: "POST", headers: { origin, "content-type": "application/json", "content-length": Buffer.byteLength(body), "x-forwarded-for": forwarded }, agent: false, timeout: 5000 }, (response) =>
+            {
+                response.resume();
+                response.on("end", () => resolveStatus(response.statusCode!));
+            });
+            outgoing.on("timeout", () => outgoing.destroy(new Error("Peer login timed out")));
+            outgoing.on("error", reject);
+            outgoing.end(body);
+        });
+        for (let i = 0; i < 5; i++) expect(await peerLogin("127.0.0.1", "pair@example.test", "wrong", `198.51.100.${i + 1}`)).toBe(401);
+        expect(await peerLogin("127.0.0.1", "pair@example.test", "wrong", "203.0.113.1")).toBe(429);
+        for (let i = 0; i < 25; i++) expect(await peerLogin("127.0.0.1", `source${i}@example.test`, "wrong", `198.51.100.${i + 1}`)).toBe(401);
+        expect(await peerLogin("127.0.0.1", `${id}@example.test`, password, "203.0.113.2")).toBe(429);
+        expect(await peerLogin("127.0.0.2", `${id}@example.test`, password, "203.0.113.2")).toBe(200);
     }
     finally
     {

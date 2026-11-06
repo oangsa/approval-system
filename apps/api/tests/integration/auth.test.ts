@@ -494,3 +494,20 @@ test("R4 login throttling answers 429 with Retry-After after repeated credential
     fixture.advance(15 * 60 * 1000 + 1000);
     expect((await send(fixture.account.email, "wrong")).status).toBe(401);
 });
+
+test("login throttles socket peers and ignores forged forwarding headers", async () =>
+{
+    const app = createApplication(undefined, identityHttpFixture().dependencies);
+    const send = (email: string, peer: string | null, forwarded: string) =>
+    {
+        const request = new Request("http://localhost/api/v1/auth/login", { method: "POST", headers: { origin: "http://localhost:3000", "content-type": "application/json", "x-forwarded-for": forwarded }, body: JSON.stringify({ email, password: "wrong" }) });
+        if (peer) Object.assign(request, { runtime: { node: { req: { socket: { remoteAddress: peer } } } } });
+        return app.handle(request);
+    };
+    for (let i = 0; i < 5; i++) expect((await send("pair@example.test", "127.0.0.1", `${i}.0.0.1`)).status).toBe(401);
+    expect((await send("pair@example.test", "127.0.0.1", "198.51.100.1")).status).toBe(429);
+    expect((await send("pair@example.test", "127.0.0.2", "198.51.100.1")).status).toBe(401);
+    for (let i = 0; i < 25; i++) expect((await send(`source${i}@example.test`, "127.0.0.1", `${i}.0.0.2`)).status).toBe(401);
+    expect((await send("new@example.test", "127.0.0.1", "198.51.100.2")).status).toBe(429);
+    for (let i = 0; i < 31; i++) expect((await send(`anonymous${i}@example.test`, null, "127.0.0.1")).status).toBe(401);
+});

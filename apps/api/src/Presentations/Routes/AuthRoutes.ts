@@ -3,6 +3,7 @@ import { errorResponseSchema, loginRequestSchema, loginResponseSchema, messageRe
 import type { IIdentityHttpDependencies } from "../composition";
 import { requireAuthentication } from "../Guards/authentication";
 import { HttpError } from "../errors";
+import { clientSource } from "../clientSource";
 
 const descriptors = [
     { method: "POST", path: "/api/v1/auth/login", request: loginRequestSchema, success: loginResponseSchema, security: [] },
@@ -47,13 +48,13 @@ async function body(request: Request, expectsLogin: boolean): Promise<unknown>
     const text = (await request.text()).trim();
     if (!text) return undefined;
     let value: unknown;
-    try 
+    try
 {
- value = JSON.parse(text); 
+ value = JSON.parse(text);
 }
-    catch 
+    catch
 {
- throw new HttpError("BAD_REQUEST"); 
+ throw new HttpError("BAD_REQUEST");
 }
     if (!expectsLogin) throw new HttpError("VALIDATION_ERROR");
     return value;
@@ -82,7 +83,7 @@ export function registerAuthRoutes(app: {
                 {
                     const parsed = loginRequestSchema.safeParse(await body(request, true));
                     if (!parsed.success) throw new HttpError("VALIDATION_ERROR");
-                    const result = await dependencies.login.Execute(parsed.data.email, parsed.data.password, null);
+                    const result = await dependencies.login.Execute(parsed.data.email, parsed.data.password, clientSource(request));
                     payload = loginResponseSchema.parse({ accessToken: result.accessToken, user: result.user });
                     headers.set("Set-Cookie", cookie(result.secret, result.expiresAt, dependencies));
                 }

@@ -84,11 +84,37 @@ test("throttle enforces pair, source, window, success and capacity", () =>
     throttle.RecordSuccess(null, "user@example.test");
     expect(throttle.Check("", "user@example.test")).toBe(true);
     for (let i = 0; i < 25; i++) throttle.RecordFailure(null, `user${i}@example.test`);
-    expect(throttle.Check(null, "other@example.test")).toBe(false);
+    expect(throttle.Check(null, "other@example.test")).toBe(true);
     expect(throttle.Check("b", "other@example.test")).toBe(true);
     time = new Date(time.getTime() + 899999);
-    expect(throttle.Check(null, "other@example.test")).toBe(false);
+    expect(throttle.Check(null, "other@example.test")).toBe(true);
     time = new Date(time.getTime() + 1);
     expect(throttle.Check(null, "other@example.test")).toBe(true);
-    expect(new LoginThrottle(clock, 1).Check(null, "a@example.test")).toBe(false);
+    expect(new LoginThrottle(clock, 1).Check("b", "a@example.test")).toBe(false);
+});
+
+test("missing source limits each normalized identifier independently", () =>
+{
+    time = new Date("2026-01-01T00:00:00Z");
+    const throttle = new LoginThrottle(clock);
+    for (let i = 0; i < 30; i++) throttle.RecordFailure(null, `unknown${i}@example.test`);
+    expect(throttle.Check(null, "new@example.test")).toBe(true);
+    for (let i = 0; i < 5; i++) throttle.RecordFailure(null, " User@example.test ");
+    expect(throttle.Check(null, "user@example.test")).toBe(false);
+});
+
+test("known peers retain pair and source limits after a successful login", () =>
+{
+    time = new Date("2026-01-01T00:00:00Z");
+    const throttle = new LoginThrottle(clock);
+    for (let i = 0; i < 5; i++) throttle.RecordFailure("127.0.0.1", " User@example.test ");
+    expect(throttle.Check("127.0.0.1", "user@example.test")).toBe(false);
+    expect(throttle.Check("127.0.0.2", "user@example.test")).toBe(true);
+    throttle.RecordSuccess("127.0.0.1", "user@example.test");
+    expect(throttle.Check("127.0.0.1", "user@example.test")).toBe(true);
+    for (let i = 0; i < 25; i++) throttle.RecordFailure("127.0.0.1", `user${i}@example.test`);
+    expect(throttle.Check("127.0.0.1", "new@example.test")).toBe(false);
+    expect(throttle.Check("127.0.0.2", "new@example.test")).toBe(true);
+    time = new Date(time.getTime() + 900000);
+    expect(throttle.Check("127.0.0.1", "new@example.test")).toBe(true);
 });
