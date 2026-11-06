@@ -511,3 +511,11 @@ test("login throttles socket peers and ignores forged forwarding headers", async
     expect((await send("new@example.test", "127.0.0.1", "198.51.100.2")).status).toBe(429);
     for (let i = 0; i < 31; i++) expect((await send(`anonymous${i}@example.test`, null, "127.0.0.1")).status).toBe(401);
 });
+
+test("development origin is explicitly allowed and another origin rejected", async () =>
+{
+    const app = createApplication(undefined, identityHttpFixture().dependencies);
+    const preflight = (origin: string) => app.handle(new Request("http://localhost/api/v1/auth/login", { method: "OPTIONS", headers: { origin, "access-control-request-method": "POST" } }));
+    expect((await preflight("http://localhost:5173")).status).toBe(204);
+    expect((await preflight("http://localhost:5174")).status).toBe(403);
+});

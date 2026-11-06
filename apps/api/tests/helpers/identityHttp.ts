@@ -137,7 +137,7 @@ export function identityHttpFixture()
         getCurrentUser: new GetCurrentUser(),
         logout: new Logout(repository, unit, refreshTokens, clock),
         logoutAll: new LogoutAll(unit, clock),
-        allowedOrigins: ["http://localhost:3000"], cookieSecure: false, clock,
+        allowedOrigins: ["http://localhost:3000", "http://localhost:5173"], cookieSecure: false, clock,
     };
     return { dependencies, account, other, accounts, identities, families, history, repository, unit, tokens, refreshTokens, clock, advance, calls, failures, resetControls, passwordCalls };
 }
