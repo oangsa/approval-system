@@ -7,6 +7,7 @@ import { requireAuthentication } from "../Guards/authentication";
 import { HttpError } from "../errors";
 
 const requestRoutes = [
+        ["GET", "/api/v1/request-types/:id/versions/:versionId", "typeVersion"],
         ["POST", "/api/v1/requests", "create"], ["PATCH", "/api/v1/requests/:id/draft", "patch"], ["POST", "/api/v1/requests/:id/submit", "submit"],
         ["GET", "/api/v1/requests/:id", "read"], ["POST", "/api/v1/request-types/search", "types"], ["GET", "/api/v1/request-types/:id", "type"],
     ] as const;
@@ -17,12 +18,13 @@ export function createRequestOpenApi()
     for (const [method, path, action] of requestRoutes)
     {
         const body = action === "create" ? createRequestSchema : action === "patch" ? patchDraftSchema : action === "submit" ? submitRequestSchema : action === "types" ? requestTypeSearchSchema : null;
-        const response = action === "types" ? z.array(publishedRequestTypeSchema) : action === "type" ? publishedRequestTypeSchema : requestDetailSchema;
+        const response = action === "types" ? z.array(publishedRequestTypeSchema) : ["type", "typeVersion"].includes(action) ? publishedRequestTypeSchema : requestDetailSchema;
         const keyRequired = action === "create" || action === "submit";
-        paths[path.replace(":id", "{id}")] ??= {};
-        paths[path.replace(":id", "{id}")]![method.toLowerCase()] = {
+        paths[path.replace(":id", "{id}").replace(":versionId", "{versionId}")] ??= {};
+        paths[path.replace(":id", "{id}").replace(":versionId", "{versionId}")]![method.toLowerCase()] = {
             security: [{ bearerAuth: [] }],
             parameters: [
+                ...(action === "typeVersion" ? [{ name: "versionId", in: "path", required: true, schema: { type: "string", format: "uuid" } }, { name: "requestId", in: "query", required: false, description: "Required for non-admins; must identify an authorized request using this version.", schema: { type: "string", format: "uuid" } }] : []),
                 ...(path.includes(":id") ? [{ name: "id", in: "path", required: true, schema: { type: "string", format: "uuid" } }] : []),
                 ...(keyRequired || action === "patch" ? [{ name: "Idempotency-Key", in: "header", required: keyRequired, schema: { type: "string", format: "uuid" } }] : []),
             ],
@@ -46,6 +48,12 @@ export function registerRequestRoutes(app: {
         {
             const actor = await requireAuthentication(request.headers.get("authorization"), identity.authenticate);
             if (params.id && !z.uuid().safeParse(params.id).success) throw new HttpError("NOT_FOUND");
+            if (action === "typeVersion")
+            {
+                const requestId = new URL(request.url).searchParams.get("requestId") ?? undefined;
+                if (!z.uuid().safeParse(params.versionId).success || requestId !== undefined && !z.uuid().safeParse(requestId).success) throw new HttpError("NOT_FOUND");
+                return Response.json(publishedRequestTypeSchema.parse(await service.TypeVersion(actor, params.id!, params.versionId!, requestId)));
+            }
             if (action === "read") return Response.json(requestDetailSchema.parse(await service.Read(actor, params.id!)));
             let value: unknown;
             if (method !== "GET")

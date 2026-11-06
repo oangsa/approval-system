@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useBeforeUnload, useBlocker } from "react-router";
 import { AlertCircle, CheckCircle2, ChevronLeft, ChevronRight, Plus, Trash2 } from "lucide-react";
-import { applicableFields, createRequestSchema, isPresent, itemTotal, sumAmounts, validateFields, type CreateRequest, type IFieldIssue, type PublishedRequestType, type RequestDetail } from "@workflow/contracts";
+import { applicableFields, createRequestSchema, isPresent, itemTotal, sumAmounts, validateFields, type IRequestTypeSearchResult, type CreateRequest, type IFieldIssue, type PublishedRequestType, type RequestDetail } from "@workflow/contracts";
 import { requestApi } from "~/api/requests";
 import { isApiFailure } from "~/api/errors";
 import { Button } from "~/components/ui/button";
@@ -17,6 +17,8 @@ export function RequestWizard()
 {
     const { user } = useSession();
     const [types, setTypes] = useState<PublishedRequestType[]>([]);
+    const [pageNumber, setPageNumber] = useState(1);
+    const [pagination, setPagination] = useState<IRequestTypeSearchResult["pagination"] | null>(null);
     const [loading, setLoading] = useState(true);
     const [loadVersion, setLoadVersion] = useState(0);
     const [type, setType] = useState<PublishedRequestType | null>(null);
@@ -57,11 +59,14 @@ export function RequestWizard()
     {
         const controller = new AbortController();
         setLoading(true);
-        requestApi.types(controller.signal).then((values) =>
+        setTypes([]);
+        setPagination(null);
+        requestApi.types(pageNumber, controller.signal).then((values) =>
         {
             if (!controller.signal.aborted)
             {
-                setTypes(values);
+                setTypes(values.items);
+                setPagination(values.pagination);
                 setError("");
             }
         }).catch((failure: unknown) =>
@@ -72,7 +77,7 @@ export function RequestWizard()
             if (!controller.signal.aborted) setLoading(false);
         });
         return () => controller.abort();
-    }, [loadVersion]);
+    }, [loadVersion, pageNumber]);
     useEffect(() =>
     {
         if (focusField)
@@ -226,7 +231,7 @@ export function RequestWizard()
         }}>
             <section className="space-y-5 rounded-lg border bg-card p-4 sm:p-6" aria-label={steps[step]}>
                 <h2 className="text-lg font-semibold">{steps[step]}</h2>
-                {step === 0 && <><label htmlFor="typeId" className="block text-sm font-medium">Request type (required)</label><select id="typeId" className={fieldClassName} value={type?.id ?? ""} onChange={(event) => selectType(event.target.value)} aria-invalid={!!errorFor("typeId")}><option value="">Choose a published type</option>{types.map((item) => <option key={item.id} value={item.id}>{item.name.en}</option>)}</select>{!types.length && !error && <p>No published request types are available. Contact an administrator.</p>}{type && <p className="text-sm text-muted-foreground">{type.description?.en} · Definition version {type.versionNumber}</p>}</>}
+                {step === 0 && <><label htmlFor="typeId" className="block text-sm font-medium">Request type (required)</label><select id="typeId" className={fieldClassName} value={type?.id ?? ""} onChange={(event) => selectType(event.target.value)} aria-invalid={!!errorFor("typeId")}><option value="">Choose a published type</option>{type && !types.some((item) => item.id === type.id) && <option value={type.id}>{type.name.en}</option>}{types.map((item) => <option key={item.id} value={item.id}>{item.name.en}</option>)}</select>{pagination && <nav aria-label="Request type pages" className="flex flex-wrap items-center gap-3"><Button type="button" disabled={!pagination.hasPrevious} onClick={() => setPageNumber((value) => value - 1)}>Previous types</Button><span>Page {pagination.currentPage} of {Math.max(1, pagination.totalPages)} · {pagination.totalCount} types</span><Button type="button" disabled={!pagination.hasNext} onClick={() => setPageNumber((value) => value + 1)}>Next types</Button></nav>}{!types.length && !error && <p>No published request types are available. Contact an administrator.</p>}{type && <p className="text-sm text-muted-foreground">{type.description?.en} · Definition version {type.versionNumber}</p>}</>}
                 {step === 1 && <>{basicField("title", "Title")}{basicField("justification", "Justification")}<label htmlFor="priority" className="block text-sm font-medium">Priority</label><select id="priority" className={fieldClassName} value={content.priority} onChange={(event) => update({ priority: event.target.value as CreateRequest["priority"] })}>{["LOW", "MEDIUM", "HIGH", "URGENT"].map((value) => <option key={value}>{value}</option>)}</select><p className="text-sm">Department: {user.department?.name ?? "Not assigned — an administrator must assign your department before submission."}</p></>}
                 {step === 2 && <>{visible.map((field) => <FieldRenderer key={field.key} field={field} value={content.fields?.[field.key]} error={errorFor(`fields.${field.key}`)} onChange={(value) => update({ fields: { ...content.fields, [field.key]: value } })} />)}{!visible.length && <p>No additional fields are required.</p>}{type?.monetary && !type.supportsLineItems && <div><label htmlFor="monetaryAmount">Amount (THB, required)</label><Input id="monetaryAmount" inputMode="decimal" value={content.monetaryAmount ?? ""} onChange={(event) => update({ monetaryAmount: event.target.value || null })} aria-invalid={!!errorFor("monetaryAmount")} /></div>}</>}
                 {type?.supportsLineItems && step === 3 && <><p className="text-sm text-muted-foreground">Enter item quantities and amounts. Totals are confirmed by the server.</p>{(content.lineItems ?? []).map((item, index) => <div key={index} className="space-y-3 rounded-md border p-4">{(["description", "quantity", "unitAmount"] as const).map((key) => <div key={key}><label htmlFor={`lineItems.${index}.${key}`}>{key === "unitAmount" ? "Unit amount" : key === "quantity" ? "Quantity" : "Description"} (item {index + 1})</label><Input id={`lineItems.${index}.${key}`} value={item[key]} inputMode={key === "description" ? "text" : "decimal"} aria-invalid={!!errorFor(`lineItems.${index}.${key}`)} onChange={(event) => update({ lineItems: content.lineItems!.map((row, itemIndex) => itemIndex === index ? { ...row, [key]: event.target.value } : row) })} /></div>)}<Button type="button" onClick={() => update({ lineItems: content.lineItems!.filter((_, itemIndex) => itemIndex !== index) })}><Trash2 aria-hidden="true" className="mr-2 h-4 w-4" />Remove item {index + 1}</Button></div>)}<Button id="lineItems" type="button" onClick={() => update({ lineItems: [...content.lineItems ?? [], { description: "", quantity: "1", unitAmount: "0.00" }] })}><Plus aria-hidden="true" className="mr-2 h-4 w-4" />Add item</Button></>}

@@ -189,6 +189,15 @@ test("EP-033/035/036 HTTP strict writes, status, location, errors, CORS and fore
     const draft = requestDetailSchema.parse(await created.json());
     expect(created.headers.get("location")).toBe(`/api/v1/requests/${draft.id}`);
     expect(created.headers.get("cache-control")).toBe("no-store");
+    const versionPath = `/request-types/${item.typeId}/versions/${item.versionId}`;
+    expect((await send("GET", versionPath, undefined, "")).status).toBe(401);
+    expect((await send("GET", versionPath)).status).toBe(404);
+    expect((await send("GET", `${versionPath}?requestId=invalid`)).status).toBe(404);
+    expect((await send("GET", `${versionPath}?requestId=${randomUUID()}`)).status).toBe(404);
+    const pinned = await send("GET", `${versionPath}?requestId=${draft.id}`);
+    expect(pinned.status).toBe(200);
+    expect(pinned.headers.get("cache-control")).toBe("no-store");
+    expect(await pinned.json()).toMatchObject({ id: item.typeId, versionId: item.versionId });
     const patched = await send("PATCH", `/requests/${draft.id}/draft`, { expectedVersion: 0, title: "Updated" });
     expect(patched.status).toBe(200);
     expect((await send("POST", `/requests/${draft.id}/submit`, { expectedVersion: 0 })).status).toBe(409);
@@ -247,4 +256,32 @@ test("FT-015 incomplete item drafts can later receive items without competing am
     const edited = await service.Mutate(item.actor, "patch", draft.id, { expectedVersion: 0, title: item.content.title, justification: item.content.justification, fields: item.content.fields, lineItems: item.content.lineItems });
     expect(edited.workingRevision?.amount).toBe("15.02");
     expect((await service.Mutate(item.actor, "submit", draft.id, { expectedVersion: 1 }, randomUUID())).status).toBe("PENDING");
+});
+
+test("SEC-03 pinned definitions require matching current request context and survive publication/disablement", async () =>
+{
+    const item = await fixture();
+    const draft = await item.draft();
+    const definition = await service.TypeVersion(item.actor, item.typeId, item.versionId, draft.id);
+    const foreign = await fixture();
+    await expect(service.TypeVersion(foreign.actor, item.typeId, item.versionId, draft.id)).rejects.toMatchObject({ code: "NOT_FOUND" });
+    await expect(service.TypeVersion(item.actor, item.typeId, item.versionId)).rejects.toMatchObject({ code: "NOT_FOUND" });
+    await expect(service.TypeVersion(item.actor, foreign.typeId, foreign.versionId, draft.id)).rejects.toMatchObject({ code: "NOT_FOUND" });
+    const familyId = randomUUID();
+    await db.insert(sessionFamilies).values({ id: familyId, userId: item.reviewerId, authVersion: 0, createdAt: new Date(), expiresAt: new Date(Date.now() + 3600000) });
+    const reviewer = (await new IdentityRepository(db).ReadCurrentIdentity(item.reviewerId, familyId))!;
+    await expect(service.TypeVersion(reviewer, item.typeId, item.versionId, draft.id)).rejects.toMatchObject({ code: "NOT_FOUND" });
+    await service.Mutate(item.actor, "submit", draft.id, { expectedVersion: 0 }, randomUUID());
+    expect(await service.TypeVersion(reviewer, item.typeId, item.versionId, draft.id)).toEqual(definition);
+    const nextId = randomUUID();
+    const next = { ...definition, versionId: nextId, versionNumber: 2, fields: [] };
+    await db.insert(requestTypeVersions).values({ id: nextId, typeId: item.typeId, versionNumber: 2, definition: next });
+    await db.update(requestTypes).set({ publishedVersionId: nextId, isEnabled: false }).where(eq(requestTypes.id, item.typeId));
+    expect(await service.TypeVersion(item.actor, item.typeId, item.versionId, draft.id)).toEqual(definition);
+    await expect(service.TypeVersion(item.actor, item.typeId, nextId, draft.id)).rejects.toMatchObject({ code: "NOT_FOUND" });
+    await db.insert(userRoles).values({ userId: foreign.ownerId, roleCode: "ADMINISTRATOR" });
+    expect(await service.TypeVersion(foreign.actor, item.typeId, item.versionId)).toEqual(definition);
+    await expect(service.Read(foreign.actor, draft.id)).rejects.toMatchObject({ code: "NOT_FOUND" });
+    await db.update(requests).set({ status: "WITHDRAWN" }).where(eq(requests.id, draft.id));
+    await expect(service.TypeVersion(reviewer, item.typeId, item.versionId, draft.id)).rejects.toMatchObject({ code: "NOT_FOUND" });
 });

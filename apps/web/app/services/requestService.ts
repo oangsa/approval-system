@@ -43,3 +43,11 @@ export class RequestEditingSession
         return this.saved !== null;
     }
 }
+
+export async function readRequestResult(id: string, signal?: AbortSignal)
+{
+    const detail = await requestApi.read(id, signal);
+    const revision = detail.submittedRevision ?? detail.workingRevision;
+    const definition = revision ? await requestApi.version(detail.typeId, revision.formDefinitionVersionId, detail.id, signal) : null;
+    return { detail, definition };
+}

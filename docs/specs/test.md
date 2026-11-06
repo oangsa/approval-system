@@ -609,3 +609,10 @@ A selected feature is **verified** only when its frozen `FR`, `AC`, domain/HTTP/
 ## 11. Identity & Access feature test records (additive)
 
 The M01–M03 test setup and per-case assertions are maintained in [identity-access/sts.md](../features/identity-access/sts.md), with child criteria in [acceptance-criteria.md](../features/identity-access/acceptance-criteria.md). Feature test IDs IA-CT-01, IA-DB-01–08, IA-API-01–09, IA-WEB-01–05, and IA-E2E-01–05 supplement the applicable global CT, DB, API, SEC, UI, FT, and E2E coverage; they do not replace or renumber those IDs. The global full request/approval journeys remain owned by their features. The identity test suites were executed on 2026-11-06 with results recorded in [sts.md §7b](../features/identity-access/sts.md) and [testing-verification.md](../testing-verification.md); tests without recorded evidence there remain PLANNED / NOT RUN.
+
+### PR #19 minor-finding regressions
+
+- Reopened request details resolve field and select-option labels from the displayed revision’s exact definition version, including after a newer publication or type disablement. Definition-load failures expose Retry.
+- Version reads require authentication and, for non-Administrators, current request-read authority plus a matching request/type/version context. Test owner, current reviewer, unrelated user, invalid/missing context and administrator metadata-only access.
+- Request-type selection uses bounded server pages and validated `X-Pagination`; a 101st type is selectable, and the selection survives paging back. Missing or malformed pagination is an error.
+- Verification: `apps/web/tests/components/requestDetail.test.tsx`, `apps/web/tests/components/requestTypes.test.tsx`, `apps/api/tests/postgres/requests.test.ts`, and `apps/api/tests/integration/requestOpenApi.test.ts`. Draft-resume navigation remains deferred.

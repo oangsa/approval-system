@@ -1,4 +1,4 @@
-import { refreshResponseSchema } from "@workflow/contracts";
+import { paginationSchema, refreshResponseSchema } from "@workflow/contracts";
 import { ApiFailure } from "./errors";
 import { currentGeneration, endSession, readAccessToken, writeAccessToken } from "./tokenStore";
 import { parseErrorEnvelope } from "./errors";
@@ -81,7 +81,7 @@ export function refreshAccessToken(generation = currentGeneration()): Promise<bo
     return promise;
 }
 
-async function send(path: string, options: IHttpOptions, generation: number, allowRefresh: boolean, capturedRevocation = false): Promise<unknown>
+async function send(path: string, options: IHttpOptions, generation: number, allowRefresh: boolean, capturedRevocation = false): Promise<{ payload: unknown; response: Response }>
 {
     if (!capturedRevocation && generation !== currentGeneration()) throw abortFailure();
     const { body, generation: ignoredGeneration, headers, ...init } = options;
@@ -105,7 +105,7 @@ async function send(path: string, options: IHttpOptions, generation: number, all
         throw new ApiFailure({ kind: "network", message: "Network request failed", cause });
     }
     if (!capturedRevocation && generation !== currentGeneration()) throw abortFailure();
-    if (response.ok) return payload;
+    if (response.ok) return { payload, response };
     if (response.status === 401 && eligible)
     {
         if (await refreshAccessToken(generation)) return send(path, options, generation, false);
@@ -115,11 +115,20 @@ async function send(path: string, options: IHttpOptions, generation: number, all
     throw failureFor(response, payload);
 }
 
-export function http(path: string, options: IHttpOptions = {}): Promise<unknown>
+async function httpResponse(path: string, options: IHttpOptions = {}): Promise<{ payload: unknown; response: Response }>
 {
     const generation = options.generation ?? currentGeneration();
     if (authPaths.has(path)) return enqueue(() => send(path, options, generation, false));
     return send(path, options, generation, true);
+}
+export async function http(path: string, options: IHttpOptions = {}): Promise<unknown>
+{
+    return (await httpResponse(path, options)).payload;
+}
+export async function httpPageFor<T>(path: string, schema: { parse(value: unknown): T[] }, options: IHttpOptions = {})
+{
+    const { payload, response } = await httpResponse(path, options);
+    return { items: schema.parse(payload), pagination: paginationSchema.parse(JSON.parse(response.headers.get("X-Pagination") ?? "null")) };
 }
 export function revokeSession(token: string | null, retryGeneration?: number): Promise<unknown>
 {
@@ -128,7 +137,7 @@ export function revokeSession(token: string | null, retryGeneration?: number): P
     return enqueue(() =>
     {
         if (retryGeneration !== undefined && retryGeneration !== currentGeneration()) throw abortFailure();
-        return send("/v1/auth/logout", { method: "POST", headers }, generation, false, true);
+        return send("/v1/auth/logout", { method: "POST", headers }, generation, false, true).then(({ payload }) => payload);
     });
 }
 export async function httpFor<T>(path: string, schema: { parse(value: unknown): T }, options: IHttpOptions = {}): Promise<T>

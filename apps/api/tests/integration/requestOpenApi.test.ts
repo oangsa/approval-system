@@ -15,3 +15,14 @@ test("CT-01 request OpenAPI uses the strict shared contracts and critical-action
         requestBody: { content: { "application/json": { schema: { required: expect.arrayContaining(["expectedVersion"]) } } } },
     });
 });
+
+test("pinned definition OpenAPI declares version and request context with the shared response", () =>
+{
+    expect(createRequestOpenApi().paths["/api/v1/request-types/{id}/versions/{versionId}"]?.get).toMatchObject({
+        parameters: expect.arrayContaining([
+            expect.objectContaining({ name: "versionId", in: "path", required: true }),
+            expect.objectContaining({ name: "requestId", in: "query", required: false }),
+        ]),
+        responses: { "200": { content: { "application/json": { schema: { required: expect.arrayContaining(["versionId", "fields"]) } } } } },
+    });
+});

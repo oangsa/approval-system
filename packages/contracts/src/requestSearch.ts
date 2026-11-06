@@ -7,8 +7,11 @@ export const requestTypeSearchSchema = z.strictObject({
     orderBy: z.enum(["code asc", "code desc", "name asc", "name desc"]).default("code asc"),
 });
 export type RequestTypeSearch = z.infer<typeof requestTypeSearchSchema>;
+export const paginationSchema = z.strictObject({
+    currentPage: z.number().int().positive(), pageSize: z.number().int().positive(), totalPages: z.number().int().nonnegative(), totalCount: z.number().int().nonnegative(), hasPrevious: z.boolean(), hasNext: z.boolean(),
+});
 export interface IRequestTypeSearchResult
 {
     items: import("./requests").PublishedRequestType[];
-    pagination: { currentPage: number; pageSize: number; totalPages: number; totalCount: number; hasPrevious: boolean; hasNext: boolean };
+    pagination: z.infer<typeof paginationSchema>;
 }

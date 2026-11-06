@@ -72,13 +72,34 @@ export class RequestService
             return result;
         });
     }
+    private async Readable(repository: IRequestRepository, actor: IActor, id: string): Promise<RequestDetail>
+    {
+        const detail = await repository.Read(id);
+        if (!detail || detail.requester.id !== actor.account.id && !(actor.roles.includes("REVIEWER") && detail.status === "PENDING" && detail.currentApprovers.some((slot) => slot.reviewer.id === actor.account.id && ["ACTIONABLE", "WAITING"].includes(slot.status)))) throw new RequestError("NOT_FOUND");
+        return detail;
+    }
+    public async TypeVersion(actor: IActor, id: string, versionId: string, requestId?: string)
+    {
+        return this.unit.Run(async (repository) =>
+        {
+            actor = await repository.CurrentActor(actor);
+            if (!actor.roles.includes("ADMINISTRATOR"))
+            {
+                if (!requestId) throw new RequestError("NOT_FOUND");
+                const detail = await this.Readable(repository, actor, requestId);
+                if (detail.typeId !== id || ![detail.submittedRevision, detail.workingRevision].some((revision) => revision?.formDefinitionVersionId === versionId)) throw new RequestError("NOT_FOUND");
+            }
+            const definition = await repository.TypeVersion(id, versionId);
+            if (!definition) throw new RequestError("NOT_FOUND");
+            return definition;
+        });
+    }
     public async Read(actor: IActor, id: string): Promise<RequestDetail>
     {
         return this.unit.Run(async (repository) =>
         {
             actor = await repository.CurrentActor(actor);
-            const detail = await repository.Read(id);
-            if (!detail || detail.requester.id !== actor.account.id && !(actor.roles.includes("REVIEWER") && detail.status === "PENDING" && detail.currentApprovers.some((slot) => slot.reviewer.id === actor.account.id && ["ACTIONABLE", "WAITING"].includes(slot.status)))) throw new RequestError("NOT_FOUND");
+            const detail = await this.Readable(repository, actor, id);
             return { ...detail, availableActions: detail.requester.id === actor.account.id && actor.roles.includes("REQUESTER") ? detail.availableActions : [] };
         });
     }

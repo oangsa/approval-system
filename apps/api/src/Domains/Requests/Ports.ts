@@ -13,6 +13,7 @@ export interface IRequestRepository
     Patch(id: string, actorId: string, content: CreateRequest, amount: string | null): Promise<void>;
     Submit(id: string, actorId: string, plan: IPlan): Promise<void>;
     Types(query: RequestTypeSearch): Promise<IRequestTypeSearchResult>;
+    TypeVersion(id: string, versionId: string): Promise<PublishedRequestType | null>;
     Type(id: string): Promise<PublishedRequestType | null>;
 }
 export interface IRequestUnitOfWork { Run<T>(operation: (repository: IRequestRepository) => Promise<T>): Promise<T>; }

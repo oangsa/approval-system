@@ -131,6 +131,11 @@ export class RequestRepository implements IRequestRepository
         await this.db.insert(requestAuditEvents).values({ id: randomUUID(), requestId: id, actorId, eventType: "REQUEST_SUBMITTED", revisionId, cycleId });
         await this.db.insert(requestOutboxEvents).values({ id: randomUUID(), eventKey: `REQUEST_SUBMITTED:${cycleId}`, eventType: "REQUEST_SUBMITTED", payload: { requestId: id, cycleId } });
     }
+    public async TypeVersion(id: string, versionId: string)
+    {
+        const row = (await this.db.select({ definition: requestTypeVersions.definition }).from(requestTypeVersions).where(and(eq(requestTypeVersions.typeId, id), eq(requestTypeVersions.id, versionId))))[0];
+        return row?.definition ?? null;
+    }
     public async Type(id: string)
     {
         const row = (await this.db.select({ definition: requestTypeVersions.definition }).from(requestTypes).innerJoin(requestTypeVersions, eq(requestTypes.publishedVersionId, requestTypeVersions.id)).where(and(eq(requestTypes.id, id), eq(requestTypes.isEnabled, true))))[0];
