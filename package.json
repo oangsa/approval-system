@@ -11,8 +11,8 @@
     "dev": "node scripts/dev.ts",
     "typecheck": "npm run typecheck --workspaces && tsc -p tsconfig.json",
     "build": "npm run build --workspaces",
-    "lint": "eslint . && prettier --check .",
-    "format": "eslint . --fix && prettier --write .",
+    "lint": "eslint \"**/*.{ts,tsx}\"",
+    "format": "eslint \"**/*.{ts,tsx}\" --fix",
     "test": "vitest run",
     "check": "npm run typecheck && npm run lint && npm test && npm run build",
     "db:up": "docker compose --env-file apps/api/.env up -d --wait",
@@ -24,12 +24,13 @@
     "test:api": "vitest run --project api",
     "test:contracts": "vitest run --project contracts",
     "test:integration": "npm run test:integration --workspace @workflow/api",
-    "test:e2e": "npm run build && playwright test",
+    "test:e2e": "playwright test",
     "test:coverage": "vitest run --coverage",
     "test:e2e:install": "playwright install --with-deps chromium",
     "db:test:up": "docker compose --env-file apps/api/.env.test -f apps/api/tests/postgres/compose.yaml up -d --wait",
     "db:test:down": "docker compose --env-file apps/api/.env.test -f apps/api/tests/postgres/compose.yaml down",
-    "db:test:migrate": "npm run db:test:migrate --workspace @workflow/api"
+    "db:test:migrate": "npm run db:test:migrate --workspace @workflow/api",
+    "db:test:seed": "npm run db:test:seed --workspace @workflow/api"
   },
   "devDependencies": {
     "typescript": "^5.9.3",

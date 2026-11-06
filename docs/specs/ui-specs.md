@@ -77,9 +77,15 @@ Use explicit text labels and icon/shape to indicate state. Color is **supplement
 - Configurable type/field/option labels display requested language with **English fallback** as specified by API contract.
 - Format instants in `Asia/Bangkok` for users; retain calendar-only dates without unintended timezone conversion. Business hours are Monday–Friday 09:00–17:00 Asia/Bangkok.
 
+### 2.5 Icons — owner-approved clarification (2026-11-06)
+
+- Use **Lucide** through `lucide-react` as the application UI icon library. Replace reference-project icons with Lucide equivalents; do not introduce another icon library or use emojis as UI icons.
+- Keep icon size, stroke weight and alignment consistent through shared components. Specific Lucide glyphs remain implementation defaults; the library choice is required.
+- Icon-only controls must have translated accessible names. Decorative icons accompanying visible text are hidden from assistive technology; icons never replace required status text or field labels.
+
 ## 3. Motion and accessibility
 
-- Animation is optional enhancement, not part of any critical interaction or approval transaction.
+- **Owner-approved clarification (2026-11-06):** Include subtle interaction animation for hover/focus feedback, sidebar collapse/mobile drawer changes, and dialog/tab transitions. Animation is a presentation enhancement; critical interactions and approval transactions must complete independently of it, including when reduced motion disables it.
 - Prefer Tailwind `transition-*` for ordinary hover, focus, sidebar/collapse, and color transitions.
 - **UI-11 [FROZEN]:** Use Tailwind transitions as the default. Modern **Motion for React** (`motion/react`) is optional for justified component transitions; do **not** use the separate legacy `react-motion` library. Motion must not introduce a second styling system or replace Tailwind CSS.
 - **[IMPLEMENTATION DEFAULT — NOT FROZEN]** Motion durations of ~120–220ms for small opacity/translate transitions, sidebar expansion, tabs and dialog presence. Never animate loading to conceal data changes, delay submit results, or obscure actionable controls.
@@ -401,7 +407,7 @@ Use accessible toast for noncritical confirmations; destructive/irreversible ope
 - **UI-AC-17:** Request/review collections display server-consistent tables on desktop and action-equivalent compact cards on mobile; search/sort/filter/page state and privacy remain intact.
 - **UI-AC-18:** Header notification bell and inbox share own scoped data; polling pauses/revalidates appropriately, and updates cannot leak across logout or account switch.
 - **UI-AC-19:** Administrator escalation queue uses only the minimal v1.0.1 projection; filter/search/reassign works without request-content access, and stale assignments show safe conflict feedback.
-- **UI-AC-20:** Monochrome light/dark style uses restrained semantic status colors, accessible labels and focus; Tailwind remains the only styling system and optional Motion respects reduced motion.
+- **UI-AC-20:** Monochrome light/dark style uses restrained semantic status colors, Lucide icons, accessible labels and focus; Tailwind remains the only styling system. Subtle interaction motion is present for hover/focus, sidebar/drawer and dialog/tab changes, respects reduced motion, and never delays actions or server-confirmed results. Motion for React remains optional.
 
 ### 15.2 Selected feature-to-UI coverage (complete)
 
@@ -442,7 +448,7 @@ Use accessible toast for noncritical confirmations; destructive/irreversible ope
 | UI-11 | Tailwind transitions; optional modern Motion for React (`motion/react`)                            |
 | UI-12 | Admin-only minimal escalation task search API amendment approved                                   |
 
-**[IMPLEMENTATION DEFAULT — NOT FROZEN]** Inter font, exact neutral token hex values, mobile breakpoints, card density, spacing, icon choices, search debounce, page-size selection within API caps, transition duration, header notification polling interval, wizard step URL/bookmark design, and skeleton counts. Changes to these values cannot weaken approved layout, language/theme behavior, accessibility, or authorization requirements.
+**[IMPLEMENTATION DEFAULT — NOT FROZEN]** Inter font, exact neutral token hex values, mobile breakpoints, card density, spacing, specific Lucide glyph choices (not the required Lucide library), search debounce, page-size selection within API caps, transition duration, header notification polling interval, wizard step URL/bookmark design, and skeleton counts. Changes to these values cannot weaken approved layout, language/theme behavior, accessibility, or authorization requirements.
 
 ## 18. UI freeze and consistency statement
 
@@ -453,3 +459,7 @@ Use accessible toast for noncritical confirmations; destructive/irreversible ope
 - Only the Maintenance Tracking System frontend was used as a UI architectural reference; its business terminology, colors and exact UI designs are not carried over.
 - No additional feature (visual workflow builder, universal administrator request viewer, email notifications, realtime push, CSV export or accounting ledger) is authorized by this UI specification.
 - Future behavior/route/API changes require documented compatible contract revisions and adjusted tests. This document makes **no** claim of implemented or tested behavior.
+
+## 19. Identity & Access implementation scope (additive)
+
+The preimplementation design and child criteria for M01–M03 are in [identity-access/sds.md](../features/identity-access/sds.md) and [acceptance-criteria.md](../features/identity-access/acceptance-criteria.md); the planned browser checks are in [sts.md](../features/identity-access/sts.md). This feature implements only the login route, a protected shell, safe dashboard placeholder, read-only account summary, and unauthorized screen. It does not remove or change the other frozen routes, shell requirements, UI criteria, or downstream ownership. Navigation in this feature points only to shipped routes. UI implementation and checks remain PLANNED / NOT RUN.

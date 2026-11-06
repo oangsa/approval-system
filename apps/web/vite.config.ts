@@ -17,7 +17,7 @@ export default defineConfig(({ mode }) =>
             strictPort: true,
             proxy: { "/api": {
                 target: environment.API_PROXY_TARGET || "http://127.0.0.1:3001",
-                rewrite: (path) => path.replace(/^\/api/, ""),
+                // Preserve the /api prefix: API routes are registered as /api/v1/...
             } },
         },
     };

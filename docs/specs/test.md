@@ -22,13 +22,13 @@ Verify that a two-person implementation satisfies the frozen product, API and UI
 
 | Layer                     | Test ID prefix | Primary runner                                                                 | What is real?                                                                                   |
 | ------------------------- | -------------- | ------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------- |
-| Domain unit               | `UT-*`         | Vitest                                                                       | Pure policies/state/form evaluator; fake clock and controlled dependencies                      |
-| Shared contract           | `CT-*`         | Vitest                                                                       | Actual shared Zod schemas, DTO and enum validation                                              |
-| HTTP/API                  | `API-*`        | Vitest + Elysia app request                                                  | Real routing, middleware, headers, error envelopes and authentication; integration DB as needed |
-| Database integration      | `DB-*`         | Vitest + disposable PostgreSQL                                               | Real Drizzle schema/migrations, constraints, transactions and isolation                         |
-| Concurrency/failure       | `CX-*`         | Vitest + two or more real PG connections                                     | Competing commits, unique constraints, rollback, retries, crash/fault boundaries                |
+| Domain unit               | `UT-*`         | Vitest                                                                         | Pure policies/state/form evaluator; fake clock and controlled dependencies                      |
+| Shared contract           | `CT-*`         | Vitest                                                                         | Actual shared Zod schemas, DTO and enum validation                                              |
+| HTTP/API                  | `API-*`        | Vitest + Elysia app request                                                    | Real routing, middleware, headers, error envelopes and authentication; integration DB as needed |
+| Database integration      | `DB-*`         | Vitest + disposable PostgreSQL                                                 | Real Drizzle schema/migrations, constraints, transactions and isolation                         |
+| Concurrency/failure       | `CX-*`         | Vitest + two or more real PG connections                                       | Competing commits, unique constraints, rollback, retries, crash/fault boundaries                |
 | UI component              | `UI-*`         | React Testing Library or comparable React harness **[implementation default]** | Real components + mocked API responses; keyboard and accessible semantics                       |
-| End-to-end                | `E2E-*`        | Playwright (D-01)                                        | Web + API + real disposable DB, private test storage, actual browser                            |
+| End-to-end                | `E2E-*`        | Playwright (D-01)                                                              | Web + API + real disposable DB, private test storage, actual browser                            |
 | Privacy/security          | `SEC-*`        | Direct HTTP + browser checks                                                   | Role/ownership/cookie/session/download safeguards                                               |
 | Operations/non-functional | `OPS-*`        | Fake clock, trusted-job request, controlled smoke environment                  | SLA scheduler, localization, accessibility and optional performance target                      |
 
@@ -569,7 +569,7 @@ Every executed test report records:
 | -------------------------- | ------------------------------------------------------------------------------------------------- |
 | `testId`                   | One of `FT-*`, `UT-*`, `CT-*`, `DB-*`, `CX-*`, `API-*`, `SEC-*`, `UI-*`, `E2E-*`, `OPS-*`, `EP-*` |
 | `featureId / FR / BR / AC` | Traceable contract identifiers where applicable                                                   |
-| `environment`              | OS, Node.js/npm/test-runner/browser version, PostgreSQL version, object-store adapter                |
+| `environment`              | OS, Node.js/npm/test-runner/browser version, PostgreSQL version, object-store adapter             |
 | `build`                    | Commit SHA and optional release tag                                                               |
 | `fixture`                  | Seed revision, role, request type/policy version, clock instant                                   |
 | `operation`                | Input, actor, endpoint/page, idempotency identity when relevant                                   |
@@ -605,3 +605,7 @@ A selected feature is **verified** only when its frozen `FR`, `AC`, domain/HTTP/
 - **In-document data correction:** For a Friday 16:00 start with a **120-business-minute** SLA (60 minutes Friday + 60 minutes Monday), the expected due time is **Monday 10:00 Asia/Bangkok**. This concrete example is used throughout tests.
 
 **Remaining test harness implementation details (adjustable):** exact CI pipeline, isolated test DB lifecycle, package scripts, fake-clock library, object-store test adapter, screenshot naming, contrast tooling and performance smoke environment. No additional product/API/UI decisions are required to author this test specification.
+
+## 11. Identity & Access feature test records (additive)
+
+The M01–M03 test setup and per-case assertions are maintained in [identity-access/sts.md](../features/identity-access/sts.md), with child criteria in [acceptance-criteria.md](../features/identity-access/acceptance-criteria.md). Feature test IDs IA-CT-01, IA-DB-01–08, IA-API-01–09, IA-WEB-01–05, and IA-E2E-01–05 supplement the applicable global CT, DB, API, SEC, UI, FT, and E2E coverage; they do not replace or renumber those IDs. The global full request/approval journeys remain owned by their features. The identity test suites were executed on 2026-11-06 with results recorded in [sts.md §7b](../features/identity-access/sts.md) and [testing-verification.md](../testing-verification.md); tests without recorded evidence there remain PLANNED / NOT RUN.
