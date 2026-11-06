@@ -20,13 +20,18 @@
 
 - Follow this single root `AGENTS.md` for every workspace package. Do not create nested `AGENTS.md` files.
 - All required specifications are in `docs/specs/`. Read the relevant requirements, design, API, UI, test, and traceability specifications there before implementation.
+- Read the applicable shared guidelines before related work:
+  - [Styling contract](docs/specs/generics/styling-contract.md) for UI styling, tokens, shared layouts, responsive behavior, accessibility, themes, and localization.
+  - [Lookup table guideline](docs/specs/generics/lookup-table-guideline.md) for server-backed record pickers, selection behavior, eligibility, and lookup permissions.
+  - [Filter and search guideline](docs/specs/generics/filter-search-guideline.md) for collection queries, filtering, sorting, pagination, and backend QueryBuilder boundaries.
+- These guidelines derive from the authoritative specifications; frozen product/API/UI contracts take precedence. Proposed defaults and unresolved contract gaps do not authorize new endpoints, permissions, or implementation.
 - Keep changes limited to the requested scope. Inspect related code, contracts, tests, and existing patterns before editing; reuse existing abstractions where appropriate.
 - Use strict TypeScript; avoid `any`, duplicated types, dead code, speculative abstractions, and unrelated refactors.
 - Use **PascalCase** for classes, interfaces (prefixed with `I`), React components, and class methods; **camelCase** for ordinary functions, variables, and properties.
 - Use **Allman-style braces** in TypeScript: opening braces on a new line for functions, classes, methods, and control-flow statements. Follow TSX/JSX syntax where required.
 - Keep each module focused and small. Do not introduce a new library, service, or architectural layer when the existing stack can meet the requirement.
 - Prefer reusable, testable implementations over duplicated logic. Preserve existing behavior unless the requested change explicitly changes it.
-- Use icons from Lucide or the existing icon dependencies rather than emojis in application UI.
+- Use **Lucide** icons through `lucide-react` for application UI. Do not substitute other icon libraries or emojis; adapt reference-project icons to Lucide equivalents.
 - Never commit credentials, real tokens, `.env` files containing secrets, or production data. Document configuration through safe examples.
 
 ## Frontend Rules — `apps/web`
@@ -35,6 +40,7 @@
 - Keep HTTP transport in the API layer and UI-facing request orchestration in the service layer; do not scatter raw `fetch()` calls across components.
 - Use shadcn/ui as **base UI primitives**. Do not modify generated/raw shadcn components to add feature-specific behavior; compose or wrap them in shared/feature components instead.
 - Style with Tailwind CSS; avoid introducing another styling system. Reuse shared components before creating new ones.
+- Include subtle interaction motion for hover/focus feedback, sidebar/drawer changes, and dialog/tab transitions, following the UI specification and styling contract. Use Tailwind transitions by default; optional Motion for React (`motion/react`) is for justified transitions. Respect reduced motion and never delay actions or server-confirmed results.
 - Define TypeScript interfaces for component props. Keep feature-specific state, form behavior, and field mapping in the feature module.
 - Use Zod schemas from `packages/contracts` for shared API data and form validation. Do not maintain a separate, conflicting copy of shared DTOs in the frontend.
 - Keep authenticated pages client-data-driven as agreed; use appropriate loading/hydration fallbacks and prevent sensitive data from leaking into public SSR output.
