@@ -102,3 +102,7 @@ One **self-contained PDF** with complete baseline SRS, feature inventory/traceab
 **Assigned IDs (16):** `M01`, `M02`, `M03`, `M04`, `M05`, `M06`, `M07`, `M08`, `M09`, `M10`, `M12`, `M13`, `M14`, `M15`, `M17`, `R06`
 
 **Feature status:** planned; no implementation or verification asserted.
+
+## Issue #2 local implementation record
+
+M04/M15/M17/R06 source and supporting tests are implemented locally on `feature/2-request-submit-validation`; [verification evidence](../features/request-submission/verification.md) records actual commands, tested baseline and publication status. This does not assert teammate review, merge, release, or completion of downstream workflow/configuration features. Planned reviewer remains @kittipichcha; the feature PR must target `sprint-1-staging`.
