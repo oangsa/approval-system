@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { expect, test } from "vitest";
-import { SignJWT } from "jose";
+import { decodeJwt, jwtVerify, SignJWT } from "jose";
+import { readEnvironment } from "../../src/Infrastructures/Configuration/environment";
 import { PasswordHasher } from "../../src/Infrastructures/Security/PasswordHasher";
 import { TokenProvider } from "../../src/Infrastructures/Security/TokenProvider";
 import { RefreshTokenProvider } from "../../src/Infrastructures/Security/RefreshTokenProvider";
@@ -25,14 +26,33 @@ test("password records are salted, bounded and verified", async () =>
     for (const record of ["", "x".repeat(257), first.replace("m=19456", "m=1"), first + "!", first.replace("argon2id", "argon2i"), parts.slice(0, 4).join("$"), [...parts.slice(0, 3), "YQ==", parts[4]].join("$"), [...parts.slice(0, 4), "YQ=="].join("$")])
         expect(await hasher.Verify("test password", record)).toBe(false);
 });
+test("JWT uses configured issuer and audience", async () =>
+{
+    const now = new Date("2026-01-01T00:00:00Z");
+    const fixedClock = { Now: () => now };
+    const environment = readEnvironment({ DATABASE_URL: "postgresql://127.0.0.1/workflow_test", NODE_ENV: "test", AUTH_JWT_SECRET: "x".repeat(32), AUTH_JWT_ISSUER: "custom-api", AUTH_JWT_AUDIENCE: "custom-web", AUTH_ALLOWED_ORIGINS: "http://localhost:3000", AUTH_COOKIE_SECURE: "false" });
+    const { AUTH_JWT_SECRET: secret, AUTH_JWT_ISSUER: issuer, AUTH_JWT_AUDIENCE: audience } = environment;
+    const key = new TextEncoder().encode(secret);
+    const provider = new TokenProvider(secret, fixedClock, issuer, audience);
+    const token = await provider.Sign(id, family, 0);
+    expect(decodeJwt(token)).toMatchObject({ iss: "custom-api", aud: "custom-web" });
+    await expect(jwtVerify(token, key, { algorithms: ["HS256"], issuer, audience, currentDate: now })).resolves.toBeDefined();
+    const iat = Math.floor(now.getTime() / 1000);
+    const sign = (iss: string, aud: string) => new SignJWT({ sub: id, sid: family, ver: 0, iat, exp: iat + 900, iss, aud }).setProtectedHeader({ alg: "HS256" }).sign(key);
+    await expect(provider.Verify(await sign(issuer, audience))).resolves.toMatchObject({ sub: id, sid: family, ver: 0 });
+    for (const [iss, aud] of [["workflow-approval-api", audience], [issuer, "workflow-approval-web"], ["workflow-approval-api", "workflow-approval-web"]] as const)
+        await expect(provider.Verify(await sign(iss, aud))).rejects.toThrow();
+    expect(() => new TokenProvider(secret, fixedClock, "", audience)).toThrow();
+    expect(() => new TokenProvider(secret, fixedClock, issuer, "")).toThrow();
+});
 test("JWT validates signature, algorithm, issuer, audience, claims and exact expiry", async () =>
 {
     time = new Date("2026-01-01T00:00:00Z");
-    const secret = "x".repeat(32); const key = new TextEncoder().encode(secret); const provider = new TokenProvider(secret, clock);
-    expect(() => new TokenProvider("é".repeat(15), clock)).toThrow();
+    const secret = "x".repeat(32); const key = new TextEncoder().encode(secret); const provider = new TokenProvider(secret, clock, "workflow-approval-api", "workflow-approval-web");
+    expect(() => new TokenProvider("é".repeat(15), clock, "workflow-approval-api", "workflow-approval-web")).toThrow();
     const token = await provider.Sign(id, family, 0);
     expect(await provider.Verify(token)).toMatchObject({ sub: id, sid: family, ver: 0 });
-    await expect(new TokenProvider("y".repeat(32), clock).Verify(token)).rejects.toThrow();
+    await expect(new TokenProvider("y".repeat(32), clock, "workflow-approval-api", "workflow-approval-web").Verify(token)).rejects.toThrow();
     const iat = Math.floor(time.getTime() / 1000);
     for (const change of [{ alg: "HS384" }, { iss: "wrong" }, { aud: "wrong" }, { sub: "bad" }, { sid: "bad" }, { sub: undefined }, { sid: undefined }, { ver: undefined }, { iat: undefined }, { exp: undefined }, { ver: -1 }, { ver: 0.5 }, { iat: iat + 0.5 }, { exp: iat + 900.5 }, { iat: iat + 1 }, { exp: iat + 899 }])
     {
