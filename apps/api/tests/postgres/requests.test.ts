@@ -162,9 +162,14 @@ test("DB-01/03 failure after all submit writes rolls back cycle, slots, number, 
 test("EP-033/035/036 HTTP strict writes, status, location, errors, CORS and foreign privacy", async () =>
 {
     const item = await fixture();
-    const identity = await createIdentityComposition(readEnvironment({ ...process.env, DATABASE_URL: process.env.TEST_DATABASE_URL }), database);
+    const env = readEnvironment({
+        NODE_ENV: "test", DATABASE_URL: process.env.TEST_DATABASE_URL,
+        AUTH_JWT_SECRET: "request-http-test-only-secret-32-bytes-long",
+        AUTH_JWT_ISSUER: "request-http-tests", AUTH_JWT_AUDIENCE: "request-http-tests-api",
+        AUTH_ALLOWED_ORIGINS: "http://localhost:3000", AUTH_COOKIE_SECURE: "false",
+    });
+    const identity = await createIdentityComposition(env, database);
     const tokenProvider = (await import("../../src/Infrastructures/Security/TokenProvider")).TokenProvider;
-    const env = readEnvironment({ ...process.env, DATABASE_URL: process.env.TEST_DATABASE_URL });
     const token = await new tokenProvider(env.AUTH_JWT_SECRET, { Now: () => new Date() }, env.AUTH_JWT_ISSUER, env.AUTH_JWT_AUDIENCE).Sign(item.ownerId, item.actor.family.id, 0);
     const app = createApplication(undefined, identity, service);
     const send = (method: string, path: string, body?: unknown, authorization = `Bearer ${token}`, key = randomUUID()) => app.handle(new Request(`http://localhost/api/v1${path}`, { method, headers: { authorization, "content-type": "application/json", "Idempotency-Key": key }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) }));
