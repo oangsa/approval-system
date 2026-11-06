@@ -1,3 +1,4 @@
+import type { RequestService } from "../Applications/Requests/RequestService";
 import type { ElysiaAdapter } from "elysia";
 import type { IIdentityHttpDependencies } from "./composition";
 import { createApplication } from "./createApplication";
@@ -6,9 +7,9 @@ export class Application
 {
     public readonly app;
     private closed = false;
-    constructor(adapter: ElysiaAdapter, identity?: IIdentityHttpDependencies, private readonly close?: () => Promise<void>)
+    constructor(adapter: ElysiaAdapter, identity?: IIdentityHttpDependencies, private readonly close?: () => Promise<void>, requests?: RequestService)
     {
-        this.app = createApplication(adapter, identity);
+        this.app = createApplication(adapter, identity, requests);
     }
     public Start(port: number, hostname: string): void
     {

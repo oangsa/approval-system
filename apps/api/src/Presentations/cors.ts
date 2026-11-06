@@ -17,12 +17,15 @@ export function corsHeaders(headers: Headers, origin: string | null): void
 export function preflight(request: Request, allowed: readonly string[]): Response
 {
     const origin = checkOrigin(request, allowed, true);
+    const requestResource = /^\/api\/v1\/(?:requests|request-types)(?:\/|$)/.test(new URL(request.url).pathname);
+    const methods = requestResource ? ["GET", "POST", "PATCH"] : ["GET", "POST"];
+    const allowedHeaders = ["authorization", "content-type", "x-request-id", ...(requestResource ? ["idempotency-key"] : [])];
     const method = request.headers.get("access-control-request-method")?.toUpperCase();
     const headers = (request.headers.get("access-control-request-headers") ?? "").split(",").map((value) => value.trim().toLowerCase()).filter(Boolean);
-    if (!method || !["GET", "POST"].includes(method) || headers.some((value) => !["authorization", "content-type", "x-request-id"].includes(value))) throw new HttpError("FORBIDDEN");
+    if (!method || !methods.includes(method) || headers.some((value) => !allowedHeaders.includes(value))) throw new HttpError("FORBIDDEN");
     const result = new Headers();
     corsHeaders(result, origin);
-    result.set("Access-Control-Allow-Methods", "GET, POST");
-    result.set("Access-Control-Allow-Headers", "Authorization, Content-Type, X-Request-Id");
+    result.set("Access-Control-Allow-Methods", methods.join(", "));
+    result.set("Access-Control-Allow-Headers", `Authorization, Content-Type, X-Request-Id${requestResource ? ", Idempotency-Key" : ""}`);
     return new Response(null, { status: 204, headers: result });
 }
