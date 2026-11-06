@@ -1,5 +1,6 @@
 import { loginRequestSchema, refreshResponseSchema, userSummarySchema, type LoginRequest, type UserSummary } from "@workflow/contracts";
 import { http, httpFor } from "~/api/http";
+import { isApiFailure } from "~/api/errors";
 import { beginSession, endSession } from "~/api/tokenStore";
 
 /** Exchanges credentials for an access token (memory only) and the current identity. */
@@ -23,9 +24,10 @@ export async function bootstrapSession(generation?: number): Promise<UserSummary
         beginSession(token.data.accessToken);
         return await currentUser(generation);
     }
-    catch
+    catch (error)
     {
-        endSession();
+        // An aborted bootstrap (page unloading) must not tear down a still-valid session.
+        if (!(isApiFailure(error) && error.kind === "network" && error.cause instanceof DOMException && error.cause.name === "AbortError")) endSession();
         return null;
     }
 }

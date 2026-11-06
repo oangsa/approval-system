@@ -1,9 +1,16 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useLocation } from "react-router";
 import type { LoginRequest, UserSummary } from "@workflow/contracts";
 import { bootstrapSession, currentUser, login as loginService, logout as logoutService } from "~/services/authService";
 import { endSession } from "~/api/tokenStore";
 
-export type SessionStatus = "loading" | "authenticated" | "anonymous";
+export type SessionStatus = "idle" | "loading" | "authenticated" | "anonymous";
+
+/** Only these paths need an identity; public pages never trigger an auth round trip. */
+function needsSession(pathname: string): boolean
+{
+    return pathname.startsWith("/dashboard") || pathname.startsWith("/settings");
+}
 
 export interface ISessionContext
 {
@@ -18,23 +25,25 @@ const SessionContext = createContext<ISessionContext | null>(null);
 
 export function SessionProvider({ children }: { children: ReactNode })
 {
-    const [status, setStatus] = useState<SessionStatus>("loading");
+    const location = useLocation();
+    const [status, setStatus] = useState<SessionStatus>("idle");
     const [user, setUser] = useState<UserSummary | null>(null);
+    const started = useRef(false);
+    const required = needsSession(location.pathname);
 
     useEffect(() =>
     {
-        let cancelled = false;
+        // Bootstrap only when there is no identity yet: a fresh document load on a
+        // protected route, never right after a successful in-app login.
+        if (!required || started.current || user !== null) return;
+        started.current = true;
+        setStatus("loading");
         void bootstrapSession().then((identity) =>
         {
-            if (cancelled) return;
             setUser(identity);
             setStatus(identity ? "authenticated" : "anonymous");
         });
-        return () =>
-        {
-            cancelled = true;
-        };
-    }, []);
+    }, [required, user]);
 
     const signIn = useCallback(async (credentials: LoginRequest) =>
     {

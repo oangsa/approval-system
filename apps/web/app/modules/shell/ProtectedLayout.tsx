@@ -8,7 +8,7 @@ export function ProtectedLayout()
     const { status } = useSession();
     const location = useLocation();
 
-    if (status === "loading")
+    if (status === "loading" || status === "idle")
     {
         return (
             <main className="flex min-h-screen items-center justify-center" aria-busy="true">
