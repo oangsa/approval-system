@@ -24,7 +24,7 @@
     "test:api": "vitest run --project api",
     "test:contracts": "vitest run --project contracts",
     "test:integration": "npm run test:integration --workspace @workflow/api",
-    "test:e2e": "npm run build && playwright test",
+    "test:e2e": "playwright test",
     "test:coverage": "vitest run --coverage",
     "test:e2e:install": "playwright install --with-deps chromium",
     "db:test:up": "docker compose --env-file apps/api/.env.test -f apps/api/tests/postgres/compose.yaml up -d --wait",

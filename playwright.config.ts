@@ -21,7 +21,8 @@ export default defineConfig({
     projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
     webServer: [
         {
-            command: "npm run start --workspace @workflow/web",
+            // Build inside the web server command so the client bundle bakes the API origin.
+            command: "npm run build --workspace @workflow/web && npm run start --workspace @workflow/web",
             url: webUrl.origin,
             reuseExistingServer: false,
             env: {
@@ -34,7 +35,7 @@ export default defineConfig({
             },
         },
         {
-            command: "node apps/api/dist/index.js",
+            command: "npm run build --workspace @workflow/api && node apps/api/dist/index.js",
             url: `${apiUrl.origin}/health`,
             reuseExistingServer: false,
             env: {
