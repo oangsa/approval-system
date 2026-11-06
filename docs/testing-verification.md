@@ -53,9 +53,17 @@ The E2E run is self-contained: Playwright builds both applications before starti
 4. **Vite proxy stripped the `/api` prefix**, so `/api/v1/*` could never reach the API during development; the rewrite was removed.
 5. **Playwright used a deliberately unreachable database URL**, so no auth journey could run; it now targets the disposable `workflow_test` database with an explicit CORS origin.
 
+## GitHub Actions
+
+Both verification runs for this branch passed on 2026-11-06 with the full pipeline, every step green:
+
+- Push run `42214377956` — PASS (2m44s)
+- Pull request run `42214385459` for #18 — PASS (2m39s)
+
+Steps executed in order: `npm ci`, typecheck, lint, web/api/contracts suites, build, `db:test:migrate`, `db:test:seed`, `test:integration`, `test:e2e:install`, `test:e2e` (12 passed in 15.8s), artifact upload. Runner: `ubuntu-24.04` (Playwright 1.60.0 cannot install on the Ubuntu 26.04 image that `ubuntu-latest` now resolves to; the first run failed at browser installation and was fixed by adopting main's runner pin).
+
 ## Outstanding and not claimed
 
-- **GitHub Actions has not run for this branch.** The workflow now migrates, seeds, runs integration with `RUN_BUILT_HTTP_SMOKE=1`, and runs the browser suite, but CI evidence requires a push and the teammate review.
 - **IA-E2E-04 is partial in the browser**: credential failure is proven end to end and throttling is proven at API level, but the browser network-interruption/recovery portion was not run. The delayed-response variant of IA-E2E-03 is proven at transport-test level, not in the browser.
 - **IA-DB final-state assertions** run at suite level (31 tests); individual cases are not itemized per ID in the STS.
 - **`npm audit` advisories** in the existing dependency graph are unaddressed; no versions were changed in this feature.

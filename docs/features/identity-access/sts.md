@@ -101,7 +101,7 @@ All commands ran in `C:/Users/kitti/approval-system` on `feature/1-identity-auth
 
 Browser cases proven end to end: IA-E2E-01 (login to protected shell with correct identity), IA-E2E-02 (refresh-cookie bootstrap, HttpOnly cookie, no account data in public SSR), IA-E2E-03 (logout revocation, redirect with return path, account switch without stale identity), IA-E2E-05 (public HTML free of tokens and identity). IA-E2E-04's generic credential failure is proven in the browser and in component tests, and its throttling half (429 with `Retry-After`, no account enumeration) is proven at API level; the browser network-interruption/recovery portion remains NOT RUN. IA-WEB-05 is proven in component tests and by the drawer journey in the browser suite.
 
-Per-case database final-state assertions for IA-DB-02–05 and the delayed-response half of IA-E2E-03 are covered by the suites above but are not individually itemized here; treat those cases as evidenced at suite level only. GitHub Actions has not run for this branch.
+Per-case database final-state assertions for IA-DB-02–05 and the delayed-response half of IA-E2E-03 are covered by the suites above but are not individually itemized here; treat those cases as evidenced at suite level only. GitHub Actions passed the full pipeline (including browser E2E, 12 passed) for PR #18 on 2026-11-06; teammate-reviewed PR acceptance remains pending.
 
 ## 8. Coverage boundary
 
