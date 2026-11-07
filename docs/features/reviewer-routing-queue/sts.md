@@ -27,7 +27,9 @@ Global IDs refer to `docs/specs/test.md`; child cases refine rather than replace
 - REV-PG-02: existing rollback and self-only configuration assertions ran; the other listed invalid configurations remain open.
 - REV-PG-03: assignment and WAITING coverage ran; the full fixture matrix remains open. REV-PG-04 multi-page and REV-PG-05 concurrency were not run.
 - API wire and foreign/missing detail 404 parity, search wrong-role 403 and anonymous 401 guards ran. Contract and guard coverage is limited to existing assertions; the complete cases above remain open where those assertions do not cover them.
-- REV-UI-02: component recovery subset ran. Queue recovery and full browser cases remain open.
+- REV-UI-01/REV-UI-02: component states and recovery ran; the queue recovery and full browser cases ran on the integrated branch.
+- REV-E2E-01/REV-E2E-02: the scoped reviewer browser journey ran on the integrated branch at desktop and mobile sizes, including the SSR privacy check.
+- Integration: after Issue #3 merged into `sprint-1-staging`, the branch was merged and the combined suites ran (310 unit/component, 51 PostgreSQL, 21 browser). See [verification evidence](verification.md).
 
 ## Dependent evidence
 

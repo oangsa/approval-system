@@ -2,24 +2,35 @@
 
 ## Scope and environment
 
-Evidence covers working-tree fixes tested against baseline `da19e0527485057a4b8d940bd60828416e4a7af5`, not an integrated release. Tests ran on Windows with Node.js v24.22.1, npm 11.19.1 and a native disposable PostgreSQL 18 loopback instance. Baseline-compatible migrations 0000–0003 and seed passed.
+Evidence covers the Issue #4 branch integrated with `sprint-1-staging` after Issue #3 (PR #20) merged. The integration merge commit is `46aae88dd04f20dc8a333ffd055f039807661826`; the pre-integration baseline was `da19e0527485057a4b8d940bd60828416e4a7af5`. Tests ran on Windows with Node.js v24.22.1, npm 11.19.1 and a native disposable PostgreSQL 18.1 loopback instance. Migrations 0000–0005 and seed passed.
+
+## Integration
+
+- `origin/sprint-1-staging` merged into `feature/4-reviewer-routing-queue`. Two additive conflicts were resolved by keeping both sides: `apps/web/app/routes.ts` (the `/reviews` and `/requests` routes) and `packages/contracts/src/index.ts` (the `approvalTasks` and `requestCollection` exports).
+- The shared `RequestCollection` from Issue #3 is now present, so the previously missing import and its two implicit-`any` follow-on errors are resolved. `ReviewQueuePage` reuses the shared collection unchanged.
+- One genuine integration conflict surfaced in `apps/web/tests/components/shell.test.tsx`: the merged navigation exposes both `/requests` (Issue #3) and `/reviews` (Issue #4). The role-union expectations were updated to the combined feature set.
+- The reviewer index migration `0005_productive_bromley.sql` was generated against the Issue #3-integrated journal, as the design required.
 
 ## Executed checks
 
 | Check | Result |
 | --- | --- |
-| `npm run test:api` | 181 passed |
-| `npm run test:contracts` | 13 passed |
-| `npm run test:integration` with `RUN_BUILT_HTTP_SMOKE=1`, after API build | 50 passed |
-| `npm run test:web -- apps/web/tests/components/reviewTask.test.tsx apps/web/tests/unit/approvalTaskService.test.ts` | 8 passed |
-| API and contracts typecheck, API build, scoped lint, `git diff --check` | Passed |
+| `npm run check` (typecheck, lint, Vitest, workspace builds) | 310 passed, 34 files |
+| `npm run test:integration` with `RUN_BUILT_HTTP_SMOKE=1`, after API build | 51 passed, 6 files |
+| `npm run test:e2e` (full Playwright suite) | 21 passed |
+| `git diff --check` | Passed |
 
-The guard regression first produced one expected failure and seven passes, then eight passes after the fix. HTTP detail tests initially returned 403 for Administrator and owner where 404 was expected; afterward foreign and missing details had 404 parity. Search wrong-role 403 and anonymous 401 remained intact. Detail recovery initially had three expected failures, then five passes.
+The E2E run includes the Issue #4 reviewer journey (`e2e/reviewer-queue.spec.ts`), the Issue #3 requester journey (`e2e/request-list-detail.spec.ts`), the Issue #2 submission journey and the Issue #1 identity journeys, so the combined browser coverage is exercised on the integrated branch.
 
-The two-stage fixture initially hit SQLSTATE 23514 because published policy is immutable. The fixture then inserted published stages upfront. Real PostgreSQL verified the active cycle, snapshot, stages, three slots and active queue only. See [STS executed coverage and gaps](sts.md#executed-coverage-and-gaps) for case boundaries.
+## Migration evidence
+
+| Path | Action | Result |
+| --- | --- | --- |
+| Upgrade | Applied 0005 to the populated `workflow_test` database (190 requests, 88 revisions, 51 cycles, 53 slots, 52 stages, 205 users) | Row counts unchanged; `approval_slot_reviewer_status_idx` created; migration count 5 → 6 |
+| Fresh | Applied 0000–0005 to an empty `workflow_test` database | 21 tables created; `approval_slot_reviewer_status_idx` created; migration count 6 |
 
 ## Remaining gates
 
-The baseline [CI run](https://github.com/oangsa/approval-system/actions/runs/42352392724), job 128343118570, failed web typecheck solely because Issue #3 `RequestCollection` was missing (TS2307 and two TS7006 errors); later workflow steps were skipped. No Issue #3 merge or copy is included in this evidence.
-
-Root and web builds, queue recovery and full browser coverage, reviewer index, integrated fresh and upgrade verification, and teammate approval remain gated. Issue #5 owns live decision and self-vote verification; delegation is a separate future dependency. These results do not satisfy those gates or imply complete STS case coverage.
+- REV-PG-04 multi-page and REV-PG-05 concurrency cases remain unrun; the full REV-PG-01/02/03 fixture matrices remain open as recorded in [STS executed coverage and gaps](sts.md#executed-coverage-and-gaps).
+- Issue #5 owns live decision and self-vote verification (REV-CROSS-01); delegation (REV-CROSS-02) remains a separate future dependency. These results do not satisfy those gates or imply complete STS case coverage.
+- Independent teammate review and the staged PR workflow remain outstanding; no publication is implied by this document.
