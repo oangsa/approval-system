@@ -1,0 +1,17 @@
+import { z } from "zod";
+
+export const requestTypeSearchSchema = z.strictObject({
+    pageNumber: z.number().int().min(1).max(10000).default(1), pageSize: z.number().int().min(1).max(100).default(20),
+    search: z.array(z.strictObject({ name: z.enum(["code", "isEnabled"]), condition: z.literal("EQUAL"), value: z.union([z.string().max(100), z.boolean()]) }).refine((filter) => filter.name === "isEnabled" ? typeof filter.value === "boolean" : typeof filter.value === "string")).max(10).default([]),
+    searchTerm: z.strictObject({ name: z.enum(["code", "name", "code,name"]), value: z.string().max(100) }).optional(),
+    orderBy: z.enum(["code asc", "code desc", "name asc", "name desc"]).default("code asc"),
+});
+export type RequestTypeSearch = z.infer<typeof requestTypeSearchSchema>;
+export const paginationSchema = z.strictObject({
+    currentPage: z.number().int().positive(), pageSize: z.number().int().positive(), totalPages: z.number().int().nonnegative(), totalCount: z.number().int().nonnegative(), hasPrevious: z.boolean(), hasNext: z.boolean(),
+});
+export interface IRequestTypeSearchResult
+{
+    items: import("./requests").PublishedRequestType[];
+    pagination: z.infer<typeof paginationSchema>;
+}

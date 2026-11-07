@@ -12,7 +12,8 @@
     "db:check": "node --env-file-if-exists=.env --import tsx scripts/check-database.ts",
     "test:integration": "vitest run --config vitest.postgres.config.ts",
     "db:test:migrate": "drizzle-kit migrate --config drizzle.test.config.ts",
-    "db:test:seed": "node --import tsx scripts/seed-test.ts"
+    "db:test:seed": "node --import tsx scripts/seed-test.ts",
+    "db:seed": "node --env-file-if-exists=.env --import tsx scripts/seed-development.ts"
   },
   "dependencies": {
     "@elysia/node": "1.4.6",

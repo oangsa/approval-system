@@ -11,6 +11,7 @@ export interface INavigationItem
 /** Only links to routes that actually ship in this feature are declared here. */
 export const navigationItems: readonly INavigationItem[] = [
     { to: "/dashboard", label: "Dashboard", roles: [] },
+    { to: "/requests/new", label: "New request", roles: ["REQUESTER"] },
     { to: "/settings", label: "Settings", roles: [] },
 ];
 

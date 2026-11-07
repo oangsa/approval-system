@@ -8,6 +8,27 @@
       "when": 1793897535152,
       "tag": "0000_fast_the_santerians",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1793979373812,
+      "tag": "0001_legal_longshot",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1793979656534,
+      "tag": "0002_submission-immutability",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1793980423895,
+      "tag": "0003_tranquil_iceman",
+      "breakpoints": true
     }
   ]
 }

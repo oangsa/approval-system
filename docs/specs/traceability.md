@@ -279,3 +279,9 @@ This is the selected allocation. It does not claim that everything assigned to a
 | M03 — Role-based Access     | FR-003 / AC-003 / FT-003                       | IA-AC-06–12                           | IA-DB-07–08; IA-API-03, IA-API-06–08; IA-WEB-03, IA-WEB-05; IA-E2E-03, IA-E2E-05 |
 
 The child criteria refine, but do not replace, the frozen feature mapping. IA-API-07 proves only generic test-guard behavior and does not satisfy full FT-003 business-resource coverage. The identity feature's implementation checks are executed with recorded evidence in [`testing-verification.md`](../testing-verification.md); downstream `FT-003` business-resource coverage and every non-identity check remain PLANNED / NOT RUN.
+
+### Issue #2 implementation evidence
+
+The bounded M04/M15/M17/R06 slice is implemented on `feature/2-request-submit-validation`; supporting draft patch/type metadata reads do not transfer primary ownership of later Save/Resume, configuration, assignment, or decision features. See [SDS](../features/request-submission/sds.md), [numbered AC](../features/request-submission/acceptance-criteria.md), [STS](../features/request-submission/sts.md), and [actual verification](../features/request-submission/verification.md). Future decision atomicity remains owned by its behavior-specific issue; current evidence proves submission atomicity only. Independent teammate review and branch promotion remain pending.
+
+PR #19 minor-finding follow-up: M01/M02 (request form/detail) and O16 (request-type configuration) retain pinned-version labels through the authorized version read; R14/UT-12 paging applies to request-type selection. Regression evidence is defined in [test plan — PR #19 minor-finding regressions](test.md#pr-19-minor-finding-regressions). This follow-up does not implement R01 draft-resume navigation.

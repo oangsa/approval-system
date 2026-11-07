@@ -1,3 +1,4 @@
+import { seedRequests } from "../src/Infrastructures/Database/seedRequests";
 import { eq, or } from "drizzle-orm";
 import { pathToFileURL } from "node:url";
 import { Database } from "../src/Infrastructures/Database/Database";
@@ -34,6 +35,7 @@ export async function seedTest(): Promise<void>
                 await tx.insert(departmentMemberships).values({ userId: fixture.id, departmentId: fixture.departmentId, isPrimary: true });
             }
         });
+        await seedRequests(database, fixtureDepartments.map((department) => department.id), fixtureUsers[2]!.id);
     }
     finally
 {

@@ -155,3 +155,13 @@ Both images use Node.js and npm and run as the Node user. Pass API `DATABASE_URL
 Architecture references: [frontend](https://github.com/oangsa/maintenance-tracking-system), [backend](https://github.com/oangsa/maintenance-tracking-system-api), and [TokTickIT testing](https://github.com/oangsa/TokTickIT). Testing adaptations and acceptance criteria are recorded in [testing notes](docs/testing.md), with actual command outcomes in [verification evidence](docs/testing-verification.md) and AI assistance disclosed in [ai_use.md](ai_use.md). No reference repository was modified.
 
 Authentication allows only origins explicitly listed in `AUTH_ALLOWED_ORIGINS`; the example includes the built web server on port 3000 and Vite on port 5173. Login limits use the direct socket peer and ignore forwarding headers. Clients behind one reverse proxy or NAT share a source bucket. Per-user proxy trust and distributed limits require separate deployment work.
+
+### Request submission (Issue #2)
+
+`/requests/new` creates incomplete drafts and submits a validated immutable revision. The initial seed provides a General request type, trusted Operations department and one eligible reviewer. Configuration UI, decisions and full draft/resume lifecycle remain with their owning issues.
+
+For local development, configure the ignored `apps/api/.env` from its safe example, then run `npm run db:up`, `npm run db:migrate`, `npm run db:seed`, and `npm run dev`. Development seeding only accepts loopback `workflow_dev` in development mode. Local accounts are `requester@example.test` and `reviewer@example.test`; their separate passwords come from `DEV_REQUESTER_PASSWORD` and `DEV_REVIEWER_PASSWORD` in that ignored file. Seeding is repeatable and does not reset existing accounts. Never copy real credentials into examples.
+
+Tests use the separate ignored `apps/api/.env.test`: run `npm run db:test:up`, `NODE_ENV=test npm run db:test:migrate`, `NODE_ENV=test npm run db:test:seed`, then `NODE_ENV=test RUN_BUILT_HTTP_SMOKE=1 npm run test:integration` after building. Playwright loads the same guarded test connection and runs one worker locally and in CI to limit CPU and RAM usage. Development data is never a test fallback. The test database is disposable; immutable submitted test evidence is retained until its database/container is recreated.
+
+Feature design, numbered acceptance criteria and test mapping: [request submission](docs/features/request-submission/sds.md). Actual local verification: [evidence](docs/features/request-submission/verification.md).

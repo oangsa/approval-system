@@ -1,13 +1,13 @@
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { NavLink, useNavigate } from "react-router";
-import { LayoutDashboard, LogOut, Menu, PanelLeftClose, PanelLeftOpen, Settings, X } from "lucide-react";
+import { FilePlus, LayoutDashboard, LogOut, Menu, PanelLeftClose, PanelLeftOpen, Settings, X } from "lucide-react";
 import type { UserRole } from "@workflow/contracts";
 import { Button } from "~/components/ui/button";
 import { useSession } from "~/modules/auth/sessionContext";
 import { navigationItems, visibleNavigation } from "~/modules/shell/navigation";
 import { cn } from "~/lib/utils";
 
-const itemIcons: Record<string, typeof LayoutDashboard> = { "/dashboard": LayoutDashboard, "/settings": Settings };
+const itemIcons: Record<string, typeof LayoutDashboard> = { "/requests/new": FilePlus, "/dashboard": LayoutDashboard, "/settings": Settings };
 function roleLabel(roles: readonly UserRole[]): string
 {
     return roles.join(", ");
