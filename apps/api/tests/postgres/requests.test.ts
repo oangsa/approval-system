@@ -15,6 +15,7 @@ import { createIdentityComposition } from "../../src/Presentations/composition";
 import { readEnvironment } from "../../src/Infrastructures/Configuration/environment";
 import { createApplication } from "../../src/Presentations/createApplication";
 import type { IRequestRepository, IRequestUnitOfWork } from "../../src/Domains/Requests/Ports";
+import type { IStageDefinition } from "../../src/Domains/Requests/RequestRules";
 
 const database = createTestDatabase();
 const observer = createTestDatabase();
@@ -27,7 +28,7 @@ afterAll(async () =>
 });
 // This suite writes unique fixtures to the isolated disposable workflow_test database.
 // Submitted evidence is deliberately never deleted or unlocked just for cleanup.
-async function fixture(monetary = false, supportsLineItems = false)
+async function fixture(monetary = false, supportsLineItems = false, stages: IStageDefinition[] = [{ stageNumber: 1, reviewerAssignmentKeys: ["review"], slaBusinessMinutes: 480 }])
 {
     const ownerId = randomUUID(), reviewerId = randomUUID(), departmentId = randomUUID(), typeId = randomUUID(), versionId = randomUUID(), policyId = randomUUID(), assignmentId = randomUUID(), familyId = randomUUID();
     const definition: PublishedRequestType = { ...seededDefinition, id: typeId, versionId, code: `T${typeId}`, monetary, supportsLineItems };
@@ -41,7 +42,7 @@ async function fixture(monetary = false, supportsLineItems = false)
         await tx.insert(requestTypes).values({ id: typeId, code: definition.code });
         await tx.insert(requestTypeVersions).values({ id: versionId, typeId, versionNumber: 1, definition });
         await tx.update(requestTypes).set({ publishedVersionId: versionId }).where(eq(requestTypes.id, typeId));
-        await tx.insert(approvalPolicyVersions).values({ id: policyId, typeId, code: policyId, versionNumber: 1, priority: 1, stages: [{ stageNumber: 1, reviewerAssignmentKeys: ["review"], slaBusinessMinutes: 480 }] });
+        await tx.insert(approvalPolicyVersions).values({ id: policyId, typeId, code: policyId, versionNumber: 1, priority: 1, stages });
         await tx.insert(reviewerAssignmentRules).values({ id: assignmentId, assignmentKey: "review", departmentId, reviewerId });
     });
     const actor = (await new IdentityRepository(db).ReadCurrentIdentity(ownerId, familyId))!;
@@ -57,6 +58,56 @@ async function counts(id: string)
         audit: (await observer.connection.select().from(requestAuditEvents).where(eq(requestAuditEvents.requestId, id))).length,
     };
 }
+test("REV-PG-01 snapshots a two-stage policy with parallel slots and queues only the active stage", async () =>
+{
+    const stages: IStageDefinition[] = [
+        { stageNumber: 1, reviewerAssignmentKeys: ["review"], slaBusinessMinutes: 480 },
+        { stageNumber: 2, reviewerAssignmentKeys: ["review", "parallel"], slaBusinessMinutes: 960 },
+    ];
+    const a = await fixture(false, false, stages);
+    const b = await fixture();
+    await db.insert(reviewerAssignmentRules).values({ id: randomUUID(), assignmentKey: "parallel", departmentId: a.departmentId, reviewerId: b.reviewerId });
+    const familyA = randomUUID(), familyB = randomUUID();
+    await db.insert(sessionFamilies).values([[familyA, a.reviewerId], [familyB, b.reviewerId]].map(([id, userId]) => ({ id: id!, userId: userId!, authVersion: 0, createdAt: new Date(), expiresAt: new Date(Date.now() + 3600000) })));
+    const identity = new IdentityRepository(db);
+    const reviewerA = (await identity.ReadCurrentIdentity(a.reviewerId, familyA))!;
+    const reviewerB = (await identity.ReadCurrentIdentity(b.reviewerId, familyB))!;
+    const draft = await a.draft();
+    const submitted = await service.Mutate(a.actor, "submit", draft.id, { expectedVersion: 0 }, randomUUID());
+    const cycles = await observer.connection.select().from(approvalCycles).where(eq(approvalCycles.requestId, draft.id));
+    expect(cycles).toHaveLength(1);
+    expect(cycles[0]).toMatchObject({ id: submitted.currentCycleId, revisionId: submitted.submittedRevision!.id, policyVersionId: a.policyId, isActive: true, snapshot: {
+        policy: { id: a.policyId, stages }, department: { id: a.departmentId },
+        assignments: [{ assignmentKey: "review", departmentId: a.departmentId, reviewerId: a.reviewerId }, { assignmentKey: "review", departmentId: a.departmentId, reviewerId: a.reviewerId }, { assignmentKey: "parallel", departmentId: a.departmentId, reviewerId: b.reviewerId }],
+    } });
+    const revisions = await observer.connection.select().from(requestRevisions).where(eq(requestRevisions.requestId, draft.id));
+    expect(revisions).toHaveLength(1);
+    expect(revisions[0]).toMatchObject({ id: submitted.submittedRevision!.id, submittedBy: a.ownerId, formDefinitionVersionId: a.versionId, fields: a.content.fields, submittedAt: expect.any(Date) });
+    const savedStages = await observer.connection.select().from(approvalStages).where(eq(approvalStages.cycleId, submitted.currentCycleId!));
+    expect(savedStages.sort((left, right) => left.stageNumber - right.stageNumber)).toMatchObject([
+        { stageNumber: 1, status: "ACTIVE", slaBusinessMinutes: 480 },
+        { stageNumber: 2, status: "WAITING", slaBusinessMinutes: 960 },
+    ]);
+    expect(savedStages).toHaveLength(2);
+    const slots = await observer.connection.select().from(approvalSlots).innerJoin(approvalStages, eq(approvalSlots.stageId, approvalStages.id)).where(eq(approvalStages.cycleId, submitted.currentCycleId!));
+    expect(slots).toHaveLength(3);
+    expect(slots.map(({ approval_slots: slot, approval_stages: stage }) => ({ stageNumber: stage.stageNumber, assignmentKey: slot.assignmentKey, reviewerId: slot.reviewerId, status: slot.status }))).toEqual(expect.arrayContaining([
+        { stageNumber: 1, assignmentKey: "review", reviewerId: a.reviewerId, status: "ACTIONABLE" },
+        { stageNumber: 2, assignmentKey: "review", reviewerId: a.reviewerId, status: "WAITING" },
+        { stageNumber: 2, assignmentKey: "parallel", reviewerId: b.reviewerId, status: "WAITING" },
+    ]));
+    const activeSlot = slots.find(({ approval_stages: stage }) => stage.stageNumber === 1)!.approval_slots;
+    const waitingSlot = slots.find(({ approval_slots: slot, approval_stages: stage }) => stage.stageNumber === 2 && slot.reviewerId === a.reviewerId)!.approval_slots;
+    const tasks = new ApprovalTaskService(new ApprovalTaskUnitOfWork(db));
+    const query = approvalTaskSearchSchema.parse({ search: [{ name: "requestNumber", condition: "EQUAL", value: submitted.requestNumber }] });
+    const resultA = await tasks.Search(reviewerA, query);
+    const resultB = await tasks.Search(reviewerB, query);
+    expect(resultA.pagination.totalCount).toBe(1);
+    expect(resultA.items.map((item) => item.id)).toEqual([activeSlot.id]);
+    expect(resultB.pagination.totalCount).toBe(0);
+    expect(resultB.items).toEqual([]);
+    await expect(tasks.Read(reviewerA, waitingSlot.id)).rejects.toMatchObject({ code: "NOT_FOUND" });
+});
 test("reviewer queue scopes rows and detail to the current assignment", async () =>
 {
     const item = await fixture();
@@ -96,6 +147,7 @@ test("reviewer task HTTP enforces assignment, validation, pagination and due-dat
     const reviewerToken = await provider.Sign(item.reviewerId, reviewerFamily, 0);
     const otherToken = await provider.Sign(other.reviewerId, otherFamily, 0);
     const adminToken = await provider.Sign(adminId, adminFamily, 0);
+    const ownerToken = await provider.Sign(item.ownerId, item.actor.family.id, 0);
     const app = createApplication(undefined, identity, service, new ApprovalTaskService(new ApprovalTaskUnitOfWork(db)));
     const requestId = randomUUID();
     const send = (method: string, path: string, body?: string, token = reviewerToken) => app.handle(new Request(`http://localhost/api/v1${path}`, { method, headers: { authorization: token ? `Bearer ${token}` : "", "content-type": "application/json", origin: "http://localhost:3000", "x-request-id": requestId }, ...(body === undefined ? {} : { body }) }));
@@ -114,12 +166,15 @@ test("reviewer task HTTP enforces assignment, validation, pagination and due-dat
     const foreign = await search([], otherToken);
     expect(await foreign.json()).toEqual([]);
     expect(JSON.parse(foreign.headers.get("x-pagination")!)).toEqual({ currentPage: 1, pageSize: 1, totalPages: 0, totalCount: 0, hasPrevious: false, hasNext: false });
-    const hidden = await Promise.all([send("GET", `/approval-tasks/${slot.id}`, undefined, otherToken), send("GET", `/approval-tasks/${randomUUID()}`), send("GET", "/approval-tasks/invalid")]);
-    expect(hidden.map((entry) => entry.status)).toEqual([404, 404, 404]);
+    const hidden = await Promise.all([send("GET", `/approval-tasks/${slot.id}`, undefined, otherToken), send("GET", `/approval-tasks/${randomUUID()}`), send("GET", "/approval-tasks/invalid"), send("GET", `/approval-tasks/${slot.id}`, undefined, adminToken), send("GET", `/approval-tasks/${slot.id}`, undefined, ownerToken)]);
+    expect(hidden.map((entry) => entry.status)).toEqual([404, 404, 404, 404, 404]);
     const hiddenBodies = await Promise.all(hidden.map((entry) => entry.json()));
-    expect(hiddenBodies).toEqual(Array(3).fill(hiddenBodies[0]));
+    expect(hiddenBodies).toEqual(Array(5).fill(hiddenBodies[0]));
+    expect(hiddenBodies[0]).toMatchObject({ code: "NOT_FOUND", requestId });
+    expect((await send("GET", `/approval-tasks/${slot.id}`, undefined, "")).status).toBe(401);
     expect((await send("POST", "/approval-tasks/search", "{}", "")).status).toBe(401);
     expect((await send("POST", "/approval-tasks/search", "{}", adminToken)).status).toBe(403);
+    expect((await send("POST", "/approval-tasks/search", "{}", ownerToken)).status).toBe(403);
     expect((await send("POST", "/approval-tasks/search", JSON.stringify({ actorId: item.reviewerId }))).status).toBe(422);
     expect((await send("POST", "/approval-tasks/search", JSON.stringify({ orderBy: "id desc" }))).status).toBe(422);
     expect((await send("POST", "/approval-tasks/search", "{")).status).toBe(400);

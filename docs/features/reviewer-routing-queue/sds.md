@@ -16,10 +16,9 @@ Both list rows and pagination count use the same server-side scope: active authe
 | --- | --- |
 | Active assigned REVIEWER, current actionable slot | Allowed |
 | Anonymous | 401 |
-| Authenticated actor without current REVIEWER role | 403 |
+| Authenticated actor without current REVIEWER role, including administrator only | Search returns 403; detail returns indistinguishable 404 |
 | Other reviewer, former assignee or missing task | Detail returns indistinguishable 404; search excludes task |
 | WAITING, stale cycle, terminal request or inactive actor | No current eligible task access |
-| Administrator only | No private reviewer access |
 
 `POST /api/v1/approval-tasks/search` returns the direct `ApprovalTask[]` and `X-Pagination`; `GET /api/v1/approval-tasks/:id` returns the direct task. Validate bounded filters, paging and sorts against the shared search contract, reject unknown fields with 422, never accept client-supplied actor scope, and use deterministic ordering. Responses use no-store and expose the pagination header. Preserve the frozen API error envelope and request ID.
 
@@ -32,3 +31,5 @@ After Issue #3 integration, reuse its generic `RequestCollection` and preserve i
 ## Decision guard handoff
 
 Provide Issue #5 a reusable server-side decision authorization guard. Immediately before a vote, #5 must use trusted current actor and locked request/slot identity, validate current role, assignment and state, and reject requester equal to actor regardless of stacked roles. An otherwise known own-request attempt returns `403 SELF_APPROVAL_FORBIDDEN`; foreign or missing tasks remain indistinguishable 404. Issue #5 owns the decision endpoint, guard integration, unique effective vote, transitions, audit and outbox transaction. Failed votes must leave all durable state unchanged. Later delegation and bulk paths must apply the same invariant. Direct decision evidence remains blocked by #5; no decision endpoint or delegation is claimed here.
+
+Issue #5 must populate `cycleIsActive` from `approval_cycles.is_active` on the slot cycle row under its decision transaction lock.
