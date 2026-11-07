@@ -45,8 +45,9 @@ test("REQ-E2E-01 and REQ-E2E-02: requester list and persisted detail", async ({ 
     await expect(row).toContainText("Pending approval");
     await expect(page.getByText(/1 results/)).toBeVisible();
     await row.getByRole("link", { name: title }).click();
-    const detailUrl = page.url();
     await expect(page.getByRole("heading", { level: 1, name: title })).toBeVisible();
+    const detailUrl = page.url();
+    expect(new URL(detailUrl).pathname).toMatch(/^\/requests\/[0-9a-f-]{36}$/);
     await expect(page.getByText(number!, { exact: true }).first()).toBeVisible();
     await expect(page.getByText(/Requester: Requester A/)).toBeVisible();
     await page.reload();
@@ -105,4 +106,5 @@ test("REQ-E2E-01 and REQ-E2E-02: requester list and persisted detail", async ({ 
     await expect(page.getByRole("alert")).toContainText("This request is unavailable.");
     await expect(page.getByRole("button", { name: "Retry" })).toHaveCount(0);
     await expect(page.getByText(title)).toHaveCount(0);
+    expect(futureCalls).toEqual([]);
 });
