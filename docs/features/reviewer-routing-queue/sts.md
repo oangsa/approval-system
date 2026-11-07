@@ -1,6 +1,6 @@
 # Reviewer routing and queue test specification
 
-All Issue #4 cases below are PLANNED and NOT RUN. Global IDs refer to `docs/specs/test.md`; child cases refine rather than replace them. Assertions include database state where specified. Test paths are planned paths.
+Global IDs refer to `docs/specs/test.md`; child cases refine rather than replace them. Assertions include database state where specified. The table defines intended coverage; the executed subset and outstanding gaps are recorded below and in [verification evidence](verification.md). A case is not complete merely because a subset ran.
 
 | Case / global trace | Type and planned path | Setup and action | Expected result |
 | --- | --- | --- | --- |
@@ -20,6 +20,14 @@ All Issue #4 cases below are PLANNED and NOT RUN. Global IDs refer to `docs/spec
 | REV-UI-02 / UI-20 | UI: `apps/web/tests/components/reviewTask.test.tsx` | Read task then permitted or denied request; test foreign task, slow hydration and account switch. | No unauthorized fetch or private DOM leak; stale data clears; no invented decision action. |
 | REV-E2E-01 / E2E-02 partial | Browser: `e2e/reviewer-queue.spec.ts` | Submit as owner; assigned and unrelated reviewers browse queue and detail. | Only assignee sees current task and permitted current request context. |
 | REV-E2E-02 / UI-AC-17 | Browser: same | Use 1440px and 390px viewports, keyboard and account switching. | Table and cards work, focus remains usable, no whole-page horizontal overflow or prior-account data. |
+
+## Executed coverage and gaps
+
+- REV-PG-01: the real PostgreSQL two-stage submission test verifies the active cycle, revision snapshot, stages, three slots and active queue only. The full case remains open.
+- REV-PG-02: existing rollback and self-only configuration assertions ran; the other listed invalid configurations remain open.
+- REV-PG-03: assignment and WAITING coverage ran; the full fixture matrix remains open. REV-PG-04 multi-page and REV-PG-05 concurrency were not run.
+- API wire and foreign/missing detail 404 parity, search wrong-role 403 and anonymous 401 guards ran. Contract and guard coverage is limited to existing assertions; the complete cases above remain open where those assertions do not cover them.
+- REV-UI-02: component recovery subset ran. Queue recovery and full browser cases remain open.
 
 ## Dependent evidence
 
