@@ -81,7 +81,7 @@ export class RequestRepository implements IRequestRepository
                 const value = filter.value;
                 switch (filter.condition)
                 {
-                    case "EQUAL": predicates.push(sql`${column} = ${value}`); break;
+                    case "EQUAL": predicates.push(filter.name === "requestNumber" || filter.name === "title" ? ilike(column, escape(value)) : sql`${column} = ${value}`); break;
                     case "NOTEQUAL": predicates.push(sql`${column} <> ${value}`); break;
                     case "GREATER": predicates.push(sql`${column} > ${value}`); break;
                     case "LESSER": predicates.push(sql`${column} < ${value}`); break;

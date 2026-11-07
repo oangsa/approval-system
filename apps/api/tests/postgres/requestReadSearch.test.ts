@@ -31,7 +31,7 @@ test("request search scopes counts and stable pages and matches literal text and
         const additions = Array.from({ length: count - ids.length }, () => randomUUID());
         const previous = ids.length;
         ids.push(...additions);
-        await db.insert(requests).values(additions.map((id, index) => ({ id, requesterId: ownerId, typeId, title: previous + index === 0 ? "Literal %_\\ value" : "Other", justification: "", priority: "HIGH" as const, updatedAt: tied })));
+        await db.insert(requests).values(additions.map((id, index) => ({ id, requesterId: ownerId, typeId, requestNumber: previous + index === 0 ? `REQ-${ownerId}` : null, title: previous + index === 0 ? "Literal %_\\ value" : previous + index === 1 ? "Literal AB\\ value" : "Other", justification: "", priority: "HIGH" as const, updatedAt: tied })));
         const all: string[] = [];
         const pageSize = 20;
         const totalPages = Math.ceil(count / pageSize);
@@ -49,4 +49,14 @@ test("request search scopes counts and stable pages and matches literal text and
         expect((await search({ search: [{ name: "updatedAt", condition: "GREATER", value: "2026-01-01T00:00:00.123001Z" }] })).pagination.totalCount).toBe(0);
         expect((await search({ search: [{ name: "updatedAt", condition: "LESSER", value: "2026-01-01T00:00:00.123001Z" }] })).pagination.totalCount).toBe(count);
     }
+    const exactResults = await Promise.all([
+        search({ search: [{ name: "title", condition: "EQUAL", value: "literal %_\\ VALUE" }] }),
+        search({ search: [{ name: "requestNumber", condition: "EQUAL", value: `req-${ownerId}` }] }),
+    ]);
+    expect(exactResults.map((result) => ({ ids: result.items.map((row) => row.id), totalCount: result.pagination.totalCount }))).toEqual([
+        { ids: [ids[0]], totalCount: 1 },
+        { ids: [ids[0]], totalCount: 1 },
+    ]);
+    expect((await search({ search: [{ name: "title", condition: "EQUAL", value: "literal" }] })).pagination.totalCount).toBe(0);
+    expect((await search({ search: [{ name: "requestNumber", condition: "EQUAL", value: "req-" }] })).pagination.totalCount).toBe(0);
 });
