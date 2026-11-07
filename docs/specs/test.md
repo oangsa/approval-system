@@ -4,7 +4,7 @@
 **Version:** 1.0.0 (proposed testing contract, derived from frozen specifications)  
 **Authority:** [`specifications.md`](./specifications.md) v1.0; [`api-specs.md`](./api-specs.md) v1.0.1; [`ui-specs.md`](./ui-specs.md) v1.0  
 **Coverage:** All 54 selected features; three sprints; product/API/UI and cross-feature regression  
-**Execution status:** **NOT EXECUTED** — this document defines planned verification, not passing results.
+**Execution status:** This document is the global test plan. Scoped execution evidence is linked in the feature records below; unrecorded assertions remain planned.
 
 > **Contract precedence:** `specifications.md` controls feature behavior, approval state and requirements; `api-specs.md` controls routes, DTOs, status/errors, headers, security and transactions; `ui-specs.md` controls navigation, presentation and interaction. A mismatch is a contract issue, **not** permission to quietly change behavior to make a test pass. Implementation defaults may be tuned if their change is documented and doesn't violate frozen rules.
 
@@ -616,3 +616,7 @@ The M01–M03 test setup and per-case assertions are maintained in [identity-acc
 - Version reads require authentication and, for non-Administrators, current request-read authority plus a matching request/type/version context. Test owner, current reviewer, unrelated user, invalid/missing context and administrator metadata-only access.
 - Request-type selection uses bounded server pages and validated `X-Pagination`; a 101st type is selectable, and the selection survives paging back. Missing or malformed pagination is an error.
 - Verification: `apps/web/tests/components/requestDetail.test.tsx`, `apps/web/tests/components/requestTypes.test.tsx`, `apps/api/tests/postgres/requests.test.ts`, and `apps/api/tests/integration/requestOpenApi.test.ts`. Draft-resume navigation remains deferred.
+
+### Issue #3 request list and detail coverage
+
+[Issue #3 STS](../features/request-list-detail/sts.md) maps FT-005/006, EP-032/034, API-03/04, UT-13, SEC-02/08/14, UI-09/20 and the scoped E2E-01 journey to REQ cases. [Verification evidence](../features/request-list-detail/verification.md) records executed suites and limits; case-level partial and pending assertions remain in the STS. This scoped journey does not complete the global E2E-01 journey.

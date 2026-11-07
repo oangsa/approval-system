@@ -1,6 +1,6 @@
 # Software test specification — Issue #3
 
-All cases are **PLANNED / NOT RUN**. Use isolated disposable PostgreSQL with owner A and B, current and former reviewers, admin-only, multi-role and anonymous actors. Never share a resetting database with Issue #4. Paths below are planned test locations. Record actual commands, environment and outcomes separately after execution; no prior feature result proves these cases.
+The table defines planned assertions; executed coverage and remaining assertions are recorded below. Use isolated disposable PostgreSQL with owner A and B, current and former reviewers, admin-only, multi-role and anonymous actors. Never share a resetting database with Issue #4. Paths below identify planned test locations. No prior feature result proves these cases.
 
 | ID / global link | Setup and action | Assertion and negative case | AC / planned path |
 | --- | --- | --- | --- |
@@ -20,3 +20,24 @@ All cases are **PLANNED / NOT RUN**. Use isolated disposable PostgreSQL with own
 | REQ-UI-04 | Render generic collection with request and adapted task items using both renderers. | Stable keys, pagination and equivalent desktop/mobile content; primitive performs no fetch. | 07; `apps/web/tests/components/requestCollection.test.tsx` |
 
 Run applicable typecheck, lint, contracts, API, web, build, isolated migration/seed, real PostgreSQL integration, Playwright and root check. Record failures and unrun checks accurately. Existing request submission and authentication regressions remain required; no global journey is marked complete from this scoped coverage alone.
+
+## Executed coverage and remaining assertions
+
+The CI suites passed on the revision identified in [verification.md](verification.md). A passing suite does not itself complete every planned assertion above.
+
+| Case | Evidence and scope |
+| --- | --- |
+| REQ-CT-01 | `packages/contracts/tests/requestCollection.test.ts` checks draft null pointers and exact public summary fields. |
+| REQ-CT-02 | Same file checks defaults, typed filters and invalid inputs. |
+| REQ-API-01 | `apps/api/tests/integration/requestSearch.test.ts` checks an authenticated empty direct array, pagination, no-store and exposed header. `apps/api/tests/postgres/requests.test.ts` checks mixed-owner HTTP results as a direct array with accurate totals, no-store and exposed pagination. |
+| REQ-API-02 | Under the owner token, spoofed `id` and `requesterId` fields each return 422. A multi-role replacement reviewer receives only their own rows and count. `apps/api/tests/postgres/requestReadSearch.test.ts` checks owner-only rows and totals. Other spoofing role permutations remain unrun. |
+| REQ-API-03 | `apps/api/tests/postgres/requests.test.ts` checks that owner detail equals submitted state and current and replacement reviewers can read when assigned. Former, unrelated and admin-only actors and an absent UUID receive the same safe 404 contract with request IDs; anonymous access returns 401. |
+| REQ-DB-01 | `requestReadSearch.test.ts` checks 0, 1, 45 and 101 owner rows, tied timestamps, totals and page boundaries; invalid input is covered by contract tests. Post-fix assertions check case-insensitive literal exact title and number matches, wildcard characters, partial input and owner controls. |
+| REQ-DB-02 | `requests.test.ts` rereads committed state through another connection/service. A separate native PostgreSQL 18 restart probe checked authenticated detail before and after restart; see [verification.md](verification.md). |
+| REQ-DB-03 | `requests.test.ts` checks persisted reassignment, denial for the former reviewer, authorization for the replacement and denial for an admin-only actor. An independent reviewer eligibility toggle remains untested. |
+| REQ-UI-01 | `apps/web/tests/components/requestList.test.tsx` exercises list states, retry, pagination and obsolete query/account responses. |
+| REQ-UI-02 | `apps/web/tests/components/requestDetail.test.tsx` exercises keyboard and URL tabs, detail fields and error states. Browser test checks no future-feature requests. |
+| REQ-UI-03 | Component tests cover pending responses across account changes. Browser test independently fetches list and detail HTML and checks absence of the test title, number and email; it does not prove absence of every possible private value. |
+| REQ-E2E-01 | `e2e/request-list-detail.spec.ts` creates and submits, searches, opens and reloads detail, checks displayed number, status, requester and tabs, and tests another account's denial. It does not query the database or assert current stage. The global journey remains partial. |
+| REQ-E2E-02 | Same browser test checks desktop row, mobile card, links, keyboard tabs and page overflow for its fixture. Broader accessibility coverage remains partial. |
+| REQ-UI-04 | `apps/web/tests/components/requestCollection.test.tsx` covers the generic renderer and pagination. Issue #4 integration and handoff remain gated. |
