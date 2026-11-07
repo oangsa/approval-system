@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import type { CreateRequest, PatchDraft, RequestDetail, RequestTypeSearch } from "@workflow/contracts";
+import type { CreateRequest, PatchDraft, RequestDetail, RequestTypeSearch, RequestSearchQuery } from "@workflow/contracts";
 import type { IActor } from "../../Domains/Identity/Identity";
 import type { IRequestRepository, IRequestUnitOfWork, RequestMutation } from "../../Domains/Requests/Ports";
 import { assertContent, editableContent, RequestError, resolvePlan } from "../../Domains/Requests/RequestRules";
@@ -101,6 +101,15 @@ export class RequestService
             actor = await repository.CurrentActor(actor);
             const detail = await this.Readable(repository, actor, id);
             return { ...detail, availableActions: detail.requester.id === actor.account.id && actor.roles.includes("REQUESTER") ? detail.availableActions : [] };
+        });
+    }
+    public async Search(actor: IActor, query: RequestSearchQuery)
+    {
+        return this.unit.Run(async (repository) =>
+        {
+            actor = await repository.CurrentActor(actor);
+            this.RequireRequester(actor);
+            return repository.Search(actor.account.id, query);
         });
     }
     public async Type(actor: IActor, id: string)

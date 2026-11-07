@@ -1,6 +1,6 @@
 # Workflow and Approval System
 
-CPE334 Theme 5 template: React Router 7 Framework Mode with public SSR, Tailwind/shadcn, Elysia on Node.js, PostgreSQL/Drizzle, and shared Zod contracts. Authentication and role access are implemented (login, refresh rotation, logout, logout-all, current identity, and reusable guards); no business features such as requests, approvals, or dashboards are implemented yet.
+CPE334 Theme 5 application: React Router 7 Framework Mode with public SSR, Tailwind/shadcn, Elysia on Node.js, PostgreSQL/Drizzle, and shared Zod contracts. Authentication and role access, request submission, and a scoped request list and detail are implemented; other business features remain with their owning issues.
 
 ## Install and run
 
@@ -165,3 +165,7 @@ For local development, configure the ignored `apps/api/.env` from its safe examp
 Tests use the separate ignored `apps/api/.env.test`: run `npm run db:test:up`, `NODE_ENV=test npm run db:test:migrate`, `NODE_ENV=test npm run db:test:seed`, then `NODE_ENV=test RUN_BUILT_HTTP_SMOKE=1 npm run test:integration` after building. Playwright loads the same guarded test connection and runs one worker locally and in CI to limit CPU and RAM usage. Development data is never a test fallback. The test database is disposable; immutable submitted test evidence is retained until its database/container is recreated.
 
 Feature design, numbered acceptance criteria and test mapping: [request submission](docs/features/request-submission/sds.md). Actual local verification: [evidence](docs/features/request-submission/verification.md).
+
+### Request list and detail (Issue #3)
+
+`/requests` provides an owner-scoped request list. `/requests/:id` provides four detail tabs; future-feature tabs remain shells. See [verification evidence](docs/features/request-list-detail/verification.md) for executed coverage and remaining limits.

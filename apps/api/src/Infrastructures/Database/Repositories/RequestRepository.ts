@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { and, asc, count, desc, eq, ilike, inArray, or, sql } from "drizzle-orm";
-import { itemTotal, requestDetailSchema, type CreateRequest, type RequestRevision, type RequestTypeSearch } from "@workflow/contracts";
+import { itemTotal, requestDetailSchema, requestSummarySchema, type CreateRequest, type RequestRevision, type RequestTypeSearch, type RequestSearchQuery } from "@workflow/contracts";
 import { isCurrentIdentity, type IActor } from "../../../Domains/Identity/Identity";
 import type { IRequestRepository, IRequestUnitOfWork } from "../../../Domains/Requests/Ports";
 import { businessDueAt, RequestError, type IConfiguration, type IPlan } from "../../../Domains/Requests/RequestRules";
@@ -64,6 +64,53 @@ export class RequestRepository implements IRequestRepository
             workingRevision, submittedRevision, currentStageNumber: slots.find((item) => item.stage.status === "ACTIVE")?.stage.stageNumber ?? null,
             currentApprovers: slots.map(({ slot, stage, reviewer }) => ({ slotId: slot.id, stageNumber: stage.stageNumber, reviewer, status: slot.status })), availableActions: row.status === "DRAFT" ? ["EDIT_DRAFT", "SUBMIT"] : [],
         });
+    }
+    public async Search(ownerId: string, query: RequestSearchQuery)
+    {
+        const columns = { status: requests.status, typeId: requests.typeId, priority: requests.priority, createdAt: requests.createdAt, updatedAt: requests.updatedAt, submittedAt: requests.submittedAt, requestNumber: requests.requestNumber, title: requests.title };
+        const predicates = [eq(requests.requesterId, ownerId)];
+        const escape = (value: string) => value.replace(/[\\%_]/g, "\\$&");
+        for (const filter of query.search)
+        {
+            const column = columns[filter.name];
+            if (filter.condition === "ISNULL") predicates.push(sql`${column} is null`);
+            else if (filter.condition === "ISNOTNULL") predicates.push(sql`${column} is not null`);
+            else if (filter.condition === "CONTAINS" || filter.condition === "STARTWITH") predicates.push(ilike(column, `${filter.condition === "CONTAINS" ? "%" : ""}${escape(filter.value)}%`));
+            else if ("value" in filter)
+            {
+                const value = filter.value;
+                switch (filter.condition)
+                {
+                    case "EQUAL": predicates.push(filter.name === "requestNumber" || filter.name === "title" ? ilike(column, escape(value)) : sql`${column} = ${value}`); break;
+                    case "NOTEQUAL": predicates.push(sql`${column} <> ${value}`); break;
+                    case "GREATER": predicates.push(sql`${column} > ${value}`); break;
+                    case "LESSER": predicates.push(sql`${column} < ${value}`); break;
+                    case "GREATEROREQUAL": predicates.push(sql`${column} >= ${value}`); break;
+                    case "LESSEROREQUAL": predicates.push(sql`${column} <= ${value}`); break;
+                }
+            }
+        }
+        if (query.searchTerm)
+        {
+            const term = `%${escape(query.searchTerm.value)}%`;
+            predicates.push(or(...query.searchTerm.name.split(",").map((name) => ilike(name === "title" ? requests.title : requests.requestNumber, term)))!);
+        }
+        const where = and(...predicates);
+        const [field, direction] = query.orderBy.split(" ") as ["updatedAt" | "createdAt" | "submittedAt" | "requestNumber" | "title", "asc" | "desc"];
+        const order = direction === "asc" ? sql`${columns[field]} asc nulls last` : sql`${columns[field]} desc nulls last`;
+        const total = (await this.db.select({ count: count() }).from(requests).where(where))[0]!.count;
+        const rows = await this.db.select({ request: requests, typeCode: requestTypes.code, revisionNumber: requestRevisions.revisionNumber }).from(requests)
+            .innerJoin(requestTypes, eq(requestTypes.id, requests.typeId)).leftJoin(requestRevisions, eq(requestRevisions.id, requests.submittedRevisionId))
+            .where(where).orderBy(order, asc(requests.id)).limit(query.pageSize).offset((query.pageNumber - 1) * query.pageSize);
+        const owner = (await this.db.select().from(users).where(eq(users.id, ownerId)))[0]!;
+        const roles = await this.db.select().from(userRoles).where(eq(userRoles.userId, ownerId));
+        const items = rows.map(({ request: row, typeCode, revisionNumber }) => requestSummarySchema.parse({
+            id: row.id, requestNumber: row.requestNumber, typeId: row.typeId, typeCode, title: row.title, priority: row.priority, status: row.status,
+            requester: { id: owner.id, displayName: owner.displayName, email: owner.email, roles: roles.map((role) => role.roleCode), isActive: owner.isActive, department: row.departmentSnapshot },
+            department: row.departmentSnapshot, revisionNumber, currentCycleId: row.currentCycleId, createdAt: row.createdAt.toISOString(), updatedAt: row.updatedAt.toISOString(), submittedAt: row.submittedAt?.toISOString() ?? null, version: row.version,
+        }));
+        const totalPages = Math.ceil(total / query.pageSize);
+        return { items, pagination: { currentPage: query.pageNumber, pageSize: query.pageSize, totalPages, totalCount: total, hasPrevious: query.pageNumber > 1, hasNext: query.pageNumber < totalPages } };
     }
     public async Configuration(typeId: string, versionId: string, actorId: string): Promise<IConfiguration>
     {
