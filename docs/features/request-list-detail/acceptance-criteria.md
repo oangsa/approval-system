@@ -1,6 +1,6 @@
 # Acceptance criteria — Issue #3
 
-All criteria are planned; none asserts completed verification.
+The [verification record](verification.md) identifies the checks that passed, the revisions and environments tested, and the checks still unrun. The [STS](sts.md#executed-coverage-and-remaining-assertions) maps that evidence and remaining assertions to the criteria below. Independent teammate review and staged promotion are pending. History and Discussion / Files remain deferred beyond their current shells.
 
 - REQ-AC-01 (FR-005, AC-005, BR-068): authenticated requester search returns only their own rows and count, including for multi-role users. Foreign identifiers and unapproved filters cannot widen scope.
 - REQ-AC-02 (API §§2.2–2.3, 3.4): search returns exact summary fields in a direct array, truthful exposed pagination and no-store. Bounded allowlisted filters, text and deterministic pagination work; invalid inputs return 422.
