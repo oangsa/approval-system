@@ -1,13 +1,14 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router";
 import { expect, test, vi } from "vitest";
+import { ApiFailure } from "../../app/api/errors";
 import { ReviewTaskPage } from "../../app/modules/reviews/ReviewTaskPage";
 import { readApprovalTaskResult } from "../../app/services/approvalTaskService";
 import type { ApprovalTask, PublishedRequestType, RequestDetail } from "@workflow/contracts";
 
 vi.mock("../../app/services/approvalTaskService", () => ({ readApprovalTaskResult: vi.fn() }));
 vi.mock("../../app/modules/auth/sessionContext", () => ({ useSession: () => ({ status: "authenticated", user: { id: "reviewer", roles: ["REVIEWER"] }, generation: 0 }) }));
-test("shows progress for the current stage only", async () =>
+function taskFixture()
 {
     const id = "7bb91ef4-5982-405f-8bd5-61b5c3cf410b";
     const task: ApprovalTask = { id, slotId: id, requestId: id, cycleId: id, revisionId: id, stageNumber: 1, assignedReviewer: { id, displayName: "Reviewer" }, status: "ACTIONABLE", dueAt: null, canCurrentUserDecide: true, version: 1 };
@@ -23,7 +24,11 @@ test("shows progress for the current stage only", async () =>
             { slotId: "9bb91ef4-5982-405f-8bd5-61b5c3cf410b", stageNumber: 2, reviewer: { id, displayName: "Future" }, status: "WAITING" },
         ], availableActions: [],
     };
-    vi.mocked(readApprovalTaskResult).mockResolvedValueOnce({ task, detail, definition });
+    return { task, detail, definition };
+}
+test("shows progress for the current stage only", async () =>
+{
+    vi.mocked(readApprovalTaskResult).mockResolvedValueOnce(taskFixture());
     render(<MemoryRouter initialEntries={["/reviews/task"]}><Routes><Route path="/reviews/:taskId" element={<ReviewTaskPage />} /></Routes></MemoryRouter>);
     expect(await screen.findByText("1 of 2 approved; 1 remaining")).toBeVisible();
 });
@@ -34,4 +39,30 @@ test("denial shows a safe state without request content", async () =>
     await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("This task is unavailable."));
     expect(screen.queryByText("private reason")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Retry" })).toBeVisible();
+});
+
+test.each([500, 503])("shows safe support ID and retries after %i", async (status) =>
+{
+    const requestId = "7bb91ef4-5982-405f-8bd5-61b5c3cf410b";
+    vi.mocked(readApprovalTaskResult).mockRejectedValueOnce(new ApiFailure({ kind: "http", status, message: "private error", requestId })).mockResolvedValueOnce(taskFixture());
+    render(<MemoryRouter initialEntries={["/reviews/task"]}><Routes><Route path="/reviews/:taskId" element={<ReviewTaskPage />} /></Routes></MemoryRouter>);
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("Could not load this task. Please try again.");
+    expect(alert).toHaveTextContent(`Request ID: ${requestId}`);
+    expect(screen.getByText(`Request ID: ${requestId}`)).toHaveClass("select-text");
+    expect(alert).not.toHaveTextContent("private error");
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+    expect(await screen.findByText("1 of 2 approved; 1 remaining")).toBeVisible();
+    expect(readApprovalTaskResult).toHaveBeenCalledTimes(2);
+});
+test("reloads a stale task without showing private content", async () =>
+{
+    const fixture = taskFixture();
+    vi.mocked(readApprovalTaskResult).mockResolvedValueOnce({ ...fixture, detail: { ...fixture.detail, currentStageNumber: 2 } }).mockResolvedValueOnce(fixture);
+    render(<MemoryRouter initialEntries={["/reviews/task"]}><Routes><Route path="/reviews/:taskId" element={<ReviewTaskPage />} /></Routes></MemoryRouter>);
+    expect(await screen.findByRole("alert")).toHaveTextContent("This task is unavailable.");
+    expect(screen.queryByRole("region", { name: "Task summary" })).not.toBeInTheDocument();
+    expect(screen.queryByText("Saved request")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Reload task" }));
+    expect(await screen.findByText("1 of 2 approved; 1 remaining")).toBeVisible();
 });
