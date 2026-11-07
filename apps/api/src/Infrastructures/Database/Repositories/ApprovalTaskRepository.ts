@@ -23,7 +23,7 @@ export class ApprovalTaskRepository implements IApprovalTaskRepository
     }
     private Rows(where: SQL | undefined)
     {
-        return this.db.select({ id: approvalSlots.id, requestId: requests.id, cycleId: approvalCycles.id, revisionId: approvalCycles.revisionId, stageNumber: approvalStages.stageNumber, reviewerId: users.id, displayName: users.displayName, status: approvalSlots.status, dueAt: approvalSlots.dueAt, version: approvalSlots.version })
+        return this.db.select({ id: sql<string>`${approvalSlots.id}`.as("slot_id"), requestId: sql<string>`${requests.id}`.as("request_id"), cycleId: sql<string>`${approvalCycles.id}`.as("cycle_id"), revisionId: sql<string>`${approvalCycles.revisionId}`.as("revision_id"), stageNumber: sql<number>`${approvalStages.stageNumber}`.as("stage_number"), requestNumber: sql<string | null>`${requests.requestNumber}`.as("request_number"), reviewerId: sql<string>`${users.id}`.as("reviewer_id"), displayName: sql<string>`${users.displayName}`.as("display_name"), status: sql<string>`${approvalSlots.status}`.as("slot_status"), dueAt: sql<Date | null>`${approvalSlots.dueAt}`.mapWith({ mapFromDriverValue: (value: string | null) => value === null ? null : new Date(value) }).as("due_at"), version: sql<number>`${approvalSlots.version}`.as("slot_version") })
             .from(approvalSlots).innerJoin(approvalStages, eq(approvalSlots.stageId, approvalStages.id)).innerJoin(approvalCycles, eq(approvalStages.cycleId, approvalCycles.id)).innerJoin(requests, eq(approvalCycles.requestId, requests.id)).innerJoin(users, eq(approvalSlots.reviewerId, users.id)).where(where);
     }
     private Project(row: Awaited<ReturnType<ApprovalTaskRepository["Rows"]>>[number])
@@ -63,12 +63,15 @@ export class ApprovalTaskRepository implements IApprovalTaskRepository
             predicates.push(or(...query.searchTerm.name.split(",").map((name) => ilike(name === "title" ? requests.title : requests.requestNumber, term)))!);
         }
         const where = and(...predicates);
-        const total = (await this.db.select({ count: count() }).from(approvalSlots).innerJoin(approvalStages, eq(approvalSlots.stageId, approvalStages.id)).innerJoin(approvalCycles, eq(approvalStages.cycleId, approvalCycles.id)).innerJoin(requests, eq(approvalCycles.requestId, requests.id)).innerJoin(users, eq(approvalSlots.reviewerId, users.id)).where(where))[0]!.count;
-        const field = query.orderBy.startsWith("stageNumber") ? approvalStages.stageNumber : query.orderBy.startsWith("requestNumber") ? requests.requestNumber : approvalSlots.dueAt;
-        const order = query.orderBy.endsWith("desc") ? sql`${field} desc nulls last` : sql`${field} asc nulls last`;
-        const rows = await this.Rows(where).orderBy(order, asc(approvalSlots.id)).limit(query.pageSize).offset((query.pageNumber - 1) * query.pageSize);
-        const totalPages = Math.ceil(total / query.pageSize);
-        return { items: rows.map((row) => this.Project(row)), pagination: { currentPage: query.pageNumber, pageSize: query.pageSize, totalPages, totalCount: total, hasPrevious: query.pageNumber > 1, hasNext: query.pageNumber < totalPages } };
+        const field = query.orderBy.startsWith("stageNumber") ? "stageNumber" : query.orderBy.startsWith("requestNumber") ? "requestNumber" : "dueAt";
+        const scoped = this.db.$with("scoped").as(this.Rows(where));
+        const total = this.db.$with("total").as(this.db.select({ count: count().as("count") }).from(scoped));
+        const order = query.orderBy.endsWith("desc") ? sql`${scoped[field]} desc nulls last` : sql`${scoped[field]} asc nulls last`;
+        const page = this.db.$with("page").as(this.db.select().from(scoped).orderBy(order, asc(scoped.id)).limit(query.pageSize).offset((query.pageNumber - 1) * query.pageSize));
+        const rows = await this.db.with(scoped, total, page).select({ id: page.id, requestId: page.requestId, cycleId: page.cycleId, revisionId: page.revisionId, stageNumber: page.stageNumber, requestNumber: page.requestNumber, reviewerId: page.reviewerId, displayName: page.displayName, status: page.status, dueAt: page.dueAt, version: page.version, total: total.count }).from(page).leftJoin(total, sql`true`);
+        const totalCount = rows[0]?.total ?? 0;
+        const totalPages = Math.ceil(totalCount / query.pageSize);
+        return { items: rows.filter((row) => row.id !== null).map((row) => this.Project(row)), pagination: { currentPage: query.pageNumber, pageSize: query.pageSize, totalPages, totalCount, hasPrevious: query.pageNumber > 1, hasNext: query.pageNumber < totalPages } };
     }
 }
 export class ApprovalTaskUnitOfWork implements IApprovalTaskUnitOfWork
