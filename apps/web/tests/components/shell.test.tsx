@@ -62,7 +62,9 @@ function renderShell(): void
 
 test("navigation items are filtered by the current role union", () =>
 {
-    expect(visibleNavigation(navigationItems, ["REQUESTER"]).map((item) => item.to)).toEqual(["/dashboard", "/requests/new", "/settings"]);
+    expect(visibleNavigation(navigationItems, ["REQUESTER"]).map((item) => item.to)).toEqual(["/dashboard", "/requests", "/requests/new", "/settings"]);
+    expect(visibleNavigation(navigationItems, ["REQUESTER", "REVIEWER"]).map((item) => item.to)).toEqual(["/dashboard", "/requests", "/requests/new", "/settings"]);
+    expect(visibleNavigation(navigationItems, ["REVIEWER"]).map((item) => item.to)).toEqual(["/dashboard", "/settings"]);
     expect(visibleNavigation([], ["ADMINISTRATOR"])).toEqual([]);
 });
 
@@ -73,7 +75,7 @@ test("the shell renders the current account and only routes that ship in this fe
     expect(screen.getByRole("navigation", { name: "Primary" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Dashboard/ })).toHaveAttribute("href", "/dashboard");
     expect(screen.getByRole("link", { name: /Settings/ })).toHaveAttribute("href", "/settings");
-    expect(screen.queryByRole("link", { name: /Requests/ })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "My Requests" })).toHaveAttribute("href", "/requests");
     expect(screen.queryByRole("link", { name: /Approvals/ })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Ada Lovelace" })).toBeInTheDocument();
 });
