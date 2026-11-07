@@ -4,6 +4,9 @@ import { and, eq, sql } from "drizzle-orm";
 import { requestDetailSchema, type CreateRequest, type PublishedRequestType } from "@workflow/contracts";
 import { createTestDatabase } from "../helpers/testDatabase";
 import { RequestService } from "../../src/Applications/Requests/RequestService";
+import { ApprovalTaskService } from "../../src/Applications/Approvals/ApprovalTaskService";
+import { ApprovalTaskUnitOfWork } from "../../src/Infrastructures/Database/Repositories/ApprovalTaskRepository";
+import { approvalTaskSearchSchema } from "@workflow/contracts";
 import { RequestRepository, RequestUnitOfWork } from "../../src/Infrastructures/Database/Repositories/RequestRepository";
 import { approvalCycles, approvalPolicyVersions, approvalSlots, approvalStages, budgetPolicies, departmentMemberships, departments, idempotencyRecords, requestAuditEvents, requestOutboxEvents, requestRevisions, requests, requestTypes, requestTypeVersions, reviewerAssignmentRules, sessionFamilies, userRoles, users } from "../../src/Infrastructures/Database/schema";
 import { IdentityRepository } from "../../src/Infrastructures/Database/Repositories/IdentityRepository";
@@ -54,6 +57,94 @@ async function counts(id: string)
         audit: (await observer.connection.select().from(requestAuditEvents).where(eq(requestAuditEvents.requestId, id))).length,
     };
 }
+test("reviewer queue scopes rows and detail to the current assignment", async () =>
+{
+    const item = await fixture();
+    const familyId = randomUUID();
+    await db.insert(sessionFamilies).values({ id: familyId, userId: item.reviewerId, authVersion: 0, createdAt: new Date(), expiresAt: new Date(Date.now() + 3600000) });
+    const reviewer = (await new IdentityRepository(db).ReadCurrentIdentity(item.reviewerId, familyId))!;
+    const draft = await item.draft();
+    const submitted = await service.Mutate(item.actor, "submit", draft.id, { expectedVersion: 0 }, randomUUID());
+    const tasks = new ApprovalTaskService(new ApprovalTaskUnitOfWork(db));
+    const query = approvalTaskSearchSchema.parse({ search: [{ name: "requestNumber", condition: "EQUAL", value: submitted.requestNumber }] });
+    const result = await tasks.Search(reviewer, query);
+    expect(result.pagination.totalCount).toBe(1);
+    expect(result.items).toHaveLength(1);
+    expect(await tasks.Read(reviewer, result.items[0]!.id)).toEqual(result.items[0]);
+    await expect(tasks.Read(reviewer, randomUUID())).rejects.toMatchObject({ code: "NOT_FOUND" });
+    await db.update(approvalSlots).set({ status: "WAITING" }).where(eq(approvalSlots.id, result.items[0]!.id));
+    expect((await tasks.Search(reviewer, query)).pagination.totalCount).toBe(0);
+    await expect(tasks.Read(reviewer, result.items[0]!.id)).rejects.toMatchObject({ code: "NOT_FOUND" });
+});
+test("reviewer task HTTP enforces assignment, validation, pagination and due-date filters", async () =>
+{
+    const item = await fixture();
+    const other = await fixture();
+    const adminId = randomUUID();
+    const reviewerFamily = randomUUID(), otherFamily = randomUUID(), adminFamily = randomUUID();
+    await db.insert(users).values({ id: adminId, email: `${adminId}@example.test`, displayName: "Admin", passwordHash: "not-for-login" });
+    await db.insert(userRoles).values({ userId: adminId, roleCode: "ADMINISTRATOR" });
+    await db.insert(sessionFamilies).values([[reviewerFamily, item.reviewerId], [otherFamily, other.reviewerId], [adminFamily, adminId]].map(([id, userId]) => ({ id: id!, userId: userId!, authVersion: 0, createdAt: new Date(), expiresAt: new Date(Date.now() + 3600000) })));
+    const draft = await item.draft();
+    const submitted = await service.Mutate(item.actor, "submit", draft.id, { expectedVersion: 0 }, randomUUID());
+    const slot = (await db.select().from(approvalSlots).innerJoin(approvalStages, eq(approvalSlots.stageId, approvalStages.id)).where(eq(approvalStages.cycleId, submitted.currentCycleId!)))[0]!.approval_slots;
+    await db.update(approvalSlots).set({ dueAt: null }).where(eq(approvalSlots.id, slot.id));
+    const env = readEnvironment({ NODE_ENV: "test", DATABASE_URL: process.env.TEST_DATABASE_URL, AUTH_JWT_SECRET: "request-http-test-only-secret-32-bytes-long", AUTH_JWT_ISSUER: "request-http-tests", AUTH_JWT_AUDIENCE: "request-http-tests-api", AUTH_ALLOWED_ORIGINS: "http://localhost:3000", AUTH_COOKIE_SECURE: "false" });
+    const identity = await createIdentityComposition(env, database);
+    const TokenProvider = (await import("../../src/Infrastructures/Security/TokenProvider")).TokenProvider;
+    const provider = new TokenProvider(env.AUTH_JWT_SECRET, { Now: () => new Date() }, env.AUTH_JWT_ISSUER, env.AUTH_JWT_AUDIENCE);
+    const reviewerToken = await provider.Sign(item.reviewerId, reviewerFamily, 0);
+    const otherToken = await provider.Sign(other.reviewerId, otherFamily, 0);
+    const adminToken = await provider.Sign(adminId, adminFamily, 0);
+    const app = createApplication(undefined, identity, service, new ApprovalTaskService(new ApprovalTaskUnitOfWork(db)));
+    const requestId = randomUUID();
+    const send = (method: string, path: string, body?: string, token = reviewerToken) => app.handle(new Request(`http://localhost/api/v1${path}`, { method, headers: { authorization: token ? `Bearer ${token}` : "", "content-type": "application/json", origin: "http://localhost:3000", "x-request-id": requestId }, ...(body === undefined ? {} : { body }) }));
+    const filter = { name: "requestNumber", condition: "EQUAL", value: submitted.requestNumber };
+    const search = (filters: object[], token = reviewerToken) => send("POST", "/approval-tasks/search", JSON.stringify({ pageSize: 1, search: [filter, ...filters] }), token);
+    const response = await search([]);
+    expect(response.status).toBe(200);
+    const expected = { id: slot.id, slotId: slot.id, requestId: draft.id, cycleId: submitted.currentCycleId, revisionId: submitted.submittedRevision!.id, stageNumber: 1, assignedReviewer: { id: item.reviewerId, displayName: "Reviewer" }, status: "ACTIONABLE", dueAt: null, canCurrentUserDecide: true, version: slot.version };
+    expect(await response.json()).toEqual([expected]);
+    expect(JSON.parse(response.headers.get("x-pagination")!)).toEqual({ currentPage: 1, pageSize: 1, totalPages: 1, totalCount: 1, hasPrevious: false, hasNext: false });
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    expect(response.headers.get("access-control-expose-headers")?.toLowerCase()).toContain("x-pagination");
+    const detail = await send("GET", `/approval-tasks/${slot.id}`);
+    expect(detail.status).toBe(200);
+    expect(await detail.json()).toEqual(expected);
+    const foreign = await search([], otherToken);
+    expect(await foreign.json()).toEqual([]);
+    expect(JSON.parse(foreign.headers.get("x-pagination")!)).toEqual({ currentPage: 1, pageSize: 1, totalPages: 0, totalCount: 0, hasPrevious: false, hasNext: false });
+    const hidden = await Promise.all([send("GET", `/approval-tasks/${slot.id}`, undefined, otherToken), send("GET", `/approval-tasks/${randomUUID()}`), send("GET", "/approval-tasks/invalid")]);
+    expect(hidden.map((entry) => entry.status)).toEqual([404, 404, 404]);
+    const hiddenBodies = await Promise.all(hidden.map((entry) => entry.json()));
+    expect(hiddenBodies).toEqual(Array(3).fill(hiddenBodies[0]));
+    expect((await send("POST", "/approval-tasks/search", "{}", "")).status).toBe(401);
+    expect((await send("POST", "/approval-tasks/search", "{}", adminToken)).status).toBe(403);
+    expect((await send("POST", "/approval-tasks/search", JSON.stringify({ actorId: item.reviewerId }))).status).toBe(422);
+    expect((await send("POST", "/approval-tasks/search", JSON.stringify({ orderBy: "id desc" }))).status).toBe(422);
+    expect((await send("POST", "/approval-tasks/search", "{")).status).toBe(400);
+    expect(await (await search([{ name: "dueAt", condition: "ISNULL" }])).json()).toEqual([expected]);
+    expect(await (await search([{ name: "dueAt", condition: "ISNOTNULL" }])).json()).toEqual([]);
+    await db.update(approvalSlots).set({ dueAt: new Date("2026-11-07T12:00:00Z") }).where(eq(approvalSlots.id, slot.id));
+    expect(await (await search([{ name: "dueAt", condition: "ISNULL" }])).json()).toEqual([]);
+    expect(await (await search([{ name: "dueAt", condition: "ISNOTNULL" }])).json()).toHaveLength(1);
+    for (const condition of ["GREATER", "GREATEROREQUAL"])
+        expect(await (await search([{ name: "dueAt", condition, value: "2026-11-07T11:00:00Z" }])).json()).toHaveLength(1);
+    for (const condition of ["LESSER", "LESSEROREQUAL"])
+        expect(await (await search([{ name: "dueAt", condition, value: "2026-11-07T13:00:00Z" }])).json()).toHaveLength(1);
+    const preflight = await app.handle(new Request("http://localhost/api/v1/approval-tasks/search", { method: "OPTIONS", headers: { origin: "http://localhost:3000", "access-control-request-method": "POST", "access-control-request-headers": "authorization,content-type" } }));
+    expect(preflight.status).toBe(204);
+});
+test("self-only assignment rejects submission without creating a cycle", async () =>
+{
+    const item = await fixture();
+    await db.insert(userRoles).values({ userId: item.ownerId, roleCode: "REVIEWER" });
+    await db.update(reviewerAssignmentRules).set({ reviewerId: item.ownerId }).where(eq(reviewerAssignmentRules.id, item.assignmentId));
+    const draft = await item.draft();
+    await expect(service.Mutate(item.actor, "submit", draft.id, { expectedVersion: 0 }, randomUUID())).rejects.toMatchObject({ code: "CONFIGURATION_INCOMPLETE" });
+    expect(await counts(draft.id)).toEqual({ cycles: 0, revisions: 1, audit: 1 });
+    expect((await db.select().from(requests).where(eq(requests.id, draft.id)))[0]!.status).toBe("DRAFT");
+});
 test("DB-03/04/09 durable create/submit replay, number, immutable evidence and direct read", async () =>
 {
     const item = await fixture();
