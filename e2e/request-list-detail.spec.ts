@@ -11,7 +11,17 @@ async function signIn(page: Page, email: string)
 
 test("REQ-E2E-01 and REQ-E2E-02: requester list and persisted detail", async ({ page, request }) =>
 {
-    const title = `Browser list detail ${Date.now()}`;
+    const title = `Browserlistdetail${Date.now()}unbrokentitleverificationpayloadwithoutanyspacecharactersanywhereinthisunbrokenrequesttitlestring`;
+    expect(title.length).toBeGreaterThanOrEqual(120);
+    expect(title.length).toBeLessThanOrEqual(200);
+    expect(title).not.toContain(" ");
+    const searchTerm = title.slice(0, 90);
+    const futureCalls: string[] = [];
+    page.on("request", (outgoing) =>
+    {
+        const pathname = new URL(outgoing.url()).pathname;
+        if (/^\/api\/v1\/requests\/[^/]+\/(timeline|revisions|comments|attachments|history|discussion|files)(\/|$)/.test(pathname) || /^\/api\/v1\/attachments\/[^/]+\/download$/.test(pathname)) futureCalls.push(outgoing.url());
+    });
     await signIn(page, "requester-a@example.test");
     await page.getByRole("link", { name: "New request" }).click();
     await page.getByLabel("Request type (required)", { exact: true }).selectOption({ label: "General request" });
@@ -29,7 +39,7 @@ test("REQ-E2E-01 and REQ-E2E-02: requester list and persisted detail", async ({ 
     expect(number).toBeDefined();
 
     await page.getByRole("link", { name: "My Requests" }).click();
-    await page.getByLabel("Search", { exact: true }).fill(title);
+    await page.getByLabel("Search", { exact: true }).fill(searchTerm);
     const row = page.getByRole("row").filter({ hasText: title });
     await expect(row).toContainText(number!);
     await expect(row).toContainText("Pending approval");
@@ -43,12 +53,8 @@ test("REQ-E2E-01 and REQ-E2E-02: requester list and persisted detail", async ({ 
     await expect(page.getByRole("heading", { level: 1, name: title })).toBeVisible();
     await expect(page.getByRole("region", { name: "Request result" })).toContainText(number!);
     await expect(page.getByRole("region", { name: "Request result" })).toContainText("Pending approval");
+    expect(futureCalls).toEqual([]);
 
-    const futureCalls: string[] = [];
-    page.on("request", (outgoing) =>
-    {
-        if (/\/api\/v1\/requests\/[^/]+\/(history|discussion|files|attachments)/i.test(outgoing.url())) futureCalls.push(outgoing.url());
-    });
     const overview = page.getByRole("tab", { name: "Overview" });
     await overview.focus();
     for (const name of ["Approval", "History", "Discussion / Files"])
@@ -62,6 +68,7 @@ test("REQ-E2E-01 and REQ-E2E-02: requester list and persisted detail", async ({ 
     await page.keyboard.press("Home");
     await expect(overview).toBeFocused();
     expect(futureCalls).toEqual([]);
+    await expect(page.getByRole("heading", { level: 1, name: title })).toBeVisible();
 
     for (const path of ["/requests", new URL(detailUrl).pathname])
     {
@@ -74,23 +81,28 @@ test("REQ-E2E-01 and REQ-E2E-02: requester list and persisted detail", async ({ 
     }
 
     await page.goto("/requests");
-    await page.getByLabel("Search", { exact: true }).fill(title);
+    await page.getByLabel("Search", { exact: true }).fill(searchTerm);
     await page.setViewportSize({ width: 390, height: 844 });
     const card = page.getByRole("listitem").filter({ hasText: title });
     await expect(card).toContainText(number!);
     await expect(card).toContainText("Pending approval");
     await expect(card.getByRole("link", { name: title })).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    await card.getByRole("link", { name: title }).click();
+    await expect(page.getByRole("heading", { level: 1, name: title })).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    expect(futureCalls).toEqual([]);
 
     await page.setViewportSize({ width: 1280, height: 720 });
     await page.getByRole("button", { name: "Requester A" }).click();
     await page.getByRole("button", { name: "Sign out" }).click();
     await signIn(page, "requester-b@example.test");
     await page.goto("/requests");
-    await page.getByLabel("Search", { exact: true }).fill(title);
+    await page.getByLabel("Search", { exact: true }).fill(searchTerm);
     await expect(page.getByText("No requests match your filters.")).toBeVisible();
     await expect(page.getByText(title)).toHaveCount(0);
     await page.goto(detailUrl);
-    await expect(page.getByRole("alert")).toBeVisible();
+    await expect(page.getByRole("alert")).toContainText("This request is unavailable.");
+    await expect(page.getByRole("button", { name: "Retry" })).toHaveCount(0);
     await expect(page.getByText(title)).toHaveCount(0);
 });

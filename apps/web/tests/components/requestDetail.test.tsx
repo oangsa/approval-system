@@ -53,17 +53,54 @@ test("reopened request uses pinned field and option labels without reading the l
 test("definition failures offer retry and do not render misleading raw labels", async () =>
 {
     vi.stubEnv("VITE_API_BASE_URL", "http://localhost/api");
+    const failureRequestId = "5e7d3a28-9b1c-4d6e-8f0a-2c3b4d5e6f70";
     let fail = true;
     server.use(
         http.get(`http://localhost/api/v1/requests/${id}`, () => HttpResponse.json(detail)),
-        http.get(`http://localhost/api/v1/request-types/${id}/versions/${versionId}`, () => fail ? new HttpResponse(null, { status: 503 }) : HttpResponse.json(definition)),
+        http.get(`http://localhost/api/v1/request-types/${id}/versions/${versionId}`, () => fail ? HttpResponse.json({ statusCode: 503, code: "SERVICE_UNAVAILABLE", message: "Service unavailable", error: "Service unavailable", requestId: failureRequestId }, { status: 503 }) : HttpResponse.json(definition)),
     );
     render(<MemoryRouter initialEntries={[`/requests/${id}`]}><Routes><Route path="/requests/:id" element={<RequestDetailPage />} /></Routes></MemoryRouter>);
     expect(await screen.findByRole("alert")).toBeVisible();
+    expect(screen.getByText(/Request ID/)).toBeVisible();
+    expect(screen.getByText(failureRequestId)).toHaveClass("select-all");
     expect(screen.queryByRole("region", { name: "Request result" })).not.toBeInTheDocument();
     fail = false;
     fireEvent.click(screen.getByRole("button", { name: "Retry" }));
     expect(await screen.findByText("Operational expense")).toBeVisible();
+});
+
+test("approval tab groups current approvers by stage with readable states", async () =>
+{
+    vi.stubEnv("VITE_API_BASE_URL", "http://localhost/api");
+    const staged: RequestDetail = { ...detail, currentStageNumber: 1, currentApprovers: [
+        { slotId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", stageNumber: 1, reviewer: { id, displayName: "Alice" }, status: "APPROVED" },
+        { slotId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", stageNumber: 1, reviewer: { id, displayName: "Bob" }, status: "ACTIONABLE" },
+        { slotId: "cccccccc-cccc-4ccc-8ccc-cccccccccccc", stageNumber: 2, reviewer: { id, displayName: "Carol" }, status: "WAITING" },
+    ] };
+    server.use(http.get(`http://localhost/api/v1/requests/${id}`, () => HttpResponse.json(staged)), http.get(`http://localhost/api/v1/request-types/${id}/versions/${versionId}`, () => HttpResponse.json(definition)));
+    render(<MemoryRouter initialEntries={[`/requests/${id}?tab=approval`]}><Routes><Route path="/requests/:id" element={<RequestDetailPage />} /></Routes></MemoryRouter>);
+    expect(await screen.findByRole("region", { name: "Stage 1" })).toBeVisible();
+    expect(screen.getByRole("region", { name: "Stage 2" })).toBeVisible();
+    expect(screen.getByText("Stage 1 active")).toBeVisible();
+    expect(screen.getByText("All approvers must approve · 1 of 2 approved")).toBeVisible();
+    expect(screen.getByText("All approvers must approve · 0 of 1 approved")).toBeVisible();
+    expect(screen.getByText("Alice · Approved")).toBeVisible();
+    expect(screen.getByText("Bob · Action required")).toBeVisible();
+    expect(screen.getByText("Carol · Waiting")).toBeVisible();
+    expect(screen.getAllByText("Pending approval")).toHaveLength(2);
+});
+
+test.each([[403, "You do not have access to this content."], [404, "This request is unavailable."]] as const)("terminal detail failures show safe copy without retry", async (status, message) =>
+{
+    vi.stubEnv("VITE_API_BASE_URL", "http://localhost/api");
+    const envelope = { statusCode: status, code: status === 403 ? "FORBIDDEN" : "NOT_FOUND", message, error: message, requestId: "4d8b2e15-7c3a-4f5b-8e6d-1b2a9c0f7e42" };
+    server.use(http.get(`http://localhost/api/v1/requests/${id}`, () => HttpResponse.json(envelope, { status })));
+    render(<MemoryRouter initialEntries={[`/requests/${id}`]}><Routes><Route path="/requests/:id" element={<RequestDetailPage />} /></Routes></MemoryRouter>);
+    expect(await screen.findByRole("alert")).toHaveTextContent(message);
+    expect(screen.queryByRole("button", { name: "Retry" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Request result" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { level: 1, name: "Saved request" })).not.toBeInTheDocument();
+    if (status === 403) expect(screen.getByRole("link", { name: "Go to Dashboard" })).toHaveAttribute("href", "/dashboard");
 });
 
 test("detail tabs support keyboard navigation and keep the header visible", async () =>
