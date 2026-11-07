@@ -47,7 +47,7 @@ export class ApprovalTaskRepository implements IApprovalTaskRepository
             else if (filter.name === "requestNumber")
             {
                 const value = escaped(filter.value);
-                predicates.push(filter.condition === "EQUAL" ? eq(requests.requestNumber, filter.value) : ilike(requests.requestNumber, filter.condition === "CONTAINS" ? `%${value}%` : `${value}%`));
+                predicates.push(ilike(requests.requestNumber, filter.condition === "CONTAINS" ? `%${value}%` : filter.condition === "STARTWITH" ? `${value}%` : value));
             }
             else if (filter.condition === "ISNULL") predicates.push(isNull(approvalSlots.dueAt));
             else if (filter.condition === "ISNOTNULL") predicates.push(isNotNull(approvalSlots.dueAt));
