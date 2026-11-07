@@ -1,4 +1,4 @@
-import { createRequestSchema, type CreateRequest, type RequestDetail } from "@workflow/contracts";
+import { createRequestSchema, type CreateRequest, type RequestDetail, type RequestSearchQuery } from "@workflow/contracts";
 import { requestApi } from "~/api/requests";
 
 /** One in-memory editing session; no request content or action key is persisted in browser storage. */
@@ -44,10 +44,15 @@ export class RequestEditingSession
     }
 }
 
-export async function readRequestResult(id: string, signal?: AbortSignal)
+export function searchRequests(query: RequestSearchQuery, signal?: AbortSignal, generation?: number)
 {
-    const detail = await requestApi.read(id, signal);
+    return requestApi.search(query, signal, generation);
+}
+
+export async function readRequestResult(id: string, signal?: AbortSignal, generation?: number)
+{
+    const detail = await requestApi.read(id, signal, generation);
     const revision = detail.submittedRevision ?? detail.workingRevision;
-    const definition = revision ? await requestApi.version(detail.typeId, revision.formDefinitionVersionId, detail.id, signal) : null;
+    const definition = revision ? await requestApi.version(detail.typeId, revision.formDefinitionVersionId, detail.id, signal, generation) : null;
     return { detail, definition };
 }

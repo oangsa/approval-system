@@ -40,6 +40,8 @@ export const requestDetailSchema = z.strictObject({
     workingRevision: requestRevisionSchema.nullable(), submittedRevision: requestRevisionSchema.nullable(), currentStageNumber: z.union([z.literal(1), z.literal(2)]).nullable(),
     currentApprovers: z.array(z.strictObject({ slotId: z.uuid(), stageNumber: z.union([z.literal(1), z.literal(2)]), reviewer: userSummarySchema.pick({ id: true, displayName: true }), status: z.enum(["WAITING", "ACTIONABLE", "APPROVED", "REJECTED", "RETURNED", "CANCELLED"]) })), availableActions: z.array(z.string()),
 });
+export const requestSummarySchema = requestDetailSchema.pick({ id: true, requestNumber: true, typeId: true, typeCode: true, title: true, priority: true, status: true, requester: true, department: true, revisionNumber: true, currentCycleId: true, createdAt: true, updatedAt: true, submittedAt: true, version: true });
+export type RequestSummary = z.infer<typeof requestSummarySchema>;
 export type PublishedRequestType = z.infer<typeof publishedRequestTypeSchema>;
 export type RequestField = z.infer<typeof requestFieldSchema>;
 export type Condition = z.infer<typeof conditionSchema>;

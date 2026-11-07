@@ -60,7 +60,7 @@ export const requests = pgTable("requests", {
     workingRevisionId: uuid("working_revision_id").references((): AnyPgColumn => requestRevisions.id), submittedRevisionId: uuid("submitted_revision_id").references((): AnyPgColumn => requestRevisions.id),
     currentCycleId: uuid("current_cycle_id").references((): AnyPgColumn => approvalCycles.id),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(), updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(), submittedAt: timestamp("submitted_at", { withTimezone: true }),
-}, (t) => [check("request_status", sql`${t.status} in ('DRAFT','PENDING','RETURNED','APPROVED','REJECTED','WITHDRAWN')`), check("request_priority", sql`${t.priority} in ('LOW','MEDIUM','HIGH','URGENT')`), check("request_version_nonnegative", sql`${t.version} >= 0`), index("request_owner_idx").on(t.requesterId)]);
+}, (t) => [check("request_status", sql`${t.status} in ('DRAFT','PENDING','RETURNED','APPROVED','REJECTED','WITHDRAWN')`), check("request_priority", sql`${t.priority} in ('LOW','MEDIUM','HIGH','URGENT')`), check("request_version_nonnegative", sql`${t.version} >= 0`), index("request_owner_idx").on(t.requesterId), index("request_owner_updated_id_idx").on(t.requesterId, t.updatedAt.desc(), t.id.asc())]);
 export const requestRevisions = pgTable("request_revisions", {
     id: uuid().primaryKey(), requestId: uuid("request_id").notNull().references(() => requests.id), typeId: uuid("type_id").notNull(), formDefinitionVersionId: uuid("form_definition_version_id").notNull(),
     revisionNumber: integer("revision_number").notNull(), fields: jsonb().$type<Record<string, unknown>>().notNull(), amount: numeric({ precision: 24, scale: 2 }), currency: text(),

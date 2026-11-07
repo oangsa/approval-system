@@ -6,7 +6,7 @@
 **Design source:** [`system-sds.md`](./system-sds.md)  
 **Wire/UI sources:** [`api-specs.md`](./api-specs.md) v1.0.1; [`ui-specs.md`](./ui-specs.md) v1.0  
 **Test source:** [`test.md`](./test.md)  
-**Execution status:** Identity & Access (`M01`–`M03`) implementation checks were **executed** on 2026-11-06 with actual results recorded in [`testing-verification.md`](../testing-verification.md); teammate-reviewed PR acceptance is still pending. All other features remain **PLANNED / NOT RUN** (no actual results asserted).
+**Execution status:** Identity & Access (`M01`–`M03`) implementation checks were **executed** on 2026-11-06 with actual results recorded in [`testing-verification.md`](../testing-verification.md). Issues #2 and #3 have scoped evidence below; other unrecorded checks remain **PLANNED / NOT RUN**. Teammate-reviewed PR acceptance remains pending.
 
 > **ID policy:** Preserve the original 54 unique Feature IDs and one-to-one `FR-NNN`, `AC-NNN`, `FT-NNN` mapping. `BR-NNN` and `NFR-NNN` are cross-cutting and can apply to many features. Paths in the matrix are illustrative links to the **existing frozen route directories**, not newly authorized endpoints. Use `api-specs.md` as authoritative for exact methods, schemas, audience and errors.
 
@@ -268,7 +268,7 @@ This is the selected allocation. It does not claim that everything assigned to a
 5. For a failed test, capture expected/actual, sanitized request ID/log, defect link, fix revision and retest.
 6. Do not mark a feature accepted while its important access, persistence, concurrency or UI requirement has not been verified.
 
-**Current evidence statement:** The Identity & Access (`M01`–`M03`) child checks were executed on 2026-11-06; actual results are recorded in [`testing-verification.md`](../testing-verification.md) and remain subject to teammate-reviewed PR acceptance. Every other check in this matrix is planned, and no other passing implementation or execution result is asserted.
+**Current evidence statement:** The Identity & Access (`M01`–`M03`) child checks were executed on 2026-11-06; actual results are recorded in [`testing-verification.md`](../testing-verification.md). Scoped Issue #2 and #3 evidence is recorded below. Unrecorded checks remain planned or not run, and teammate-reviewed PR acceptance remains pending.
 
 ## 10. Identity & Access child criteria (additive)
 
@@ -278,10 +278,14 @@ This is the selected allocation. It does not claim that everything assigned to a
 | M02 — Logout & Current User | FR-002 / AC-002 / FT-002                       | IA-AC-03–05, IA-AC-08–10, IA-AC-12    | IA-DB-02–06, IA-DB-08; IA-API-02–05, IA-API-08; IA-WEB-01–03; IA-E2E-02–03       |
 | M03 — Role-based Access     | FR-003 / AC-003 / FT-003                       | IA-AC-06–12                           | IA-DB-07–08; IA-API-03, IA-API-06–08; IA-WEB-03, IA-WEB-05; IA-E2E-03, IA-E2E-05 |
 
-The child criteria refine, but do not replace, the frozen feature mapping. IA-API-07 proves only generic test-guard behavior and does not satisfy full FT-003 business-resource coverage. The identity feature's implementation checks are executed with recorded evidence in [`testing-verification.md`](../testing-verification.md); downstream `FT-003` business-resource coverage and every non-identity check remain PLANNED / NOT RUN.
+The child criteria refine, but do not replace, the frozen feature mapping. IA-API-07 proves only generic test-guard behavior and does not satisfy full FT-003 business-resource coverage. The identity feature's implementation checks are executed with recorded evidence in [`testing-verification.md`](../testing-verification.md); downstream `FT-003` business-resource coverage remains planned except where scoped evidence is recorded below.
 
 ### Issue #2 implementation evidence
 
 The bounded M04/M15/M17/R06 slice is implemented on `feature/2-request-submit-validation`; supporting draft patch/type metadata reads do not transfer primary ownership of later Save/Resume, configuration, assignment, or decision features. See [SDS](../features/request-submission/sds.md), [numbered AC](../features/request-submission/acceptance-criteria.md), [STS](../features/request-submission/sts.md), and [actual verification](../features/request-submission/verification.md). Future decision atomicity remains owned by its behavior-specific issue; current evidence proves submission atomicity only. Independent teammate review and branch promotion remain pending.
 
 PR #19 minor-finding follow-up: M01/M02 (request form/detail) and O16 (request-type configuration) retain pinned-version labels through the authorized version read; R14/UT-12 paging applies to request-type selection. Regression evidence is defined in [test plan — PR #19 minor-finding regressions](test.md#pr-19-minor-finding-regressions). This follow-up does not implement R01 draft-resume navigation.
+
+### Issue #3 M05/M06 evidence
+
+The request list and detail slice maps to M05/M06. See [acceptance criteria](../features/request-list-detail/acceptance-criteria.md), [STS](../features/request-list-detail/sts.md), and [verification](../features/request-list-detail/verification.md). The STS distinguishes executed coverage from partial and pending assertions; teammate review and promotion remain pending.

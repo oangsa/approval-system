@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { createRequestSchema, errorResponseSchema, patchDraftSchema, publishedRequestTypeSchema, requestDetailSchema, requestTypeSearchSchema, submitRequestSchema } from "@workflow/contracts";
+import { createRequestSchema, errorResponseSchema, paginationSchema, patchDraftSchema, publishedRequestTypeSchema, requestDetailSchema, requestTypeSearchSchema, requestSearchSchema, requestSummarySchema, submitRequestSchema } from "@workflow/contracts";
 import type { RequestService } from "../../Applications/Requests/RequestService";
 import { RequestError } from "../../Domains/Requests/RequestRules";
 import type { IIdentityHttpDependencies } from "../composition";
@@ -8,7 +8,7 @@ import { HttpError } from "../errors";
 
 const requestRoutes = [
         ["GET", "/api/v1/request-types/:id/versions/:versionId", "typeVersion"],
-        ["POST", "/api/v1/requests", "create"], ["PATCH", "/api/v1/requests/:id/draft", "patch"], ["POST", "/api/v1/requests/:id/submit", "submit"],
+        ["POST", "/api/v1/requests/search", "search"], ["POST", "/api/v1/requests", "create"], ["PATCH", "/api/v1/requests/:id/draft", "patch"], ["POST", "/api/v1/requests/:id/submit", "submit"],
         ["GET", "/api/v1/requests/:id", "read"], ["POST", "/api/v1/request-types/search", "types"], ["GET", "/api/v1/request-types/:id", "type"],
     ] as const;
 
@@ -17,8 +17,8 @@ export function createRequestOpenApi()
     const paths: Record<string, Record<string, unknown>> = {};
     for (const [method, path, action] of requestRoutes)
     {
-        const body = action === "create" ? createRequestSchema : action === "patch" ? patchDraftSchema : action === "submit" ? submitRequestSchema : action === "types" ? requestTypeSearchSchema : null;
-        const response = action === "types" ? z.array(publishedRequestTypeSchema) : ["type", "typeVersion"].includes(action) ? publishedRequestTypeSchema : requestDetailSchema;
+        const body = action === "create" ? createRequestSchema : action === "patch" ? patchDraftSchema : action === "submit" ? submitRequestSchema : action === "types" ? requestTypeSearchSchema : action === "search" ? requestSearchSchema : null;
+        const response = action === "types" ? z.array(publishedRequestTypeSchema) : action === "search" ? z.array(requestSummarySchema) : ["type", "typeVersion"].includes(action) ? publishedRequestTypeSchema : requestDetailSchema;
         const keyRequired = action === "create" || action === "submit";
         paths[path.replace(":id", "{id}").replace(":versionId", "{versionId}")] ??= {};
         paths[path.replace(":id", "{id}").replace(":versionId", "{versionId}")]![method.toLowerCase()] = {
@@ -30,7 +30,7 @@ export function createRequestOpenApi()
             ],
             ...(body ? { requestBody: { required: true, content: { "application/json": { schema: z.toJSONSchema(body, { io: "input" }) } } } } : {}),
             responses: {
-                [action === "create" ? "201" : "200"]: { description: "Success", content: { "application/json": { schema: z.toJSONSchema(response) } } },
+                [action === "create" ? "201" : "200"]: { description: "Success", ...(action === "search" ? { headers: { "X-Pagination": { description: "JSON pagination metadata", schema: z.toJSONSchema(paginationSchema) } } } : {}), content: { "application/json": { schema: z.toJSONSchema(response) } } },
                 default: { description: "Error", content: { "application/json": { schema: z.toJSONSchema(errorResponseSchema) } } },
             },
         };
@@ -74,6 +74,13 @@ export function registerRequestRoutes(app: {
                 if (!query.success) throw new HttpError("VALIDATION_ERROR");
                 const result = await service.Types(actor, query.data);
                 return Response.json(result.items, { headers: { "X-Pagination": JSON.stringify(result.pagination) } });
+            }
+            if (action === "search")
+            {
+                const query = requestSearchSchema.safeParse(value);
+                if (!query.success) throw new RequestError("VALIDATION_ERROR", query.error.issues.map((issue) => ({ field: issue.path.join(".") || "body", code: "VALIDATION_ERROR", message: issue.message })));
+                const result = await service.Search(actor, query.data);
+                return Response.json(z.array(requestSummarySchema).parse(result.items), { headers: { "X-Pagination": JSON.stringify(result.pagination) } });
             }
             const schema = action === "create" ? createRequestSchema : action === "patch" ? patchDraftSchema : submitRequestSchema;
             const parsed = schema.safeParse(value);

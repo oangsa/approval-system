@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, expect, test } from "vitest";
 import { and, eq, sql } from "drizzle-orm";
-import { requestDetailSchema, type CreateRequest, type PublishedRequestType } from "@workflow/contracts";
+import { requestDetailSchema, requestSummarySchema, type CreateRequest, type PublishedRequestType } from "@workflow/contracts";
 import { createTestDatabase } from "../helpers/testDatabase";
 import { RequestService } from "../../src/Applications/Requests/RequestService";
 import { ApprovalTaskService } from "../../src/Applications/Approvals/ApprovalTaskService";
@@ -14,6 +14,7 @@ import { seededDefinition } from "../../src/Infrastructures/Database/seedRequest
 import { createIdentityComposition } from "../../src/Presentations/composition";
 import { readEnvironment } from "../../src/Infrastructures/Configuration/environment";
 import { createApplication } from "../../src/Presentations/createApplication";
+import { expectHttpError } from "../helpers/identityHttp";
 import type { IRequestRepository, IRequestUnitOfWork } from "../../src/Domains/Requests/Ports";
 import type { IStageDefinition } from "../../src/Domains/Requests/RequestRules";
 
@@ -217,6 +218,7 @@ test("DB-03/04/09 durable create/submit replay, number, immutable evidence and d
     expect(await restarted.Mutate(item.actor, "submit", draft.id, { expectedVersion: 0 }, submitKey)).toEqual(submitted);
     await expect(restarted.Mutate(item.actor, "submit", draft.id, { expectedVersion: 1 }, submitKey)).rejects.toMatchObject({ code: "IDEMPOTENCY_CONFLICT" });
     expect(await service.Read(item.actor, draft.id)).toEqual(submitted);
+    expect(await restarted.Read(item.actor, draft.id)).toEqual(submitted);
     expect(await counts(draft.id)).toEqual({ cycles: 1, revisions: 1, audit: 2 });
     expect(await db.select().from(requestOutboxEvents).where(eq(requestOutboxEvents.eventKey, `REQUEST_SUBMITTED:${submitted.currentCycleId}`))).toHaveLength(1);
     await expect(service.Mutate(item.actor, "patch", draft.id, { expectedVersion: 1, title: "illegal" })).rejects.toMatchObject({ code: "INVALID_REQUEST_TRANSITION" });
@@ -224,6 +226,7 @@ test("DB-03/04/09 durable create/submit replay, number, immutable evidence and d
     await expect(db.update(requests).set({ requestNumber: "changed" }).where(eq(requests.id, draft.id))).rejects.toThrow();
     expect(await counts(draft.id)).toEqual({ cycles: 1, revisions: 1, audit: 2 });
 });
+
 test("CX-07/08 distinct concurrent submits get distinct numbers; same-key race accepts one cycle", async () =>
 {
     const a = await fixture();
@@ -318,7 +321,7 @@ test("EP-033/035/036 HTTP strict writes, status, location, errors, CORS and fore
     const tokenProvider = (await import("../../src/Infrastructures/Security/TokenProvider")).TokenProvider;
     const token = await new tokenProvider(env.AUTH_JWT_SECRET, { Now: () => new Date() }, env.AUTH_JWT_ISSUER, env.AUTH_JWT_AUDIENCE).Sign(item.ownerId, item.actor.family.id, 0);
     const app = createApplication(undefined, identity, service);
-    const send = (method: string, path: string, body?: unknown, authorization = `Bearer ${token}`, key = randomUUID()) => app.handle(new Request(`http://localhost/api/v1${path}`, { method, headers: { authorization, "content-type": "application/json", "Idempotency-Key": key }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) }));
+    const send = (method: string, path: string, body?: unknown, authorization = `Bearer ${token}`, key = randomUUID()) => app.handle(new Request(`http://localhost/api/v1${path}`, { method, headers: { authorization, "content-type": "application/json", "Idempotency-Key": key, origin: env.AUTH_ALLOWED_ORIGINS[0]! }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) }));
     expect((await send("POST", "/requests", item.content, "")).status).toBe(401);
     const lookup = await send("POST", "/request-types/search", { pageSize: 1, search: [{ name: "code", condition: "EQUAL", value: `T${item.typeId}` }] });
     expect(lookup.status).toBe(200);
@@ -349,9 +352,57 @@ test("EP-033/035/036 HTTP strict writes, status, location, errors, CORS and fore
     expect((await send("POST", `/requests/${draft.id}/submit`, { expectedVersion: 0 })).status).toBe(409);
     const submitted = await send("POST", `/requests/${draft.id}/submit`, { expectedVersion: 1 });
     expect(submitted.status).toBe(200);
-    expect(requestDetailSchema.parse(await submitted.json()).title).toBe("Updated");
-    expect((await send("GET", `/requests/${randomUUID()}`)).status).toBe(404);
+    const submittedDetail = requestDetailSchema.parse(await submitted.json());
+    expect(submittedDetail.title).toBe("Updated");
+    const ownerRead = await send("GET", `/requests/${draft.id}`);
+    expect(ownerRead.status).toBe(200);
+    expect(requestDetailSchema.parse(await ownerRead.json())).toEqual(submittedDetail);
+    const reviewerFamily = randomUUID();
+    await db.insert(sessionFamilies).values({ id: reviewerFamily, userId: item.reviewerId, authVersion: 0, createdAt: new Date(), expiresAt: new Date(Date.now() + 3600000) });
+    const reviewerToken = await new tokenProvider(env.AUTH_JWT_SECRET, { Now: () => new Date() }, env.AUTH_JWT_ISSUER, env.AUTH_JWT_AUDIENCE).Sign(item.reviewerId, reviewerFamily, 0);
+    expect((await send("GET", `/requests/${draft.id}`, undefined, `Bearer ${reviewerToken}`)).status).toBe(200);
+    const replacement = await fixture();
+    await db.insert(userRoles).values({ userId: replacement.ownerId, roleCode: "REVIEWER" });
+    const replacementToken = await new tokenProvider(env.AUTH_JWT_SECRET, { Now: () => new Date() }, env.AUTH_JWT_ISSUER, env.AUTH_JWT_AUDIENCE).Sign(replacement.ownerId, replacement.actor.family.id, 0);
+    const replacementDraft = await replacement.draft();
+    const stage = (await db.select().from(approvalStages).where(eq(approvalStages.cycleId, submittedDetail.currentCycleId!)))[0]!;
+    await db.update(approvalSlots).set({ reviewerId: replacement.ownerId }).where(eq(approvalSlots.stageId, stage.id));
+    expect((await send("GET", `/requests/${draft.id}`, undefined, `Bearer ${replacementToken}`)).status).toBe(200);
+    const search = async (authorization: string) =>
+    {
+        const response = await send("POST", "/requests/search", {}, authorization);
+        expect(response.status).toBe(200);
+        expect(response.headers.get("cache-control")).toBe("no-store");
+        expect(response.headers.get("access-control-expose-headers")?.toLowerCase()).toContain("x-pagination");
+        return { items: requestSummarySchema.array().parse(await response.json()), pagination: JSON.parse(response.headers.get("x-pagination")!) };
+    };
+    const ownerSearch = await search(`Bearer ${token}`);
+    expect(ownerSearch.items).toHaveLength(1);
+    expect(ownerSearch.pagination).toMatchObject({ totalCount: 1, currentPage: 1, pageSize: 20, totalPages: 1, hasPrevious: false, hasNext: false });
+    expect(ownerSearch.items[0]).toMatchObject({ id: draft.id, status: "PENDING", requestNumber: submittedDetail.requestNumber, revisionNumber: submittedDetail.submittedRevision!.revisionNumber, currentCycleId: submittedDetail.currentCycleId, version: submittedDetail.version });
+    const replacementSearch = await search(`Bearer ${replacementToken}`);
+    expect(replacementSearch.items.map((row) => row.id)).toEqual([replacementDraft.id]);
+    expect(replacementSearch.pagination).toMatchObject({ totalCount: 1, currentPage: 1, pageSize: 20, totalPages: 1, hasPrevious: false, hasNext: false });
+    for (const name of ["requesterId", "id"])
+    {
+        expect((await send("POST", "/requests/search", { search: [{ name, condition: "EQUAL", value: replacement.ownerId }] })).status).toBe(422);
+    }
     const other = await fixture();
+    const otherToken = await new tokenProvider(env.AUTH_JWT_SECRET, { Now: () => new Date() }, env.AUTH_JWT_ISSUER, env.AUTH_JWT_AUDIENCE).Sign(other.ownerId, other.actor.family.id, 0);
+    const adminFamily = randomUUID();
+    await db.delete(userRoles).where(eq(userRoles.userId, other.reviewerId));
+    await db.insert(userRoles).values({ userId: other.reviewerId, roleCode: "ADMINISTRATOR" });
+    await db.insert(sessionFamilies).values({ id: adminFamily, userId: other.reviewerId, authVersion: 0, createdAt: new Date(), expiresAt: new Date(Date.now() + 3600000) });
+    const adminToken = await new tokenProvider(env.AUTH_JWT_SECRET, { Now: () => new Date() }, env.AUTH_JWT_ISSUER, env.AUTH_JWT_AUDIENCE).Sign(other.reviewerId, adminFamily, 0);
+    const hiddenResponses = await Promise.all([
+        send("GET", `/requests/${draft.id}`, undefined, `Bearer ${reviewerToken}`),
+        send("GET", `/requests/${draft.id}`, undefined, `Bearer ${otherToken}`),
+        send("GET", `/requests/${draft.id}`, undefined, `Bearer ${adminToken}`),
+        send("GET", `/requests/${randomUUID()}`, undefined, `Bearer ${reviewerToken}`),
+    ]);
+    for (const response of hiddenResponses) await expectHttpError(response, 404);
+    expect((await send("GET", `/requests/${draft.id}`, undefined, "")).status).toBe(401);
+    expect((await send("GET", `/requests/${randomUUID()}`)).status).toBe(404);
     await expect(service.Read(other.actor, draft.id)).rejects.toMatchObject({ code: "NOT_FOUND" });
     const preflight = await app.handle(new Request("http://localhost/api/v1/requests", { method: "OPTIONS", headers: { origin: env.AUTH_ALLOWED_ORIGINS[0]!, "access-control-request-method": "POST", "access-control-request-headers": "authorization,content-type,idempotency-key" } }));
     expect(preflight.status).toBe(204);

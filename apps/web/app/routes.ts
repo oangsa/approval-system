@@ -7,6 +7,7 @@ export default [
     layout("routes/protected.tsx", [
         route("reviews", "routes/reviews/index.tsx"),
         route("reviews/:taskId", "routes/reviews/task.tsx"),
+        route("requests", "routes/requests/index.tsx"),
         route("requests/new", "routes/requests/new.tsx"),
         route("requests/:id", "routes/requests/detail.tsx"),
         route("dashboard", "routes/dashboard/index.tsx"),
