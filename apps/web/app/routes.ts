@@ -5,6 +5,8 @@ export default [
     route("auth/login", "routes/auth/login.tsx"),
     route("unauthorized", "routes/unauthorized/index.tsx"),
     layout("routes/protected.tsx", [
+        route("reviews", "routes/reviews/index.tsx"),
+        route("reviews/:taskId", "routes/reviews/task.tsx"),
         route("requests/new", "routes/requests/new.tsx"),
         route("requests/:id", "routes/requests/detail.tsx"),
         route("dashboard", "routes/dashboard/index.tsx"),

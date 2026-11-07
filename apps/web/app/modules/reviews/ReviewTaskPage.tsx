@@ -3,6 +3,7 @@ import { useParams } from "react-router";
 import { useSession } from "~/modules/auth/sessionContext";
 import { RequestResult } from "~/modules/requests/RequestResult";
 import { readApprovalTaskResult } from "~/services/approvalTaskService";
+import { formatInstant } from "~/modules/reviews/formatDue";
 import { isApiFailure } from "~/api/errors";
 import { Button } from "~/components/ui/button";
 
@@ -50,7 +51,7 @@ export function ReviewTaskPage()
                     <div><dt className="text-sm text-muted-foreground">Stage</dt><dd>{result.task.stageNumber}</dd></div>
                     <div><dt className="text-sm text-muted-foreground">Stage progress</dt><dd>{approved} of {slots.length} approved; {slots.length - approved} remaining</dd></div>
                     <div><dt className="text-sm text-muted-foreground">Assigned reviewer</dt><dd>{result.task.assignedReviewer.displayName}</dd></div>
-                    <div><dt className="text-sm text-muted-foreground">Due</dt><dd>{result.task.dueAt ? <time dateTime={result.task.dueAt}>{new Date(result.task.dueAt).toLocaleString()}</time> : "No due date"}</dd></div>
+                    <div><dt className="text-sm text-muted-foreground">Due</dt><dd>{result.task.dueAt ? <time dateTime={result.task.dueAt}>{formatInstant(result.task.dueAt)}</time> : "No due date"}</dd></div>
                     <div><dt className="text-sm text-muted-foreground">Task version</dt><dd>{result.task.version}</dd></div>
                 </dl>
             </section>

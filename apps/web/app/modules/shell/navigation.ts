@@ -12,6 +12,7 @@ export interface INavigationItem
 export const navigationItems: readonly INavigationItem[] = [
     { to: "/dashboard", label: "Dashboard", roles: [] },
     { to: "/requests/new", label: "New request", roles: ["REQUESTER"] },
+    { to: "/reviews", label: "My Reviews", roles: ["REVIEWER"] },
     { to: "/settings", label: "Settings", roles: [] },
 ];
 
