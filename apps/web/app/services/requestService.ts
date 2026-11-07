@@ -1,4 +1,4 @@
-import { createRequestSchema, type CreateRequest, type RequestDetail } from "@workflow/contracts";
+import { createRequestSchema, type CreateRequest, type RequestDetail, type RequestSearchQuery } from "@workflow/contracts";
 import { requestApi } from "~/api/requests";
 
 /** One in-memory editing session; no request content or action key is persisted in browser storage. */
@@ -42,6 +42,11 @@ export class RequestEditingSession
     {
         return this.saved !== null;
     }
+}
+
+export function searchRequests(query: RequestSearchQuery, signal?: AbortSignal, generation?: number)
+{
+    return requestApi.search(query, signal, generation);
 }
 
 export async function readRequestResult(id: string, signal?: AbortSignal, generation?: number)

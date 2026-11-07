@@ -12,16 +12,17 @@ export interface IRequestCollectionProps<T extends { id: string }>
     columns: string[];
     emptyMessage?: string;
     loadingMessage?: string;
+    requestId?: string;
     onRetry?: () => void;
     onPageChange(page: number): void;
     renderDesktopRow(item: T): ReactNode;
     renderMobileCard(item: T): ReactNode;
 }
 
-export function RequestCollection<T extends { id: string }>({ items, pagination, loading, error, columns, emptyMessage = "No requests yet.", loadingMessage = "Loading requests…", onRetry, onPageChange, renderDesktopRow, renderMobileCard }: IRequestCollectionProps<T>)
+export function RequestCollection<T extends { id: string }>({ items, pagination, loading, error, columns, emptyMessage = "No requests yet.", loadingMessage = "Loading requests…", requestId, onRetry, onPageChange, renderDesktopRow, renderMobileCard }: IRequestCollectionProps<T>)
 {
     if (loading) return <p role="status">{loadingMessage}</p>;
-    if (error) return <div role="alert" className="space-y-2"><p>{error}</p>{onRetry && <Button type="button" onClick={onRetry}>Retry</Button>}</div>;
+    if (error) return <div role="alert" className="space-y-2"><p>{error}</p>{requestId && <p className="text-sm text-muted-foreground">Request ID: <span className="select-all">{requestId}</span></p>}{onRetry && <Button type="button" onClick={onRetry}>Retry</Button>}</div>;
 
     return <div className="space-y-4">
         {!items.length && <p>{emptyMessage}</p>}
