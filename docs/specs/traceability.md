@@ -293,3 +293,12 @@ The request list and detail slice maps to M05/M06. See [acceptance criteria](../
 ### Issue #4 M07/M08/M13 evidence
 
 The reviewer routing and queue slice maps to M07/M08, with the reusable decision guard handoff for M13. See [acceptance criteria](../features/reviewer-routing-queue/acceptance-criteria.md), [STS](../features/reviewer-routing-queue/sts.md), and [verification](../features/reviewer-routing-queue/verification.md). REV-PG-01–05 executed on the recorded snapshot; REV-CT-01 and REV-E2E-02 remain partial, owned by Issue #4. REV-AC-06 and the direct self-vote case remain blocked until Issue #5 integrates and verifies the guard; delegation remains a separate future dependency. Teammate review and promotion remain pending.
+
+### Issue #5 M09/M10/M12/M14 evidence
+
+FR-009/010/011/013 and AC-009/010/011/013 map to [DEC-AC-01–10](../features/approval-decisions-audit/acceptance-criteria.md), [SDS](../features/approval-decisions-audit/sds.md), [STS](../features/approval-decisions-audit/sts.md) and [verification](../features/approval-decisions-audit/verification.md). Direct self-vote API and PostgreSQL evidence now consumes #4's guard (supporting M13 integration; primary ownership stays with #4). RETURN, stage-two activation, delegation and bulk are later integrations. Until stage-two activation exists, the review-authorized guard rejects a stage-one completing vote before writes (409 INVALID_REQUEST_TRANSITION), preserving an ACTIVE stage and ACTIONABLE slot. Domain and real-PostgreSQL regressions cover single/parallel completion, unchanged evidence and reusable failed keys; this is not acceptance of full E2E-05 two-stage progression. Teammate review and promotion remain pending.
+
+Issue #5 alignment corrections, recorded in [verification evidence](../features/approval-decisions-audit/verification.md),
+closes historical task-context and permission-state gaps, plus success-stage and
+server-error support-ID gaps. Read-only handled task access requires a persisted
+actor/slot decision; current request/queue permissions remain unchanged.

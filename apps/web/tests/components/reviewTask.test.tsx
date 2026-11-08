@@ -1,3 +1,4 @@
+import { DecisionAttempt } from "../../app/services/decisionService";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router";
 import { expect, test, vi } from "vitest";
@@ -6,6 +7,8 @@ import { ReviewTaskPage } from "../../app/modules/reviews/ReviewTaskPage";
 import { readApprovalTaskResult } from "../../app/services/approvalTaskService";
 import type { ApprovalTask, PublishedRequestType, RequestDetail } from "@workflow/contracts";
 
+vi.mock("../../app/modules/requests/AuditTimeline", () => ({ AuditTimeline: () => <section>Persisted history</section> }));
+vi.mock("../../app/modules/reviews/DecisionDialog", () => ({ DecisionDialog: ({ onConfirm }: { onConfirm: () => void }) => <button onClick={onConfirm}>Confirm approval</button> }));
 vi.mock("../../app/services/approvalTaskService", () => ({ readApprovalTaskResult: vi.fn() }));
 vi.mock("../../app/modules/auth/sessionContext", () => ({ useSession: () => ({ status: "authenticated", user: { id: "reviewer", roles: ["REVIEWER"] }, generation: 0 }) }));
 function taskFixture()
@@ -89,4 +92,44 @@ test("reloads a stale task without showing private content", async () =>
     expect(screen.queryByRole("button", { name: "Retry" })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Reload task" }));
     expect(await screen.findByText("1 of 2 approved; 1 remaining")).toBeVisible();
+});
+
+test.each([403, 404])("a decision %i clears previously loaded private content", async (status) =>
+{
+    vi.mocked(readApprovalTaskResult).mockResolvedValueOnce(taskFixture());
+    vi.spyOn(DecisionAttempt.prototype, "Submit").mockRejectedValue(new ApiFailure({ kind: "http", status, message: "denied" }));
+    render(<MemoryRouter initialEntries={["/reviews/task"]}><Routes><Route path="/reviews/:taskId" element={<ReviewTaskPage />} /></Routes></MemoryRouter>);
+    await screen.findByText("Saved request");
+    fireEvent.click(screen.getByRole("button", { name: "Approve" }));
+    fireEvent.click(screen.getByRole("button", { name: "Confirm approval" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("unavailable");
+    expect(screen.queryByText("Saved request")).not.toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Task summary" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Confirm approval" })).not.toBeInTheDocument();
+});
+test("handled task shows read-only history without current request content or actions", async () =>
+{
+    vi.mocked(readApprovalTaskResult).mockResolvedValueOnce({ task: { ...taskFixture().task, status: "APPROVED", canCurrentUserDecide: false }, detail: null, definition: null });
+    render(<MemoryRouter initialEntries={["/reviews/task"]}><Routes><Route path="/reviews/:taskId" element={<ReviewTaskPage />} /></Routes></MemoryRouter>);
+    expect(await screen.findByRole("region", { name: "Handled task" })).toHaveTextContent("Read-only handled task");
+    expect(screen.getByText("Persisted history")).toBeVisible();
+    expect(screen.queryByText("Saved request")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Approve" })).not.toBeInTheDocument();
+});
+
+test("blocked stage completion reloads the unchanged actionable task and permits rejection", async () =>
+{
+    const fixture = taskFixture();
+    vi.mocked(readApprovalTaskResult).mockResolvedValue(fixture);
+    vi.spyOn(DecisionAttempt.prototype, "Submit").mockRejectedValue(new ApiFailure({ kind: "http", status: 409, code: "INVALID_REQUEST_TRANSITION", message: "Transition unavailable" }));
+    render(<MemoryRouter initialEntries={["/reviews/task"]}><Routes><Route path="/reviews/:taskId" element={<ReviewTaskPage />} /></Routes></MemoryRouter>);
+    fireEvent.click(await screen.findByRole("button", { name: "Approve" }));
+    fireEvent.click(screen.getByRole("button", { name: "Confirm approval" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Reload before deciding again");
+    expect(screen.queryByRole("button", { name: "Reject" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Reload task" }));
+    expect(await screen.findByRole("button", { name: "Reject" })).toBeEnabled();
+    expect(readApprovalTaskResult).toHaveBeenCalledTimes(2);
+    fireEvent.click(screen.getByRole("button", { name: "Reject" }));
+    expect(screen.getByRole("button", { name: "Confirm approval" })).toBeVisible();
 });

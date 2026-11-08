@@ -624,3 +624,7 @@ The M01–M03 test setup and per-case assertions are maintained in [identity-acc
 ### Issue #4 reviewer routing and queue coverage
 
 [Issue #4 STS](../features/reviewer-routing-queue/sts.md) maps FT-007/008, EP-043/045, API-03/04, UT-08/13, SEC-01/04/05, UI-11/20 and the scoped E2E-02 journey to REV cases. REV-PG-01–05 executed on the recorded snapshot; REV-CT-01 and REV-E2E-02 remain partial due to missing DTO and explicit keyboard assertions, owned by Issue #4. [Verification evidence](../features/reviewer-routing-queue/verification.md) records suites, migration paths and limits. The direct self-vote case (REV-CROSS-01) and delegation (REV-CROSS-02) remain blocked by their dependencies, and this scoped journey does not complete the global E2E-02 decision journey.
+
+### Issue #5 decision and audit coverage
+
+[Feature STS](../features/approval-decisions-audit/sts.md) and [actual evidence](../features/approval-decisions-audit/verification.md) map FT-009/010/011/013, EP-041/046, UT-01/02, API-08, DB-05/08/09, CX-03/08/09/14, SEC-05, UI-09/10 and E2E-02 to decision contracts, the shared guard/transition engine, real PostgreSQL API/rollback/races/restart, and confirmation/history browser journeys. Future stage-two, RETURN/delegation/bulk checks remain with their owning expansions. The one-stage engine must fail closed for those unsupported operations.

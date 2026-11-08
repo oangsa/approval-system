@@ -20,8 +20,8 @@ export class ApprovalTaskService
         return this.unit.Run(async (repository) =>
         {
             const current = await repository.CurrentActor(actor);
-            if (!current.roles.includes("REVIEWER")) throw new ApprovalTaskError("NOT_FOUND");
-            const task = await repository.ReadCurrent(current.account.id, id);
+            const task = (current.roles.includes("REVIEWER") ? await repository.ReadCurrent(current.account.id, id) : null)
+                ?? await repository.ReadHandled(current.account.id, id);
             if (!task) throw new ApprovalTaskError("NOT_FOUND");
             return task;
         });

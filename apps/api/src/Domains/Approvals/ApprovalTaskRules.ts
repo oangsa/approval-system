@@ -1,6 +1,6 @@
 import type { UserRole } from "@workflow/contracts";
 
-export type ApprovalTaskErrorCode = "NOT_FOUND" | "FORBIDDEN" | "SELF_APPROVAL_FORBIDDEN" | "APPROVAL_TASK_STALE";
+export type ApprovalTaskErrorCode = "NOT_FOUND" | "FORBIDDEN" | "SELF_APPROVAL_FORBIDDEN" | "APPROVAL_TASK_STALE" | "INVALID_REQUEST_TRANSITION" | "IDEMPOTENCY_CONFLICT" | "VALIDATION_ERROR";
 export class ApprovalTaskError extends Error
 {
     constructor(public readonly code: ApprovalTaskErrorCode)
