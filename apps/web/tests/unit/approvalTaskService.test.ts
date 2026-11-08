@@ -27,3 +27,11 @@ test("rejects content from a different submitted revision", async () =>
     vi.mocked(readRequestResult).mockResolvedValue({ detail: { currentCycleId: "cycle", submittedRevision: { id: "other" } }, definition: null } as never);
     await expect(readApprovalTaskResult("task")).rejects.toThrow("Task unavailable");
 });
+test("handled task read never requests broad current request content", async () =>
+{
+    vi.mocked(approvalTaskApi.read).mockResolvedValue({ ...task, status: "APPROVED", canCurrentUserDecide: false } as never);
+    const result = await readApprovalTaskResult("task");
+    expect(result.task.canCurrentUserDecide).toBe(false);
+    expect(result.detail).toBeNull();
+    expect(readRequestResult).not.toHaveBeenCalled();
+});

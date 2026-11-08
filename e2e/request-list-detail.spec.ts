@@ -20,7 +20,7 @@ test("REQ-E2E-01 and REQ-E2E-02: requester list and persisted detail", async ({ 
     page.on("request", (outgoing) =>
     {
         const pathname = new URL(outgoing.url()).pathname;
-        if (/^\/api\/v1\/requests\/[^/]+\/(timeline|revisions|comments|attachments|history|discussion|files)(\/|$)/.test(pathname) || /^\/api\/v1\/attachments\/[^/]+\/download$/.test(pathname)) futureCalls.push(outgoing.url());
+        if (/^\/api\/v1\/requests\/[^/]+\/(revisions|comments|attachments|history|discussion|files)(\/|$)/.test(pathname) || /^\/api\/v1\/attachments\/[^/]+\/download$/.test(pathname)) futureCalls.push(outgoing.url());
     });
     await signIn(page, "requester-a@example.test");
     await page.getByRole("link", { name: "New request" }).click();
@@ -65,6 +65,7 @@ test("REQ-E2E-01 and REQ-E2E-02: requester list and persisted detail", async ({ 
         await expect(tab).toBeFocused();
         await expect(tab).toHaveAttribute("aria-selected", "true");
         await expect(page.getByRole("tabpanel")).toBeVisible();
+        if (name === "History") await expect(page.getByRole("tabpanel")).toContainText("REQUEST SUBMITTED");
     }
     await page.keyboard.press("Home");
     await expect(overview).toBeFocused();

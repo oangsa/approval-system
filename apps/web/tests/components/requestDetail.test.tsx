@@ -129,10 +129,11 @@ test("detail tabs support keyboard navigation and keep the header visible", asyn
 
 test("detail restores URL tabs and falls back to overview", async () =>
 {
+    server.use(http.get("http://localhost/api/v1/requests/:id/timeline", () => HttpResponse.json([], { headers: { "X-Pagination": JSON.stringify({ currentPage: 1, pageSize: 20, totalPages: 0, totalCount: 0, hasPrevious: false, hasNext: false }) } })));
     vi.stubEnv("VITE_API_BASE_URL", "http://localhost/api");
     server.use(http.get(`http://localhost/api/v1/requests/${id}`, () => HttpResponse.json(detail)), http.get(`http://localhost/api/v1/request-types/${id}/versions/${versionId}`, () => HttpResponse.json(definition)));
     render(<MemoryRouter initialEntries={[`/requests/${id}?tab=history&other=kept`]}><Location /><Routes><Route path="/requests/:id" element={<RequestDetailPage />} /></Routes></MemoryRouter>);
-    expect(await screen.findByRole("tabpanel", { name: "History" })).toHaveTextContent("History is not available yet.");
+    expect(await screen.findByRole("tabpanel", { name: "History" })).toHaveTextContent("Formal decision and status history");
     expect(screen.getByText(/Type: Operations/)).toBeVisible();
     expect(screen.getByText(/Requester: Owner/)).toBeVisible();
     fireEvent.click(screen.getByRole("tab", { name: "Approval" }));
