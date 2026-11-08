@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
-import { afterAll, expect, test } from "vitest";
+import { afterAll, expect, test, vi } from "vitest";
 import { and, eq, sql } from "drizzle-orm";
-import { requestDetailSchema, requestSummarySchema, type CreateRequest, type PublishedRequestType } from "@workflow/contracts";
+import { requestDetailSchema, requestSummarySchema, type CreateRequest, type PublishedRequestType, type UserRole } from "@workflow/contracts";
 import { createTestDatabase } from "../helpers/testDatabase";
 import { RequestService } from "../../src/Applications/Requests/RequestService";
 import { ApprovalTaskService } from "../../src/Applications/Approvals/ApprovalTaskService";
@@ -17,6 +17,7 @@ import { createApplication } from "../../src/Presentations/createApplication";
 import { expectHttpError } from "../helpers/identityHttp";
 import type { IRequestRepository, IRequestUnitOfWork } from "../../src/Domains/Requests/Ports";
 import type { IStageDefinition } from "../../src/Domains/Requests/RequestRules";
+import type { IActor } from "../../src/Domains/Identity/Identity";
 
 const database = createTestDatabase();
 const observer = createTestDatabase();
@@ -59,6 +60,77 @@ async function counts(id: string)
         audit: (await observer.connection.select().from(requestAuditEvents).where(eq(requestAuditEvents.requestId, id))).length,
     };
 }
+// PostgreSQL uuid ordering is byte-wise; lowercase hexadecimal text order matches it exactly.
+const compareIds = (left: string, right: string) => left < right ? -1 : left > right ? 1 : 0;
+interface ISeededSlot { id: string; requestId: string; requestNumber: string; stageNumber: 1 | 2; dueAt: Date | null; }
+async function reviewerActor(reviewerId: string): Promise<IActor>
+{
+    const familyId = randomUUID();
+    await db.insert(sessionFamilies).values({ id: familyId, userId: reviewerId, authVersion: 0, createdAt: new Date(), expiresAt: new Date(Date.now() + 3600000) });
+    return (await new IdentityRepository(db).ReadCurrentIdentity(reviewerId, familyId))!;
+}
+async function newReviewer(roles: UserRole[] = ["REVIEWER"])
+{
+    const id = randomUUID();
+    await db.insert(users).values({ id, email: `${id}@example.test`, displayName: `Seed ${id.slice(0, 8)}`, passwordHash: "not-for-login" });
+    if (roles.length) await db.insert(userRoles).values(roles.map((roleCode) => ({ userId: id, roleCode })));
+    return { id, actor: await reviewerActor(id) };
+}
+async function parallelSubmission()
+{
+    const stages: IStageDefinition[] = [{ stageNumber: 1, reviewerAssignmentKeys: ["review", "parallel"], slaBusinessMinutes: 480 }];
+    const owner = await fixture(false, false, stages);
+    const peer = await fixture();
+    const parallelId = randomUUID();
+    await db.insert(reviewerAssignmentRules).values({ id: parallelId, assignmentKey: "parallel", departmentId: owner.departmentId, reviewerId: peer.reviewerId });
+    const first = await reviewerActor(owner.reviewerId);
+    const second = await reviewerActor(peer.reviewerId);
+    const draft = await owner.draft();
+    const submitted = await service.Mutate(owner.actor, "submit", draft.id, { expectedVersion: 0 }, randomUUID());
+    const query = approvalTaskSearchSchema.parse({ search: [{ name: "requestNumber", condition: "EQUAL", value: submitted.requestNumber }] });
+    return { owner, peer, parallelId, first, second, draft, submitted, query };
+}
+// Synthetic queue rows satisfy the existing foreign keys; the service under test still performs the search.
+async function seedQueueRequest(ownerId: string, template: { typeId: string; versionId: string; policyId: string }, requestNumber: string, stageNumber: 1 | 2, slots: { reviewerId: string; dueAt: Date | null }[])
+{
+    const requestId = randomUUID(), revisionId = randomUUID(), cycleId = randomUUID(), stageId = randomUUID();
+    await db.insert(requests).values({ id: requestId, requesterId: ownerId, typeId: template.typeId, title: requestNumber, justification: "Seeded queue fixture", priority: "MEDIUM", status: "PENDING", version: 1, requestNumber, submittedAt: new Date() });
+    await db.insert(requestRevisions).values({ id: revisionId, requestId, typeId: template.typeId, formDefinitionVersionId: template.versionId, revisionNumber: 1, fields: {}, submittedAt: new Date(), submittedBy: ownerId });
+    await db.insert(approvalCycles).values({ id: cycleId, requestId, revisionId, policyVersionId: template.policyId, snapshot: {}, isActive: true });
+    await db.insert(approvalStages).values({ id: stageId, cycleId, stageNumber, status: "ACTIVE", slaBusinessMinutes: 480 });
+    const seeded: ISeededSlot[] = slots.map((slot) => ({ id: randomUUID(), requestId, requestNumber, stageNumber, dueAt: slot.dueAt }));
+    await db.insert(approvalSlots).values(seeded.map((slot, index) => ({ id: slot.id, stageId, assignmentKey: `seed-${index}`, reviewerId: slots[index]!.reviewerId, status: "ACTIONABLE" as const, dueAt: slot.dueAt })));
+    await db.update(requests).set({ submittedRevisionId: revisionId, currentCycleId: cycleId }).where(eq(requests.id, requestId));
+    return { requestId, slots: seeded };
+}
+test("REV-PG-01 persists one active parallel stage and each reviewer sees only their slot", async () =>
+{
+    const item = await parallelSubmission();
+    const cycles = await observer.connection.select().from(approvalCycles).where(eq(approvalCycles.requestId, item.draft.id));
+    expect(cycles).toHaveLength(1);
+    expect(cycles[0]).toMatchObject({ id: item.submitted.currentCycleId, revisionId: item.submitted.submittedRevision!.id, policyVersionId: item.owner.policyId, isActive: true, snapshot: {
+        policy: { id: item.owner.policyId, stages: [{ stageNumber: 1, reviewerAssignmentKeys: ["review", "parallel"], slaBusinessMinutes: 480 }] },
+        department: { id: item.owner.departmentId },
+        assignments: [{ id: item.owner.assignmentId, assignmentKey: "review", departmentId: item.owner.departmentId, reviewerId: item.owner.reviewerId }, { id: item.parallelId, assignmentKey: "parallel", departmentId: item.owner.departmentId, reviewerId: item.peer.reviewerId }],
+        title: item.owner.content.title, justification: item.owner.content.justification, priority: item.owner.content.priority,
+    } });
+    const revisions = await observer.connection.select().from(requestRevisions).where(eq(requestRevisions.requestId, item.draft.id));
+    expect(revisions).toHaveLength(1);
+    expect(revisions[0]).toMatchObject({ id: item.submitted.submittedRevision!.id, formDefinitionVersionId: item.owner.versionId, fields: item.owner.content.fields, submittedBy: item.owner.ownerId, submittedAt: expect.any(Date) });
+    const stages = await observer.connection.select().from(approvalStages).where(eq(approvalStages.cycleId, cycles[0]!.id));
+    expect(stages).toHaveLength(1);
+    expect(stages[0]).toMatchObject({ stageNumber: 1, status: "ACTIVE", slaBusinessMinutes: 480 });
+    const slots = await observer.connection.select().from(approvalSlots).where(eq(approvalSlots.stageId, stages[0]!.id));
+    expect(slots).toHaveLength(2);
+    expect(slots).toEqual(expect.arrayContaining([expect.objectContaining({ assignmentKey: "review", reviewerId: item.owner.reviewerId, status: "ACTIONABLE" }), expect.objectContaining({ assignmentKey: "parallel", reviewerId: item.peer.reviewerId, status: "ACTIONABLE" })]));
+    const tasks = new ApprovalTaskService(new ApprovalTaskUnitOfWork(db));
+    for (const [actor, reviewerId] of [[item.first, item.owner.reviewerId], [item.second, item.peer.reviewerId]] as const)
+    {
+        const result = await tasks.Search(actor, item.query);
+        expect(result.pagination.totalCount).toBe(1);
+        expect(result.items.map((slot) => slot.id)).toEqual([slots.find((slot) => slot.reviewerId === reviewerId)!.id]);
+    }
+});
 test("REV-PG-01 snapshots a two-stage policy with parallel slots and queues only the active stage", async () =>
 {
     const stages: IStageDefinition[] = [
@@ -108,6 +180,171 @@ test("REV-PG-01 snapshots a two-stage policy with parallel slots and queues only
     expect(resultB.pagination.totalCount).toBe(0);
     expect(resultB.items).toEqual([]);
     await expect(tasks.Read(reviewerA, waitingSlot.id)).rejects.toMatchObject({ code: "NOT_FOUND" });
+});
+test("REV-PG-04 paginates, sorts and filters isolated queue rows", async () =>
+{
+    const template = await fixture();
+    const reviewer = await newReviewer();
+    const now = new Date();
+    const requestNumbers = [`A%literal${reviewer.id}`, `B_literal${reviewer.id}`, `Bxliteral${reviewer.id}`, `Axliteral${reviewer.id}`];
+    const tasks = new ApprovalTaskService(new ApprovalTaskUnitOfWork(db));
+    const search = (query: unknown = {}) => tasks.Search(reviewer.actor, approvalTaskSearchSchema.parse(query));
+    const all: ISeededSlot[] = [];
+    const assertPage = async (pageNumber: number, pageSize: number, expected: ISeededSlot[]) =>
+    {
+        const result = await search({ pageNumber, pageSize });
+        const totalPages = Math.ceil(expected.length / pageSize);
+        expect(result.pagination).toEqual({ currentPage: pageNumber, pageSize, totalPages, totalCount: expected.length, hasPrevious: pageNumber > 1, hasNext: pageNumber < totalPages });
+        expect(result.items.map((slot) => slot.id)).toEqual(expected.slice((pageNumber - 1) * pageSize, pageNumber * pageSize).map((slot) => slot.id));
+        return result.items.map((slot) => slot.id);
+    };
+    const sortDue = (rows: ISeededSlot[]) => [...rows].sort((a, b) => a.dueAt === null ? b.dueAt === null ? compareIds(a.id, b.id) : 1 : b.dueAt === null ? -1 : a.dueAt.getTime() - b.dueAt.getTime() || compareIds(a.id, b.id));
+    await assertPage(1, 20, []);
+    for (const [index, count] of [1, 22, 22, 56].entries())
+    {
+        const dueAt = index === 3 ? null : new Date(now.getTime() + [-60000, 60000, 0][index]!);
+        const seeded = await seedQueueRequest(template.ownerId, template, requestNumbers[index]!, index % 2 === 0 ? 1 : 2, Array.from({ length: count }, () => ({ reviewerId: reviewer.id, dueAt })));
+        all.push(...seeded.slots);
+        const expected = sortDue(all);
+        if (all.length === 1) await assertPage(1, 20, expected);
+        if (all.length === 45 || all.length === 101)
+        {
+            const ids: string[] = [];
+            for (let page = 1; page <= Math.ceil(all.length / 20); page++) ids.push(...await assertPage(page, 20, expected));
+            expect(new Set(ids).size).toBe(all.length);
+            await assertPage(Math.ceil(all.length / 20) + 1, 20, expected);
+        }
+    }
+    await assertPage(1, 100, sortDue(all));
+    await assertPage(2, 100, sortDue(all));
+    for (const field of ["dueAt", "stageNumber", "requestNumber"] as const)
+    {
+        for (const direction of ["asc", "desc"] as const)
+        {
+            const expected = [...all].sort((a, b) =>
+            {
+                const left = a[field], right = b[field];
+                if (left === null || right === null) return left === right ? compareIds(a.id, b.id) : left === null ? 1 : -1;
+                const comparison = left < right ? -1 : left > right ? 1 : 0;
+                return (direction === "asc" ? comparison : -comparison) || compareIds(a.id, b.id);
+            });
+            for (const pageNumber of [1, 2])
+            {
+                const result = await search({ pageNumber, pageSize: 100, orderBy: `${field} ${direction}` });
+                expect(result.items.map((slot) => slot.id)).toEqual(expected.slice((pageNumber - 1) * 100, pageNumber * 100).map((slot) => slot.id));
+                expect(result.pagination).toEqual({ currentPage: pageNumber, pageSize: 100, totalPages: 2, totalCount: 101, hasPrevious: pageNumber > 1, hasNext: pageNumber < 2 });
+            }
+        }
+    }
+    for (const stageNumber of [1, 2] as const)
+    {
+        const result = await search({ pageSize: 100, search: [{ name: "stageNumber", condition: "EQUAL", value: stageNumber }] });
+        expect(result.items.map((slot) => slot.id)).toEqual(sortDue(all.filter((slot) => slot.stageNumber === stageNumber)).map((slot) => slot.id));
+    }
+    vi.setSystemTime(now);
+    try
+    {
+        for (const overdue of [true, false])
+        {
+            const expected = sortDue(all.filter((slot) => overdue === (slot.dueAt !== null && slot.dueAt.getTime() <= now.getTime())));
+            const result = await search({ pageSize: 100, search: [{ name: "overdue", condition: "EQUAL", value: overdue }] });
+            expect(result.items.map((slot) => slot.id)).toEqual(expected.map((slot) => slot.id));
+            expect(result.pagination.totalCount).toBe(overdue ? 23 : 78);
+        }
+    }
+    finally
+    {
+        vi.useRealTimers();
+    }
+    for (const [value, condition, expectedNumber] of [["%", "CONTAINS", requestNumbers[0]!], ["B_", "STARTWITH", requestNumbers[1]!], [requestNumbers[0]!.toUpperCase().replace("A%", "a%"), "EQUAL", requestNumbers[0]!]] as const)
+    {
+        const result = await search({ pageSize: 100, search: [{ name: "requestNumber", condition, value }] });
+        const expected = sortDue(all.filter((slot) => slot.requestNumber === expectedNumber));
+        expect(result.items.map((slot) => slot.id)).toEqual(expected.map((slot) => slot.id));
+        expect(result.pagination.totalCount).toBe(expected.length);
+    }
+    for (const name of ["requestNumber", "title", "requestNumber,title"] as const)
+    {
+        for (const [value, expectedNumber] of [["%", requestNumbers[0]!], ["_", requestNumbers[1]!]] as const)
+        {
+            const result = await search({ pageSize: 100, searchTerm: { name, value } });
+            const expected = sortDue(all.filter((slot) => slot.requestNumber === expectedNumber));
+            expect(result.items.map((slot) => slot.id)).toEqual(expected.map((slot) => slot.id));
+            expect(result.pagination.totalCount).toBe(expected.length);
+        }
+    }
+});
+test("REV-PG-03 excludes inactive, stale and terminal tasks and disabled identities", async () =>
+{
+    const item = await parallelSubmission();
+    const tasks = new ApprovalTaskService(new ApprovalTaskUnitOfWork(db));
+    const first = await tasks.Search(item.first, item.query);
+    const second = await tasks.Search(item.second, item.query);
+    expect(first.pagination.totalCount).toBe(1);
+    expect(second.pagination.totalCount).toBe(1);
+    expect(first.items[0]!.id).not.toBe(second.items[0]!.id);
+    await expect(tasks.Read(item.first, second.items[0]!.id)).rejects.toMatchObject({ code: "NOT_FOUND" });
+    const slotId = first.items[0]!.id;
+    const assertHidden = async () =>
+    {
+        const result = await tasks.Search(item.first, item.query);
+        expect(result.items).toEqual([]);
+        expect(result.pagination.totalCount).toBe(0);
+        await expect(tasks.Read(item.first, slotId)).rejects.toMatchObject({ code: "NOT_FOUND" });
+    };
+    await db.update(approvalCycles).set({ isActive: false }).where(eq(approvalCycles.id, item.submitted.currentCycleId!));
+    await assertHidden();
+    await db.update(approvalCycles).set({ isActive: true }).where(eq(approvalCycles.id, item.submitted.currentCycleId!));
+    await db.update(requests).set({ currentCycleId: null }).where(eq(requests.id, item.draft.id));
+    await assertHidden();
+    await db.update(requests).set({ currentCycleId: item.submitted.currentCycleId, status: "APPROVED" }).where(eq(requests.id, item.draft.id));
+    await assertHidden();
+    expect((await tasks.Search(item.second, item.query)).items).toEqual([]);
+    const separate = await parallelSubmission();
+    const visible = await tasks.Search(separate.first, separate.query);
+    expect(visible.pagination.totalCount).toBe(1);
+    expect((await tasks.Read(separate.first, visible.items[0]!.id)).id).toBe(visible.items[0]!.id);
+    await db.update(users).set({ isActive: false }).where(eq(users.id, separate.owner.reviewerId));
+    await expect(tasks.Search(separate.first, separate.query)).rejects.toMatchObject({ code: "UNAUTHENTICATED" });
+    await expect(tasks.Read(separate.first, visible.items[0]!.id)).rejects.toMatchObject({ code: "UNAUTHENTICATED" });
+});
+test("REV-PG-05 committed assignment and role changes govern cached actors", async () =>
+{
+    const item = await parallelSubmission();
+    const replacement = await newReviewer(["REQUESTER", "REVIEWER"]);
+    const tasks = new ApprovalTaskService(new ApprovalTaskUnitOfWork(db));
+    const first = await tasks.Search(item.first, item.query);
+    const slotId = first.items[0]!.id;
+    expect(first.pagination.totalCount).toBe(1);
+    await observer.connection.transaction(async (tx) =>
+    {
+        await tx.update(approvalSlots).set({ reviewerId: replacement.id }).where(eq(approvalSlots.id, slotId));
+        const before = await tasks.Search(item.first, item.query);
+        expect(before.items.map((slot) => slot.id)).toEqual([slotId]);
+        expect(before.pagination.totalCount).toBe(1);
+    });
+    const removed = await tasks.Search(item.first, item.query);
+    expect(removed.items).toEqual([]);
+    expect(removed.pagination.totalCount).toBe(0);
+    await expect(tasks.Read(item.first, slotId)).rejects.toMatchObject({ code: "NOT_FOUND" });
+    const assigned = await tasks.Search(replacement.actor, item.query);
+    expect(assigned.items.map((slot) => slot.id)).toEqual([slotId]);
+    expect(assigned.pagination.totalCount).toBe(1);
+    expect((await tasks.Read(replacement.actor, slotId)).id).toBe(slotId);
+    const saved = (await observer.connection.select().from(approvalSlots).where(eq(approvalSlots.id, slotId)))[0];
+    await observer.connection.transaction(async (tx) =>
+    {
+        await tx.delete(userRoles).where(and(eq(userRoles.userId, replacement.id), eq(userRoles.roleCode, "REVIEWER")));
+        const before = await tasks.Search(replacement.actor, item.query);
+        expect(before.items.map((slot) => slot.id)).toEqual([slotId]);
+        expect(before.pagination.totalCount).toBe(1);
+        expect((await tasks.Read(replacement.actor, slotId)).id).toBe(slotId);
+    });
+    await expect(tasks.Search(replacement.actor, item.query)).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(tasks.Read(replacement.actor, slotId)).rejects.toMatchObject({ code: "NOT_FOUND" });
+    expect((await tasks.Search(item.first, item.query)).items).toEqual([]);
+    await expect(tasks.Read(item.first, slotId)).rejects.toMatchObject({ code: "NOT_FOUND" });
+    expect((await observer.connection.select().from(approvalSlots).where(eq(approvalSlots.id, slotId)))[0]).toEqual(saved);
 });
 test("reviewer queue scopes rows and detail to the current assignment", async () =>
 {
@@ -195,6 +432,35 @@ test("reviewer task HTTP enforces assignment, validation, pagination and due-dat
         expect(await (await search([{ name: "dueAt", condition, value: "2026-11-07T13:00:00Z" }])).json()).toHaveLength(1);
     const preflight = await app.handle(new Request("http://localhost/api/v1/approval-tasks/search", { method: "OPTIONS", headers: { origin: "http://localhost:3000", "access-control-request-method": "POST", "access-control-request-headers": "authorization,content-type" } }));
     expect(preflight.status).toBe(204);
+});
+test.each(["wrong-role", "unresolved", "empty", "stage-two"] as const)("REV-PG-02 HTTP rejects %s configuration atomically", async (condition) =>
+{
+    const stages: IStageDefinition[] = [{ stageNumber: condition === "stage-two" ? 2 : 1, reviewerAssignmentKeys: condition === "empty" ? [] : [condition === "unresolved" ? "missing" : "review"], slaBusinessMinutes: 480 }];
+    const item = await fixture(false, false, stages);
+    if (condition === "wrong-role") await db.delete(userRoles).where(eq(userRoles.userId, item.reviewerId));
+    const draft = await item.draft();
+    const persisted = async () => ({
+        request: await observer.connection.select().from(requests).where(eq(requests.id, draft.id)),
+        revisions: await observer.connection.select().from(requestRevisions).where(eq(requestRevisions.requestId, draft.id)),
+        audit: await observer.connection.select().from(requestAuditEvents).where(eq(requestAuditEvents.requestId, draft.id)),
+    });
+    const before = await persisted();
+    const env = readEnvironment({ NODE_ENV: "test", DATABASE_URL: process.env.TEST_DATABASE_URL, AUTH_JWT_SECRET: "request-http-test-only-secret-32-bytes-long", AUTH_JWT_ISSUER: "request-http-tests", AUTH_JWT_AUDIENCE: "request-http-tests-api", AUTH_ALLOWED_ORIGINS: "http://localhost:3000", AUTH_COOKIE_SECURE: "false" });
+    const identity = await createIdentityComposition(env, database);
+    const TokenProvider = (await import("../../src/Infrastructures/Security/TokenProvider")).TokenProvider;
+    const token = await new TokenProvider(env.AUTH_JWT_SECRET, { Now: () => new Date() }, env.AUTH_JWT_ISSUER, env.AUTH_JWT_AUDIENCE).Sign(item.ownerId, item.actor.family.id, 0);
+    const app = createApplication(undefined, identity, service);
+    const response = await app.handle(new Request(`http://localhost/api/v1/requests/${draft.id}/submit`, { method: "POST", headers: { authorization: `Bearer ${token}`, "content-type": "application/json", "Idempotency-Key": randomUUID() }, body: JSON.stringify({ expectedVersion: 0 }) }));
+    expect(response.status).toBe(409);
+    expect(await response.json()).toMatchObject({ code: "CONFIGURATION_INCOMPLETE" });
+    expect(await persisted()).toEqual(before);
+    expect(before.request[0]).toMatchObject({ status: "DRAFT", version: 0, requestNumber: null, submittedRevisionId: null, currentCycleId: null });
+    expect(before.revisions).toHaveLength(1);
+    expect(before.revisions[0]).toMatchObject({ submittedAt: null, submittedBy: null });
+    expect(await observer.connection.select().from(approvalCycles).where(eq(approvalCycles.requestId, draft.id))).toEqual([]);
+    expect(await observer.connection.select().from(approvalStages).innerJoin(approvalCycles, eq(approvalStages.cycleId, approvalCycles.id)).where(eq(approvalCycles.requestId, draft.id))).toEqual([]);
+    expect(await observer.connection.select().from(approvalSlots).innerJoin(approvalStages, eq(approvalSlots.stageId, approvalStages.id)).innerJoin(approvalCycles, eq(approvalStages.cycleId, approvalCycles.id)).where(eq(approvalCycles.requestId, draft.id))).toEqual([]);
+    expect(await observer.connection.select().from(requestOutboxEvents).where(sql`${requestOutboxEvents.payload}->>'requestId' = ${draft.id}`)).toEqual([]);
 });
 test("self-only assignment rejects submission without creating a cycle", async () =>
 {
