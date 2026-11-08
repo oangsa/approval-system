@@ -160,6 +160,11 @@ test("reviewer task HTTP enforces assignment, validation, pagination and due-dat
     expect(await response.json()).toEqual([expected]);
     expect(JSON.parse(response.headers.get("x-pagination")!)).toEqual({ currentPage: 1, pageSize: 1, totalPages: 1, totalCount: 1, hasPrevious: false, hasNext: false });
     expect(response.headers.get("cache-control")).toBe("no-store");
+    const beyond = await send("POST", "/approval-tasks/search", JSON.stringify({ pageNumber: 2, pageSize: 1, search: [filter] }));
+    expect(beyond.status).toBe(200);
+    expect(await beyond.json()).toEqual([]);
+    expect(beyond.headers.get("cache-control")).toBe("no-store");
+    expect(JSON.parse(beyond.headers.get("x-pagination")!)).toEqual({ currentPage: 2, pageSize: 1, totalPages: 1, totalCount: 1, hasPrevious: true, hasNext: false });
     expect(response.headers.get("access-control-expose-headers")?.toLowerCase()).toContain("x-pagination");
     const detail = await send("GET", `/approval-tasks/${slot.id}`);
     expect(detail.status).toBe(200);

@@ -68,8 +68,10 @@ export class ApprovalTaskRepository implements IApprovalTaskRepository
         const total = this.db.$with("total").as(this.db.select({ count: count().as("count") }).from(scoped));
         const order = query.orderBy.endsWith("desc") ? sql`${scoped[field]} desc nulls last` : sql`${scoped[field]} asc nulls last`;
         const page = this.db.$with("page").as(this.db.select().from(scoped).orderBy(order, asc(scoped.id)).limit(query.pageSize).offset((query.pageNumber - 1) * query.pageSize));
-        const rows = await this.db.with(scoped, total, page).select({ id: page.id, requestId: page.requestId, cycleId: page.cycleId, revisionId: page.revisionId, stageNumber: page.stageNumber, requestNumber: page.requestNumber, reviewerId: page.reviewerId, displayName: page.displayName, status: page.status, dueAt: page.dueAt, version: page.version, total: total.count }).from(page).leftJoin(total, sql`true`);
-        const totalCount = rows[0]?.total ?? 0;
+        // The single aggregate row is the join driver so the total survives an empty page; the page CTE is optional.
+        const pageOrder = query.orderBy.endsWith("desc") ? sql`${page[field]} desc nulls last` : sql`${page[field]} asc nulls last`;
+        const rows = await this.db.with(scoped, total, page).select({ id: page.id, requestId: page.requestId, cycleId: page.cycleId, revisionId: page.revisionId, stageNumber: page.stageNumber, requestNumber: page.requestNumber, reviewerId: page.reviewerId, displayName: page.displayName, status: page.status, dueAt: page.dueAt, version: page.version, total: total.count }).from(total).leftJoin(page, sql`true`).orderBy(pageOrder, asc(page.id));
+        const totalCount = rows[0]!.total;
         const totalPages = Math.ceil(totalCount / query.pageSize);
         return { items: rows.filter((row) => row.id !== null).map((row) => this.Project(row)), pagination: { currentPage: query.pageNumber, pageSize: query.pageSize, totalPages, totalCount, hasPrevious: query.pageNumber > 1, hasNext: query.pageNumber < totalPages } };
     }
