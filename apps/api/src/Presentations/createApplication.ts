@@ -1,26 +1,74 @@
+import type { DecisionService } from "../Applications/Approvals/DecisionService";
+import { registerDecisionRoutes } from "./Routes/DecisionRoutes";
+import type { RequestService } from "../Applications/Requests/RequestService";
+import type { ApprovalTaskService } from "../Applications/Approvals/ApprovalTaskService";
+import { registerApprovalTaskRoutes } from "./Routes/ApprovalTaskRoutes";
+import { registerRequestRoutes } from "./Routes/RequestRoutes";
+import { randomUUID } from "node:crypto";
 import { Elysia, type ElysiaAdapter } from "elysia";
 import { healthResponseSchema } from "@workflow/contracts";
+import { z } from "zod";
+import type { IIdentityHttpDependencies } from "./composition";
+import { checkOrigin, corsHeaders, preflight } from "./cors";
+import { errorResponse, HttpError } from "./errors";
+import { authRouteDescriptors, registerAuthRoutes } from "./Routes/AuthRoutes";
 
-export function createApplication(adapter?: ElysiaAdapter)
+export function createApplication(adapter?: ElysiaAdapter, identity?: IIdentityHttpDependencies, requests?: RequestService, approvalTasks?: ApprovalTaskService, decisions?: DecisionService)
 {
-    return new Elysia({ adapter })
-        .onError(({ code, error, set }) =>
+    const ids = new WeakMap<Request, string>();
+    const app = new Elysia({ adapter })
+        .onRequest(({ request, set }) =>
         {
-            if (code === "NOT_FOUND")
+            const supplied = request.headers.get("x-request-id");
+            const id = supplied && z.uuid().safeParse(supplied).success ? supplied.toLowerCase() : randomUUID();
+            ids.set(request, id);
+            set.headers["X-Request-Id"] = id;
+            const path = new URL(request.url).pathname;
+            if (path.startsWith("/api/v1/"))
             {
-                set.status = 404;
-                return { message: "Not found" };
+                set.headers["Cache-Control"] = "no-store";
+                if (identity)
+                {
+                    if (request.method === "OPTIONS")
+                    {
+                        const method = request.headers.get("access-control-request-method")?.toUpperCase();
+                        if (!(decisions && (method === "POST" && /^\/api\/v1\/approval-tasks\/[^/]+\/decisions$/.test(path) || method === "GET" && /^\/api\/v1\/requests\/[^/]+\/timeline$/.test(path))) && !authRouteDescriptors.some((route) => route.path === path && route.method === method) && !(requests && /^(?:GET|POST|PATCH)$/.test(method ?? "") && /^\/api\/v1\/(?:requests|request-types)(?:\/|$)/.test(path)) && !(approvalTasks && (method === "POST" && path === "/api/v1/approval-tasks/search" || method === "GET" && /^\/api\/v1\/approval-tasks\/[^/]+$/.test(path) && path !== "/api/v1/approval-tasks/search"))) throw new HttpError("FORBIDDEN");
+                        return preflight(request, identity.allowedOrigins);
+                    }
+                    const required = ["/api/v1/auth/login", "/api/v1/auth/refresh", "/api/v1/auth/logout"].includes(path);
+                    const origin = checkOrigin(request, identity.allowedOrigins, required);
+                    const headers = new Headers();
+                    corsHeaders(headers, origin);
+                    headers.forEach((value, key) =>
+{
+ set.headers[key] = value;
+});
+                }
             }
-            if (code === "VALIDATION" || code === "PARSE")
-            {
-                set.status = 400;
-                return { message: "Invalid request" };
-            }
-            console.error(error);
-            set.status = 500;
-            return { message: "Internal server error" };
         })
-        .get("/health", () => ({ status: "ok" as const }), {
-            response: healthResponseSchema,
-        });
+        .onError(({ code, error, request, set }) =>
+        {
+            const id = ids.get(request) ?? randomUUID();
+            const result = errorResponse(error, code, id);
+            set.status = result.statusCode;
+            set.headers["X-Request-Id"] = id;
+            const responseHeaders = error && typeof error === "object" && "responseHeaders" in error && error.responseHeaders instanceof Headers ? error.responseHeaders : null;
+            if (!responseHeaders?.has("Cache-Control")) set.headers["Cache-Control"] = "no-store";
+            if (result.code === "RATE_LIMITED") set.headers["Retry-After"] = "900";
+            if (responseHeaders)
+            {
+                responseHeaders.forEach((value, key) =>
+                {
+                    set.headers[key] = value;
+                });
+            }
+            if (result.statusCode >= 500) console.error({ code: result.code, requestId: id });
+            return result;
+        })
+        .get("/health", () => ({ status: "ok" as const }), { response: healthResponseSchema });
+    if (identity) registerAuthRoutes(app, identity);
+    if (identity && requests) registerRequestRoutes(app, identity, requests);
+    if (identity && approvalTasks) registerApprovalTaskRoutes(app, identity, approvalTasks);
+    if (identity && decisions) registerDecisionRoutes(app, identity, decisions);
+    return app;
 }

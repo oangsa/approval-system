@@ -1,10 +1,16 @@
+import { loadTestEnvironment } from "./apps/api/tests/helpers/testEnvironment";
+import { assertTestDatabaseTarget } from "./apps/api/src/Infrastructures/Database/testDatabaseTargetGuard";
 import { defineConfig, devices } from "@playwright/test";
 import { webUrl, apiUrl } from "./e2e/helpers/environment";
 
+loadTestEnvironment();
+const testDatabaseUrl = assertTestDatabaseTarget();
+
 export default defineConfig({
     testDir: "./e2e",
-    fullyParallel: true,
-    workers: process.env.CI ? 2 : undefined,
+    fullyParallel: false,
+    // Keep browser tests sequential locally and in CI to limit CPU and RAM usage.
+    workers: 1,
     retries: 0,
     outputDir: "artifacts/playwright/results",
     reporter: [
@@ -19,7 +25,8 @@ export default defineConfig({
     projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
     webServer: [
         {
-            command: "npm run start --workspace @workflow/web",
+            // Build inside the web server command so the client bundle bakes the API origin.
+            command: "npm run build --workspace @workflow/web && npm run start --workspace @workflow/web",
             url: webUrl.origin,
             reuseExistingServer: false,
             env: {
@@ -27,18 +34,25 @@ export default defineConfig({
                 APP_ENV: "test",
                 HOST: webUrl.hostname,
                 PORT: webUrl.port || "80",
+                // The browser calls the API origin directly; CORS allows exactly this origin.
+                VITE_API_BASE_URL: `${apiUrl.origin}/api`,
             },
         },
         {
-            command: "node apps/api/dist/index.js",
+            command: "npm run build --workspace @workflow/api && node apps/api/dist/index.js",
             url: `${apiUrl.origin}/health`,
             reuseExistingServer: false,
             env: {
                 NODE_ENV: "test",
                 HOST: apiUrl.hostname,
                 PORT: apiUrl.port || "80",
-                // Health is liveness only: deliberately unreachable and never a development target.
-                DATABASE_URL: "postgresql://127.0.0.1:1/workflow_test",
+                // Real disposable PostgreSQL: run db:test:up, db:test:migrate and db:test:seed first.
+                DATABASE_URL: testDatabaseUrl,
+                AUTH_JWT_SECRET: "e2e-only-secret-0123456789abcdef0123456789abcdef",
+                AUTH_JWT_ISSUER: "workflow-approval-system-e2e",
+                AUTH_JWT_AUDIENCE: "workflow-approval-system-api-e2e",
+                AUTH_ALLOWED_ORIGINS: webUrl.origin,
+                AUTH_COOKIE_SECURE: "false",
             },
         },
     ],

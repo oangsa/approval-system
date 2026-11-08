@@ -1,0 +1,2 @@
+CREATE UNIQUE INDEX "one_type_budget" ON "budget_policies" USING btree ("type_id") WHERE "budget_policies"."is_active" AND "budget_policies"."department_id" IS NULL;--> statement-breakpoint
+CREATE UNIQUE INDEX "one_department_budget" ON "budget_policies" USING btree ("type_id","department_id") WHERE "budget_policies"."is_active" AND "budget_policies"."department_id" IS NOT NULL;

@@ -664,6 +664,7 @@ Create admin draft:
 - `POST /admin/request-types/:id/publish` sends `{expectedVersion}` + `Idempotency-Key`, validates the complete field/condition graph and returns the published immutable version. Concurrent or stale publication returns `409` with no new version.
 - `POST /admin/request-types/:id/disable` sends `{expectedVersion}`; no new requests of that type are permitted, but existing returned requests may still edit/resubmit their pinned version as long as other current policies remain valid.
 - `GET /request-types/:id` for an ordinary requester exposes only necessary active published metadata; admin endpoints can inspect unpublished drafts. Returned owners can retrieve their pinned historical definition through an authorized read context.
+- `GET /request-types/:id/versions/:versionId` accepts a `requestId` UUID query parameter, required for non-Administrators. The server revalidates current request-read authority and verifies that the requested type/version belongs to that request’s working or submitted revision. Missing, foreign or mismatched context returns `404 NOT_FOUND`. Administrators may read the definition without request context; this grants no request-content authority. Historical reads remain available if the type is disabled or a newer version is published.
 - A request draft includes `typeId` and the form version the user rendered. Before _first_ submission, the server requires the currently active published form version. A stale `formDefinitionVersionId` returns `409 FORM_DEFINITION_CHANGED`; the user must review/revalidate their saved draft against the latest version. It must **not** silently transform a submitted revision.
 
 ### 6.4 Request draft and submission
@@ -1182,3 +1183,7 @@ Feature-level FR/AC mapping is authoritative in `specifications.md`. This crossw
 **Amendment mapping:** The administrator escalation search is a narrow read surface supporting the existing escalation/reassignment capabilities; no new feature ID or change to the 54-feature scope.
 
 **Coverage check:** M01–M17 (17), R01–R17 (17), and the 20 expressly selected O-series features appear once each.
+
+## 13. Identity & Access feature records (additive)
+
+The feature implementation details and supporting evidence plan for M01–M03 are maintained in [identity-access/sds.md](../features/identity-access/sds.md), [acceptance-criteria.md](../features/identity-access/acceptance-criteria.md), [sts.md](../features/identity-access/sts.md), and [dod.md](../features/identity-access/dod.md). Those records implement only the existing login, refresh, logout, logout-all, and current-user routes with the DTOs already defined in §§3.2, 5.1, and 6.1. They add no route, change no frozen method or DTO, and do not revise this document's version or status. All feature checks remain PLANNED / NOT RUN.

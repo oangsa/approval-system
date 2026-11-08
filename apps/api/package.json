@@ -11,15 +11,18 @@
     "db:migrate": "drizzle-kit migrate",
     "db:check": "node --env-file-if-exists=.env --import tsx scripts/check-database.ts",
     "test:integration": "vitest run --config vitest.postgres.config.ts",
-    "db:test:migrate": "drizzle-kit migrate --config drizzle.test.config.ts"
+    "db:test:migrate": "drizzle-kit migrate --config drizzle.test.config.ts",
+    "db:test:seed": "node --import tsx scripts/seed-test.ts",
+    "db:seed": "node --env-file-if-exists=.env --import tsx scripts/seed-development.ts"
   },
   "dependencies": {
+    "@elysia/node": "1.4.6",
     "@workflow/contracts": "*",
-    "elysia": "^1.4.0",
     "drizzle-orm": "^0.45.0",
+    "elysia": "^1.4.0",
+    "jose": "^6.2.15",
     "postgres": "^3.4.8",
-    "zod": "^4.3.6",
-    "@elysia/node": "1.4.6"
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "drizzle-kit": "^0.31.9"

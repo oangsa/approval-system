@@ -4,7 +4,7 @@
 **Version:** 1.0.0 (proposed testing contract, derived from frozen specifications)  
 **Authority:** [`specifications.md`](./specifications.md) v1.0; [`api-specs.md`](./api-specs.md) v1.0.1; [`ui-specs.md`](./ui-specs.md) v1.0  
 **Coverage:** All 54 selected features; three sprints; product/API/UI and cross-feature regression  
-**Execution status:** **NOT EXECUTED** — this document defines planned verification, not passing results.
+**Execution status:** This document is the global test plan. Scoped execution evidence is linked in the feature records below; unrecorded assertions remain planned.
 
 > **Contract precedence:** `specifications.md` controls feature behavior, approval state and requirements; `api-specs.md` controls routes, DTOs, status/errors, headers, security and transactions; `ui-specs.md` controls navigation, presentation and interaction. A mismatch is a contract issue, **not** permission to quietly change behavior to make a test pass. Implementation defaults may be tuned if their change is documented and doesn't violate frozen rules.
 
@@ -22,13 +22,13 @@ Verify that a two-person implementation satisfies the frozen product, API and UI
 
 | Layer                     | Test ID prefix | Primary runner                                                                 | What is real?                                                                                   |
 | ------------------------- | -------------- | ------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------- |
-| Domain unit               | `UT-*`         | Vitest                                                                       | Pure policies/state/form evaluator; fake clock and controlled dependencies                      |
-| Shared contract           | `CT-*`         | Vitest                                                                       | Actual shared Zod schemas, DTO and enum validation                                              |
-| HTTP/API                  | `API-*`        | Vitest + Elysia app request                                                  | Real routing, middleware, headers, error envelopes and authentication; integration DB as needed |
-| Database integration      | `DB-*`         | Vitest + disposable PostgreSQL                                               | Real Drizzle schema/migrations, constraints, transactions and isolation                         |
-| Concurrency/failure       | `CX-*`         | Vitest + two or more real PG connections                                     | Competing commits, unique constraints, rollback, retries, crash/fault boundaries                |
+| Domain unit               | `UT-*`         | Vitest                                                                         | Pure policies/state/form evaluator; fake clock and controlled dependencies                      |
+| Shared contract           | `CT-*`         | Vitest                                                                         | Actual shared Zod schemas, DTO and enum validation                                              |
+| HTTP/API                  | `API-*`        | Vitest + Elysia app request                                                    | Real routing, middleware, headers, error envelopes and authentication; integration DB as needed |
+| Database integration      | `DB-*`         | Vitest + disposable PostgreSQL                                                 | Real Drizzle schema/migrations, constraints, transactions and isolation                         |
+| Concurrency/failure       | `CX-*`         | Vitest + two or more real PG connections                                       | Competing commits, unique constraints, rollback, retries, crash/fault boundaries                |
 | UI component              | `UI-*`         | React Testing Library or comparable React harness **[implementation default]** | Real components + mocked API responses; keyboard and accessible semantics                       |
-| End-to-end                | `E2E-*`        | Playwright (D-01)                                        | Web + API + real disposable DB, private test storage, actual browser                            |
+| End-to-end                | `E2E-*`        | Playwright (D-01)                                                              | Web + API + real disposable DB, private test storage, actual browser                            |
 | Privacy/security          | `SEC-*`        | Direct HTTP + browser checks                                                   | Role/ownership/cookie/session/download safeguards                                               |
 | Operations/non-functional | `OPS-*`        | Fake clock, trusted-job request, controlled smoke environment                  | SLA scheduler, localization, accessibility and optional performance target                      |
 
@@ -569,7 +569,7 @@ Every executed test report records:
 | -------------------------- | ------------------------------------------------------------------------------------------------- |
 | `testId`                   | One of `FT-*`, `UT-*`, `CT-*`, `DB-*`, `CX-*`, `API-*`, `SEC-*`, `UI-*`, `E2E-*`, `OPS-*`, `EP-*` |
 | `featureId / FR / BR / AC` | Traceable contract identifiers where applicable                                                   |
-| `environment`              | OS, Node.js/npm/test-runner/browser version, PostgreSQL version, object-store adapter                |
+| `environment`              | OS, Node.js/npm/test-runner/browser version, PostgreSQL version, object-store adapter             |
 | `build`                    | Commit SHA and optional release tag                                                               |
 | `fixture`                  | Seed revision, role, request type/policy version, clock instant                                   |
 | `operation`                | Input, actor, endpoint/page, idempotency identity when relevant                                   |
@@ -605,3 +605,26 @@ A selected feature is **verified** only when its frozen `FR`, `AC`, domain/HTTP/
 - **In-document data correction:** For a Friday 16:00 start with a **120-business-minute** SLA (60 minutes Friday + 60 minutes Monday), the expected due time is **Monday 10:00 Asia/Bangkok**. This concrete example is used throughout tests.
 
 **Remaining test harness implementation details (adjustable):** exact CI pipeline, isolated test DB lifecycle, package scripts, fake-clock library, object-store test adapter, screenshot naming, contrast tooling and performance smoke environment. No additional product/API/UI decisions are required to author this test specification.
+
+## 11. Identity & Access feature test records (additive)
+
+The M01–M03 test setup and per-case assertions are maintained in [identity-access/sts.md](../features/identity-access/sts.md), with child criteria in [acceptance-criteria.md](../features/identity-access/acceptance-criteria.md). Feature test IDs IA-CT-01, IA-DB-01–08, IA-API-01–09, IA-WEB-01–05, and IA-E2E-01–05 supplement the applicable global CT, DB, API, SEC, UI, FT, and E2E coverage; they do not replace or renumber those IDs. The global full request/approval journeys remain owned by their features. The identity test suites were executed on 2026-11-06 with results recorded in [sts.md §7b](../features/identity-access/sts.md) and [testing-verification.md](../testing-verification.md); tests without recorded evidence there remain PLANNED / NOT RUN.
+
+### PR #19 minor-finding regressions
+
+- Reopened request details resolve field and select-option labels from the displayed revision’s exact definition version, including after a newer publication or type disablement. Definition-load failures expose Retry.
+- Version reads require authentication and, for non-Administrators, current request-read authority plus a matching request/type/version context. Test owner, current reviewer, unrelated user, invalid/missing context and administrator metadata-only access.
+- Request-type selection uses bounded server pages and validated `X-Pagination`; a 101st type is selectable, and the selection survives paging back. Missing or malformed pagination is an error.
+- Verification: `apps/web/tests/components/requestDetail.test.tsx`, `apps/web/tests/components/requestTypes.test.tsx`, `apps/api/tests/postgres/requests.test.ts`, and `apps/api/tests/integration/requestOpenApi.test.ts`. Draft-resume navigation remains deferred.
+
+### Issue #3 request list and detail coverage
+
+[Issue #3 STS](../features/request-list-detail/sts.md) maps FT-005/006, EP-032/034, API-03/04, UT-13, SEC-02/08/14, UI-09/20 and the scoped E2E-01 journey to REQ cases. [Verification evidence](../features/request-list-detail/verification.md) records executed suites and limits; case-level partial and pending assertions remain in the STS. This scoped journey does not complete the global E2E-01 journey.
+
+### Issue #4 reviewer routing and queue coverage
+
+[Issue #4 STS](../features/reviewer-routing-queue/sts.md) maps FT-007/008, EP-043/045, API-03/04, UT-08/13, SEC-01/04/05, UI-11/20 and the scoped E2E-02 journey to REV cases. REV-PG-01–05 executed on the recorded snapshot; REV-CT-01 and REV-E2E-02 remain partial due to missing DTO and explicit keyboard assertions, owned by Issue #4. [Verification evidence](../features/reviewer-routing-queue/verification.md) records suites, migration paths and limits. The direct self-vote case (REV-CROSS-01) and delegation (REV-CROSS-02) remain blocked by their dependencies, and this scoped journey does not complete the global E2E-02 decision journey.
+
+### Issue #5 decision and audit coverage
+
+[Feature STS](../features/approval-decisions-audit/sts.md) and [actual evidence](../features/approval-decisions-audit/verification.md) map FT-009/010/011/013, EP-041/046, UT-01/02, API-08, DB-05/08/09, CX-03/08/09/14, SEC-05, UI-09/10 and E2E-02 to decision contracts, the shared guard/transition engine, real PostgreSQL API/rollback/races/restart, and confirmation/history browser journeys. Future stage-two, RETURN/delegation/bulk checks remain with their owning expansions. The one-stage engine must fail closed for those unsupported operations.

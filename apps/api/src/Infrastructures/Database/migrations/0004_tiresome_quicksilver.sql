@@ -1,0 +1,1 @@
+CREATE INDEX "request_owner_updated_id_idx" ON "requests" USING btree ("requester_id","updated_at" DESC NULLS LAST,"id");
