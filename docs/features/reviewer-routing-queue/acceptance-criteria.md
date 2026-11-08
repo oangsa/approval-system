@@ -1,6 +1,6 @@
 # Reviewer routing and queue acceptance criteria
 
-All criteria are planned. Their parent requirements remain authoritative; passing an isolated child does not close a dependent journey.
+The Issue #4 slice is implemented. Verification is partial where the STS identifies missing assertions; REV-AC-06 remains a downstream dependency. Parent requirements remain authoritative; passing an isolated child does not close a dependent journey. See [STS](sts.md) and [verification](verification.md).
 
 1. **REV-AC-01 — M07 / FR-007 / AC-007:** On accepted submission, all required eligible reviewer slots in every required stage resolve from trusted policy and department in the same transaction. One or two stages and parallel required slots retain their correct initial states. Missing, inactive, wrong-role or self-only configuration returns `409 CONFIGURATION_INCOMPLETE` and leaves no partial submission, cycle, slots, audit or outbox.
 2. **REV-AC-02 — M08 / FR-008 / AC-008:** An active assigned REVIEWER sees only their own actionable slots in the active stage and current cycle of PENDING requests. WAITING, terminal, stale, foreign and former assignments do not appear; role and assignment changes take effect on current reads.

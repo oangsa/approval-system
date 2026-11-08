@@ -1,6 +1,6 @@
 # Reviewer routing and queue design
 
-Status: planned for Issue #4. This design refines the frozen product, API and UI specifications; it does not replace them.
+Status: implemented for Issue #4; verification is partial as recorded in the [STS](sts.md). Decision integration and delegation remain downstream. This design refines the frozen product, API and UI specifications; it does not replace them.
 
 ## Assignment and task identity
 
@@ -22,9 +22,13 @@ Both list rows and pagination count use the same server-side scope: active authe
 
 `POST /api/v1/approval-tasks/search` returns the direct `ApprovalTask[]` and `X-Pagination`; `GET /api/v1/approval-tasks/:id` returns the direct task. Validate bounded filters, paging and sorts against the shared search contract, reject unknown fields with 422, never accept client-supplied actor scope, and use deterministic ordering. Responses use no-store and expose the pagination header. Preserve the frozen API error envelope and request ID.
 
+The scoped count and page are read in one PostgreSQL statement, preserving the total even when the requested page is empty.
+
 ## Presentation and integration
 
 `/reviews` displays authorized results as a desktop table and accessible mobile cards. `/reviews/:taskId` displays the current task and request context only through the existing authorized request read. Fetch permitted context only for visible tasks; show a safe fallback if unavailable. Loading, empty, no-match, error and retry states remain distinct. Clear private state on account changes, preserve keyboard access and avoid color-only status. No decision control is provided by #4.
+
+Up to four authorized request-context lookups run concurrently and apply successful labels incrementally. Network, 500 and 503 failures offer Retry; denied or unavailable task access shows an unavailable state. An explicitly stale task result offers Reload.
 
 After Issue #3 integration, reuse its generic `RequestCollection` and preserve its routes and contract exports. Generate the reviewer index migration only against the #3-integrated migration journal; verify fresh and upgrade paths. Do not create a competing submission resolver.
 

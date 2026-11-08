@@ -8,9 +8,9 @@ Global IDs refer to `docs/specs/test.md`; child cases refine rather than replace
 | REV-CT-02 / API-04 | Contract: same | Exercise search defaults, invalid page/sort, WAITING and actor override. | Defaults valid; invalid or unauthorized fields rejected, never silently widen scope. |
 | REV-UT-01 / UT-08, SEC-05, FR-012 | Unit: `apps/api/tests/unit/approvalTaskRules.test.ts` | Test stacked-role self actor, eligible nonself actor, stale, waiting, terminal and forged context. | Self is rejected with typed 403; no role bypass; stale state is handled distinctly. |
 | REV-UT-02 / UT-13, FR-008 | Unit: same and service unit tests | Evaluate current reviewer, former handler, Administrator-only and disabled actor. | Only current eligible reviewer is authorized. |
-| REV-PG-01 / FT-007, DB-03, AC-007 | PostgreSQL: `apps/api/tests/postgres/requests.test.ts` or `apps/api/tests/postgres/approvalTasks.test.ts` | Submit one-stage and two-stage policies with parallel required slots. | Exact cycle, stage and slot counts; first stage ACTIVE/ACTIONABLE, later stage WAITING; revision snapshot correct. |
+| REV-PG-01 / FT-007, DB-03, AC-007 | PostgreSQL: `apps/api/tests/postgres/requests.test.ts` | Submit one-stage and two-stage policies with parallel required slots. | Exact cycle, stage and slot counts; first stage ACTIVE/ACTIONABLE, later stage WAITING; revision snapshot correct. |
 | REV-PG-02 / FT-007, DB-04, AC-007 | PostgreSQL: same | Submit missing, inactive, wrong-role, self-only or invalid stage configurations; inject pre-audit failure. | Invalid configuration returns 409; failed transactions preserve prior state with no partial revision, cycle, slots, audit or outbox. |
-| REV-PG-03 / FT-008, EP-043, AC-008 | PostgreSQL: `apps/api/tests/postgres/approvalTasks.test.ts` | Query as reviewers A and B with assigned, waiting, stale-cycle, inactive and terminal fixtures. | Each receives only own current actionable slots; count matches rows. |
+| REV-PG-03 / FT-008, EP-043, AC-008 | PostgreSQL: `apps/api/tests/postgres/requests.test.ts` | Query as reviewers A and B with assigned, waiting, stale-cycle, inactive and terminal fixtures. | Each receives only own current actionable slots; count matches rows. |
 | REV-PG-04 / API-04 | PostgreSQL: same | Query 0, 1, 45 and 101 own slots; equal due dates, filters, sorts and literal search. | Correct bounded page and total count, stable UUID tie order, no duplicates or unsafe search widening. |
 | REV-PG-05 / BR-041, BR-048 | PostgreSQL: same | Change assignment or deactivate role while an independently connected task read occurs. | Reads after commit deny prior assignee; no automatic reassignment or stale authorization. |
 | REV-API-01 / EP-043, SEC-01 | API: `apps/api/tests/integration/approvalTaskOpenApi.test.ts` | Search as eligible reviewer, anonymous and wrong-role actors; send invalid body. | Direct array and pagination header on 200; 401, 403 and 422 as applicable; no-store and exposed pagination header. |
@@ -23,12 +23,14 @@ Global IDs refer to `docs/specs/test.md`; child cases refine rather than replace
 
 ## Executed coverage and gaps
 
-- REV-PG-01: the real PostgreSQL two-stage submission test verifies the active cycle, revision snapshot, stages, three slots and active queue only. The full case remains open.
-- REV-PG-02: existing rollback and self-only configuration assertions ran; the other listed invalid configurations remain open.
-- REV-PG-03: assignment and WAITING coverage ran; the full fixture matrix remains open. REV-PG-04 multi-page and REV-PG-05 concurrency were not run.
-- API wire and foreign/missing detail 404 parity, search wrong-role 403 and anonymous 401 guards ran. Contract and guard coverage is limited to existing assertions; the complete cases above remain open where those assertions do not cover them.
+- REV-PG-01: Passed one-stage parallel and two-stage submission assertions for cycle, revision, stages, slots, initial states and each reviewer's active queue.
+- REV-PG-02: Passed missing, inactive, self-only, wrong-role, unresolved, empty and invalid stage-two configuration checks, including HTTP 409 and atomic state checks; injected pre-audit failure verifies rollback.
+- REV-PG-03: Passed current and foreign assignment, WAITING, stale cycle, terminal state, disabled identity and current scope/count assertions.
+- REV-PG-04: Passed 0, 1, 45 and 101 rows, page totals including empty pages, tied ordering, filters and literal search assertions.
+- REV-PG-05: Passed independent-connection committed assignment and role changes, including prior-assignee denial and current reads. These checks do not prove every possible race.
+- REV-CT-01: Partial. Existing assertions do not cover stage 2 and all specified invalid DTO cases. Issue #4 owns the missing coverage. API wire and foreign/missing detail 404 parity, search wrong-role 403 and anonymous 401 guards ran.
 - REV-UI-01/REV-UI-02: component states and recovery ran; the queue recovery and full browser cases ran on the integrated branch.
-- REV-E2E-01/REV-E2E-02: the scoped reviewer browser journey ran on the integrated branch at desktop and mobile sizes, including the SSR privacy check.
+- REV-E2E-01/REV-E2E-02: the scoped reviewer browser journey ran on the integrated branch at desktop and mobile sizes, including the SSR privacy check. REV-E2E-02 is partial: explicit keyboard coverage is missing and remains owned by Issue #4.
 - Integration: after Issue #3 merged into `sprint-1-staging`, the branch was merged and the combined suites ran (310 unit/component, 51 PostgreSQL, 21 browser). See [verification evidence](verification.md).
 
 ## Dependent evidence
