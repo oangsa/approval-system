@@ -1,7 +1,8 @@
 import { RequestError, type RequestErrorCode } from "../Domains/Requests/RequestRules";
 import { IdentityError } from "../Domains/Identity/IdentityError";
+import { ApprovalTaskError, type ApprovalTaskErrorCode } from "../Domains/Approvals/ApprovalTaskRules";
 
-export type HttpErrorCode = RequestErrorCode | "BAD_REQUEST" | "VALIDATION_ERROR" | "UNAUTHENTICATED" | "FORBIDDEN" | "NOT_FOUND" | "RATE_LIMITED" | "SERVICE_UNAVAILABLE" | "INTERNAL_ERROR";
+export type HttpErrorCode = RequestErrorCode | ApprovalTaskErrorCode | "BAD_REQUEST" | "VALIDATION_ERROR" | "UNAUTHENTICATED" | "FORBIDDEN" | "NOT_FOUND" | "RATE_LIMITED" | "SERVICE_UNAVAILABLE" | "INTERNAL_ERROR";
 export class HttpError extends Error
 {
     constructor(public readonly code: HttpErrorCode)
@@ -10,6 +11,8 @@ export class HttpError extends Error
     }
 }
 const errors: Record<HttpErrorCode, [number, string, string]> = {
+    SELF_APPROVAL_FORBIDDEN: [403, "Self approval is forbidden", "Forbidden"],
+    APPROVAL_TASK_STALE: [409, "This approval task has changed. Refresh and try again", "Conflict"],
     FORM_FIELD_NOT_APPLICABLE: [422, "A form field is not applicable", "Unprocessable Entity"],
     FORM_DEFINITION_CHANGED: [409, "The form changed. Review the updated definition", "Conflict"],
     CONFIGURATION_INCOMPLETE: [409, "Submission configuration is incomplete. Contact an administrator", "Conflict"],
@@ -42,7 +45,7 @@ function isUnavailable(error: unknown): boolean
 export function errorResponse(error: unknown, frameworkCode: string | number, requestId: string)
 {
     let code: HttpErrorCode = "INTERNAL_ERROR";
-    if (error instanceof RequestError) code = error.code;
+    if (error instanceof RequestError || error instanceof ApprovalTaskError) code = error.code;
     else if (error instanceof HttpError) code = error.code;
     else if (error instanceof IdentityError)
     {

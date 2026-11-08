@@ -8,4 +8,5 @@ export * from "./auth";
 export * from "./error";
 export * from "./requests";
 export * from "./requestSearch";
+export * from "./approvalTasks";
 export * from "./requestCollection";

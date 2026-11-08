@@ -1,4 +1,6 @@
 import type { RequestService } from "../Applications/Requests/RequestService";
+import type { ApprovalTaskService } from "../Applications/Approvals/ApprovalTaskService";
+import { registerApprovalTaskRoutes } from "./Routes/ApprovalTaskRoutes";
 import { registerRequestRoutes } from "./Routes/RequestRoutes";
 import { randomUUID } from "node:crypto";
 import { Elysia, type ElysiaAdapter } from "elysia";
@@ -9,7 +11,7 @@ import { checkOrigin, corsHeaders, preflight } from "./cors";
 import { errorResponse, HttpError } from "./errors";
 import { authRouteDescriptors, registerAuthRoutes } from "./Routes/AuthRoutes";
 
-export function createApplication(adapter?: ElysiaAdapter, identity?: IIdentityHttpDependencies, requests?: RequestService)
+export function createApplication(adapter?: ElysiaAdapter, identity?: IIdentityHttpDependencies, requests?: RequestService, approvalTasks?: ApprovalTaskService)
 {
     const ids = new WeakMap<Request, string>();
     const app = new Elysia({ adapter })
@@ -28,7 +30,7 @@ export function createApplication(adapter?: ElysiaAdapter, identity?: IIdentityH
                     if (request.method === "OPTIONS")
                     {
                         const method = request.headers.get("access-control-request-method")?.toUpperCase();
-                        if (!authRouteDescriptors.some((route) => route.path === path && route.method === method) && !(requests && /^(?:GET|POST|PATCH)$/.test(method ?? "") && /^\/api\/v1\/(?:requests|request-types)(?:\/|$)/.test(path))) throw new HttpError("FORBIDDEN");
+                        if (!authRouteDescriptors.some((route) => route.path === path && route.method === method) && !(requests && /^(?:GET|POST|PATCH)$/.test(method ?? "") && /^\/api\/v1\/(?:requests|request-types)(?:\/|$)/.test(path)) && !(approvalTasks && (method === "POST" && path === "/api/v1/approval-tasks/search" || method === "GET" && /^\/api\/v1\/approval-tasks\/[^/]+$/.test(path) && path !== "/api/v1/approval-tasks/search"))) throw new HttpError("FORBIDDEN");
                         return preflight(request, identity.allowedOrigins);
                     }
                     const required = ["/api/v1/auth/login", "/api/v1/auth/refresh", "/api/v1/auth/logout"].includes(path);
@@ -64,5 +66,6 @@ export function createApplication(adapter?: ElysiaAdapter, identity?: IIdentityH
         .get("/health", () => ({ status: "ok" as const }), { response: healthResponseSchema });
     if (identity) registerAuthRoutes(app, identity);
     if (identity && requests) registerRequestRoutes(app, identity, requests);
+    if (identity && approvalTasks) registerApprovalTaskRoutes(app, identity, approvalTasks);
     return app;
 }

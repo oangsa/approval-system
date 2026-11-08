@@ -1,0 +1,1 @@
+CREATE INDEX "approval_slot_reviewer_status_idx" ON "approval_slots" USING btree ("reviewer_id","status");

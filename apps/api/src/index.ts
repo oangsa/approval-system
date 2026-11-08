@@ -1,4 +1,6 @@
 import { RequestService } from "./Applications/Requests/RequestService";
+import { ApprovalTaskService } from "./Applications/Approvals/ApprovalTaskService";
+import { ApprovalTaskUnitOfWork } from "./Infrastructures/Database/Repositories/ApprovalTaskRepository";
 import { RequestUnitOfWork } from "./Infrastructures/Database/Repositories/RequestRepository";
 import { node } from "@elysia/node";
 import { readEnvironment } from "./Infrastructures/Configuration/environment";
@@ -13,7 +15,7 @@ async function main(): Promise<void>
     try
     {
         const identity = await createIdentityComposition(environment, database);
-        const application = new Application(node(), identity, () => database.Close(), new RequestService(new RequestUnitOfWork(database.connection)));
+        const application = new Application(node(), identity, () => database.Close(), new RequestService(new RequestUnitOfWork(database.connection)), new ApprovalTaskService(new ApprovalTaskUnitOfWork(database.connection)));
         application.Start(environment.PORT, environment.HOST);
         let shuttingDown = false;
         const shutdown = async () =>

@@ -8,7 +8,7 @@ import { currentGeneration, endSession, readAccessToken, subscribeInvalidation, 
 export type SessionStatus = "idle" | "loading" | "authenticated" | "anonymous";
 function needsSession(pathname: string): boolean
 {
- return pathname.startsWith("/requests") || pathname.startsWith("/dashboard") || pathname.startsWith("/settings");
+ return pathname === "/reviews" || pathname.startsWith("/reviews/") || pathname.startsWith("/requests") || pathname.startsWith("/dashboard") || pathname.startsWith("/settings");
 }
 export interface ISessionContext
 {

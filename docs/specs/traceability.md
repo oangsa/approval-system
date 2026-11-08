@@ -6,7 +6,7 @@
 **Design source:** [`system-sds.md`](./system-sds.md)  
 **Wire/UI sources:** [`api-specs.md`](./api-specs.md) v1.0.1; [`ui-specs.md`](./ui-specs.md) v1.0  
 **Test source:** [`test.md`](./test.md)  
-**Execution status:** Identity & Access (`M01`–`M03`) implementation checks were **executed** on 2026-11-06 with actual results recorded in [`testing-verification.md`](../testing-verification.md). Issues #2 and #3 have scoped evidence below; other unrecorded checks remain **PLANNED / NOT RUN**. Teammate-reviewed PR acceptance remains pending.
+**Execution status:** Identity & Access (`M01`–`M03`) implementation checks were **executed** on 2026-11-06 with actual results recorded in [`testing-verification.md`](../testing-verification.md). Issues #2, #3 and #4 have scoped evidence below; other unrecorded checks remain **PLANNED / NOT RUN**. Teammate-reviewed PR acceptance remains pending.
 
 > **ID policy:** Preserve the original 54 unique Feature IDs and one-to-one `FR-NNN`, `AC-NNN`, `FT-NNN` mapping. `BR-NNN` and `NFR-NNN` are cross-cutting and can apply to many features. Paths in the matrix are illustrative links to the **existing frozen route directories**, not newly authorized endpoints. Use `api-specs.md` as authoritative for exact methods, schemas, audience and errors.
 
@@ -268,7 +268,7 @@ This is the selected allocation. It does not claim that everything assigned to a
 5. For a failed test, capture expected/actual, sanitized request ID/log, defect link, fix revision and retest.
 6. Do not mark a feature accepted while its important access, persistence, concurrency or UI requirement has not been verified.
 
-**Current evidence statement:** The Identity & Access (`M01`–`M03`) child checks were executed on 2026-11-06; actual results are recorded in [`testing-verification.md`](../testing-verification.md). Scoped Issue #2 and #3 evidence is recorded below. Unrecorded checks remain planned or not run, and teammate-reviewed PR acceptance remains pending.
+**Current evidence statement:** The Identity & Access (`M01`–`M03`) child checks were executed on 2026-11-06; actual results are recorded in [`testing-verification.md`](../testing-verification.md). Scoped Issue #2, #3 and #4 evidence is recorded below. Unrecorded checks remain planned or not run, and teammate-reviewed PR acceptance remains pending.
 
 ## 10. Identity & Access child criteria (additive)
 
@@ -289,3 +289,7 @@ PR #19 minor-finding follow-up: M01/M02 (request form/detail) and O16 (request-t
 ### Issue #3 M05/M06 evidence
 
 The request list and detail slice maps to M05/M06. See [acceptance criteria](../features/request-list-detail/acceptance-criteria.md), [STS](../features/request-list-detail/sts.md), and [verification](../features/request-list-detail/verification.md). The STS distinguishes executed coverage from partial and pending assertions; teammate review and promotion remain pending.
+
+### Issue #4 M07/M08/M13 evidence
+
+The reviewer routing and queue slice maps to M07/M08, with the reusable decision guard handoff for M13. See [acceptance criteria](../features/reviewer-routing-queue/acceptance-criteria.md), [STS](../features/reviewer-routing-queue/sts.md), and [verification](../features/reviewer-routing-queue/verification.md). REV-PG-01–05 executed on the recorded snapshot; REV-CT-01 and REV-E2E-02 remain partial, owned by Issue #4. REV-AC-06 and the direct self-vote case remain blocked until Issue #5 integrates and verifies the guard; delegation remains a separate future dependency. Teammate review and promotion remain pending.

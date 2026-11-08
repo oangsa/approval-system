@@ -620,3 +620,7 @@ The M01–M03 test setup and per-case assertions are maintained in [identity-acc
 ### Issue #3 request list and detail coverage
 
 [Issue #3 STS](../features/request-list-detail/sts.md) maps FT-005/006, EP-032/034, API-03/04, UT-13, SEC-02/08/14, UI-09/20 and the scoped E2E-01 journey to REQ cases. [Verification evidence](../features/request-list-detail/verification.md) records executed suites and limits; case-level partial and pending assertions remain in the STS. This scoped journey does not complete the global E2E-01 journey.
+
+### Issue #4 reviewer routing and queue coverage
+
+[Issue #4 STS](../features/reviewer-routing-queue/sts.md) maps FT-007/008, EP-043/045, API-03/04, UT-08/13, SEC-01/04/05, UI-11/20 and the scoped E2E-02 journey to REV cases. REV-PG-01–05 executed on the recorded snapshot; REV-CT-01 and REV-E2E-02 remain partial due to missing DTO and explicit keyboard assertions, owned by Issue #4. [Verification evidence](../features/reviewer-routing-queue/verification.md) records suites, migration paths and limits. The direct self-vote case (REV-CROSS-01) and delegation (REV-CROSS-02) remain blocked by their dependencies, and this scoped journey does not complete the global E2E-02 decision journey.
