@@ -11,6 +11,11 @@ Planned, not yet executed. References DEC-AC-01–10 and global test.md.
 | UI components | Confirmation, required reason, pending/retry key, stale retention/reload, history states |
 | Playwright | Real submit/review/confirm/refetch/history, keyboard dialog, requester history and SSR privacy |
 
+Review regression: single-slot and parallel two-stage completion must fail closed
+with 409 INVALID_REQUEST_TRANSITION, unchanged persisted evidence and no completed
+idempotency key. The blocked key remains reusable for a permitted rejection;
+partial approvals remain accepted and future-stage attempts remain stale.
+
 Record exact executed checks and gaps in verification.md. Do not equate test
 presence with passing evidence; review and publication gates remain separate.
 

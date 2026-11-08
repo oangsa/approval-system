@@ -100,12 +100,23 @@ test("partial ALL approval stays pending and rejection cancels unfinished slots"
     const rows = await db.select({ slot: approvalSlots }).from(approvalSlots).innerJoin(approvalStages, eq(approvalSlots.stageId, approvalStages.id)).where(eq(approvalStages.cycleId, rejection.submitted.currentCycleId!));
     expect(rows.map((row) => row.slot.status).sort()).toEqual(["CANCELLED", "CANCELLED", "REJECTED"]);
 });
-test("future stage remains pending and unactivated", async () =>
+test.each([false, true])("two-stage completion fails closed without writes (parallel=%s)", async (parallel) =>
 {
-    const item = await pending(false, true);
-    expect((await decisions.Decide(item.reviewer, item.slot, approve, randomUUID())).requestStatus).toBe("PENDING");
+    const item = await pending(parallel, true);
+    if (parallel)
+    {
+        expect(await independent.Decide(item.other, item.peerSlot!, approve, randomUUID())).toMatchObject({ requestStatus: "PENDING", currentStageNumber: 1 });
+    }
+    const before = await evidence(item.submitted.id), key = randomUUID();
+    expect(before.stages.find((stage) => stage.stageNumber === 1)?.status).toBe("ACTIVE");
+    expect(before.slots.find((slot) => slot.id === item.slot)?.status).toBe("ACTIONABLE");
+    await expect(decisions.Decide(item.reviewer, item.slot, approve, key)).rejects.toMatchObject({ code: "INVALID_REQUEST_TRANSITION" });
+    expect(await evidence(item.submitted.id)).toEqual(before);
+    expect(await db.select().from(decisionIdempotencyRecords).where(eq(decisionIdempotencyRecords.key, key))).toHaveLength(0);
     const futureSlot = item.submitted.currentApprovers.find((slot) => slot.stageNumber === 2)!;
     await expect(decisions.Decide(item.reviewer, futureSlot.slotId, approve, randomUUID())).rejects.toMatchObject({ code: "APPROVAL_TASK_STALE" });
+    // A failed approval does not claim the key or prevent a recoverable rejection.
+    expect((await decisions.Decide(item.reviewer, item.slot, { ...approve, decision: "REJECT", reason: "Cannot proceed" }, key)).requestStatus).toBe("REJECTED");
 });
 test("fault immediately before audit rolls decision, state, outbox and key back", async () =>
 {

@@ -15,8 +15,11 @@ Shared schemas retain frozen RETURN vocabulary, but this slice rejects RETURN
 and stage-two execution with 409 INVALID_REQUEST_TRANSITION. Returns exact frozen
 201 DecisionResult for accepted APPROVE/REJECT. RETURN, delegation, bulk and activation
 of stage two remain separate consumer integrations. Stage-one parallel slots
-use ALL; completion with a future stage leaves PENDING, without activating that
-stage or granting premature final approval. Rejection closes the whole cycle.
+use ALL; until stage-two activation is implemented, a vote that would complete
+stage one with a future stage fails with 409 INVALID_REQUEST_TRANSITION before
+any writes. Partial approvals remain accepted; the final slot stays ACTIONABLE
+and stage one ACTIVE so the request remains recoverable. Rejection closes the
+whole cycle. This temporary guard is not full API §7.2 stage-two progression.
 
 Lock current identity, idempotency scope, request, cycle, stages and slots in
 stable order. Replay an accepted result before new-operation state validation.

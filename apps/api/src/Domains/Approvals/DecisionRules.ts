@@ -27,6 +27,11 @@ export function decideTransition(state: IDecisionState, taskId: string, body: De
     if (state.stages.some((item) => item.stageNumber < stage.stageNumber && item.status !== "COMPLETED")) throw new ApprovalTaskError("APPROVAL_TASK_STALE");
     if (body.decision === "REJECT") return { stageId: stage.id, stageComplete: true, requestStatus: "REJECTED", currentStageNumber: null };
     const stageComplete = state.slots.filter((item) => item.stageId === stage.id).every((item) => item.id === taskId || item.status === "APPROVED");
+    // Preserve an actionable current stage until stage-two activation is implemented.
+    if (stageComplete && stage.stageNumber < state.stages.length)
+    {
+        throw new ApprovalTaskError("INVALID_REQUEST_TRANSITION");
+    }
     const final = stageComplete && stage.stageNumber === state.stages.length;
-    return { stageId: stage.id, stageComplete, requestStatus: final ? "APPROVED" : "PENDING", currentStageNumber: final ? null : stageComplete ? null : stage.stageNumber };
+    return { stageId: stage.id, stageComplete, requestStatus: final ? "APPROVED" : "PENDING", currentStageNumber: final ? null : stage.stageNumber };
 }
