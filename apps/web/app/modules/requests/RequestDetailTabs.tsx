@@ -1,6 +1,3 @@
-import { AuditTimeline } from "./AuditTimeline";
-import { Link } from "react-router";
-import { useSession } from "~/modules/auth/sessionContext";
 import { useRef, type KeyboardEvent } from "react";
 import { useSearchParams } from "react-router";
 import type { PublishedRequestType, RequestDetail } from "@workflow/contracts";
@@ -12,7 +9,6 @@ const tabKeys = ["overview", "approval", "history", "discussion"] as const;
 interface IRequestDetailTabsProps { detail: RequestDetail; definition: PublishedRequestType | null; }
 export function RequestDetailTabs({ detail, definition }: IRequestDetailTabsProps)
 {
-    const { user } = useSession();
     const [params, setParams] = useSearchParams();
     const selected = Math.max(0, tabKeys.findIndex((key) => key === params.get("tab")));
     function setSelected(index: number)
@@ -50,9 +46,9 @@ export function RequestDetailTabs({ detail, definition }: IRequestDetailTabsProp
             {
                 const slots = detail.currentApprovers.filter((slot) => slot.stageNumber === stage);
                 const approved = slots.filter((slot) => slot.status === "APPROVED").length;
-                return <section key={stage} aria-label={`Stage ${stage}`} className="space-y-2"><h3 className="font-medium">Stage {stage}{detail.currentStageNumber === stage ? " (active)" : ""}</h3><p>All approvers must approve · {approved} of {slots.length} approved</p><ul>{slots.map((slot) => <li key={slot.slotId}>{slot.reviewer.displayName} · {approverSlotLabel(slot.status)}{slot.status === "ACTIONABLE" && slot.reviewer.id === user?.id && <Link className="ml-3 underline" to={`/reviews/${slot.slotId}`}>Review task</Link>}</li>)}</ul></section>;
+                return <section key={stage} aria-label={`Stage ${stage}`} className="space-y-2"><h3 className="font-medium">Stage {stage}{detail.currentStageNumber === stage ? " (active)" : ""}</h3><p>All approvers must approve · {approved} of {slots.length} approved</p><ul>{slots.map((slot) => <li key={slot.slotId}>{slot.reviewer.displayName} · {approverSlotLabel(slot.status)}</li>)}</ul></section>;
             })}</div>}
-            {index === 2 && selected === 2 && <AuditTimeline requestId={detail.id} />}
+            {index === 2 && <p>History is not available yet.</p>}
             {index === 3 && <p>Discussion and files are not available yet.</p>}
         </section>)}
     </div>;

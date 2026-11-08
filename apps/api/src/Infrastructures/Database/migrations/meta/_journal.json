@@ -43,27 +43,6 @@
       "when": 1794049554288,
       "tag": "0005_productive_bromley",
       "breakpoints": true
-    },
-    {
-      "idx": 6,
-      "version": "7",
-      "when": 1794142837467,
-      "tag": "0006_tidy_ironclad",
-      "breakpoints": true
-    },
-    {
-      "idx": 7,
-      "version": "7",
-      "when": 1794142874544,
-      "tag": "0007_immutable-decision-history",
-      "breakpoints": true
-    },
-    {
-      "idx": 8,
-      "version": "7",
-      "when": 1794143374781,
-      "tag": "0008_harsh_lester",
-      "breakpoints": true
     }
   ]
 }

@@ -3,7 +3,7 @@ import { approvalTaskSchema, type ApprovalTaskSearch } from "@workflow/contracts
 import type { IActor } from "../../../Domains/Identity/Identity";
 import type { IApprovalTaskRepository, IApprovalTaskUnitOfWork } from "../../../Domains/Approvals/Ports";
 import type { Database } from "../Database";
-import { approvalDecisions, approvalCycles, approvalSlots, approvalStages, requests, users } from "../schema";
+import { approvalCycles, approvalSlots, approvalStages, requests, users } from "../schema";
 import { RequestRepository } from "./RequestRepository";
 
 type Connection = Database["connection"];
@@ -34,11 +34,6 @@ export class ApprovalTaskRepository implements IApprovalTaskRepository
     {
         const row = (await this.Rows(and(...this.Scope(actorId), eq(approvalSlots.id, taskId))))[0];
         return row ? this.Project(row) : null;
-    }
-    public async ReadHandled(actorId: string, taskId: string)
-    {
-        const row = (await this.Rows(and(eq(approvalSlots.id, taskId), sql`exists (select 1 from ${approvalDecisions} where ${approvalDecisions.slotId} = ${approvalSlots.id} and ${approvalDecisions.actorId} = ${actorId})`)))[0];
-        return row ? { ...this.Project(row), canCurrentUserDecide: false } : null;
     }
     public async Search(actorId: string, query: ApprovalTaskSearch)
     {

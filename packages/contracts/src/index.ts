@@ -10,4 +10,3 @@ export * from "./requests";
 export * from "./requestSearch";
 export * from "./approvalTasks";
 export * from "./requestCollection";
-export * from "./decisions";

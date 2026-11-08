@@ -1,6 +1,3 @@
-import { approverSlotLabel } from "~/modules/requests/requestPresentation";
-import { DecisionActions } from "./DecisionActions";
-import { AuditTimeline } from "~/modules/requests/AuditTimeline";
 import { useEffect, useState } from "react";
 import { useParams } from "react-router";
 import { useSession } from "~/modules/auth/sessionContext";
@@ -17,12 +14,9 @@ export function ReviewTaskPage()
 {
     const { taskId } = useParams();
     const { status, user, generation } = useSession();
-    const [reasonState, setReasonState] = useState({ scope: "", value: "" });
-    const [acceptedScope, setAcceptedScope] = useState("");
-    const scope = `${generation}:${user?.id}:${taskId}`;
     const [attempt, setAttempt] = useState(0);
     const [state, setState] = useState<IState | null>(null);
-    const eligible = status === "authenticated" && !!user;
+    const eligible = status === "authenticated" && !!user?.roles.includes("REVIEWER");
     const key = `${generation}:${user?.id ?? ""}:${taskId ?? ""}:${attempt}`;
     useEffect(() =>
     {
@@ -45,14 +39,13 @@ export function ReviewTaskPage()
     }, [eligible, taskId, generation, key]);
     const current = eligible && state?.key === key ? state : null;
     const result = current?.result;
-    const slots = result?.detail?.currentApprovers.filter((slot) => slot.stageNumber === result.detail?.currentStageNumber) ?? [];
-    const validStage = result && result.detail?.currentStageNumber === result.task.stageNumber && slots.some((slot) => slot.slotId === result.task.slotId && slot.status === "ACTIONABLE");
-    const savedReason = reasonState.scope === scope ? reasonState.value : "";
+    const slots = result?.detail.currentApprovers.filter((slot) => slot.stageNumber === result.detail.currentStageNumber) ?? [];
+    const validStage = result && result.detail.currentStageNumber === result.task.stageNumber && slots.some((slot) => slot.slotId === result.task.slotId && slot.status === "ACTIONABLE");
     const approved = slots.filter((slot) => slot.status === "APPROVED").length;
     return <div className="mx-auto max-w-3xl space-y-6">
         <h1 className="text-2xl font-semibold">Review task</h1>
-        {!eligible && status !== "loading" && status !== "idle" ? <p role="alert">This task is unavailable.</p> : result && !result.task.canCurrentUserDecide ? <><section aria-label="Handled task" className="space-y-3 rounded-lg border bg-card p-6"><h2 className="text-xl font-semibold">Read-only handled task</h2><p>Stage {result.task.stageNumber} · {approverSlotLabel(result.task.status)}</p><p>Only your handled decision is available here. Current request contents are not included.</p></section><AuditTimeline requestId={result.task.requestId} /></> : result && !validStage ? <div role="alert" className="space-y-3"><p>This task is unavailable.</p><Button onClick={() => setAttempt((value) => value + 1)}>Reload task</Button></div> : current?.error ? <div role="alert" className="space-y-3"><p>{current.error}</p>{current.requestId && <p className="select-text">Request ID: {current.requestId}</p>}{current.retryable && <Button onClick={() => setAttempt((value) => value + 1)}>Retry</Button>}</div> : result?.detail ? <>
-            {acceptedScope !== scope && <section aria-label="Task summary" className="space-y-4 rounded-lg border bg-card p-6">
+        {!eligible && status !== "loading" && status !== "idle" ? <p role="alert">This task is unavailable.</p> : result && !validStage ? <div role="alert" className="space-y-3"><p>This task is unavailable.</p><Button onClick={() => setAttempt((value) => value + 1)}>Reload task</Button></div> : current?.error ? <div role="alert" className="space-y-3"><p>{current.error}</p>{current.requestId && <p className="select-text">Request ID: {current.requestId}</p>}{current.retryable && <Button onClick={() => setAttempt((value) => value + 1)}>Retry</Button>}</div> : result ? <>
+            <section aria-label="Task summary" className="space-y-4 rounded-lg border bg-card p-6">
                 <h2 className="text-xl font-semibold">Task summary</h2>
                 <dl className="grid gap-4 sm:grid-cols-2">
                     <div><dt className="text-sm text-muted-foreground">Status</dt><dd>{result.task.status === "ACTIONABLE" ? "Actionable" : result.task.status}</dd></div>
@@ -62,10 +55,8 @@ export function ReviewTaskPage()
                     <div><dt className="text-sm text-muted-foreground">Due</dt><dd>{result.task.dueAt ? <time dateTime={result.task.dueAt}>{formatInstant(result.task.dueAt)}</time> : "No due date"}</dd></div>
                     <div><dt className="text-sm text-muted-foreground">Task version</dt><dd>{result.task.version}</dd></div>
                 </dl>
-            </section>}
-            <DecisionActions key={`${generation}:${taskId}:${result.task.version}`} task={result.task} requestLabel={result.detail.requestNumber ?? result.detail.title} reason={reasonState.scope === scope ? reasonState.value : ""} onReason={(value) => setReasonState({ scope, value })} onAccepted={() => setAcceptedScope(scope)} onUnavailable={() => setState({ key, result: null, error: "This task is unavailable." })} onReload={() => setAttempt((value) => value + 1)} />
-            {acceptedScope !== scope && <><RequestResult detail={result.detail} definition={result.definition} /><AuditTimeline requestId={result.task.requestId} /></>}
+            </section>
+            <RequestResult detail={result.detail} definition={result.definition} />
         </> : <p role="status">Loading task…</p>}
-        {savedReason && (current?.error || result && !result.task.canCurrentUserDecide) && <section aria-label="Saved decision reason" className="space-y-3"><p>Saved reason: {savedReason}</p><Button onClick={() => setReasonState({ scope, value: "" })}>Discard saved reason</Button></section>}
     </div>;
 }

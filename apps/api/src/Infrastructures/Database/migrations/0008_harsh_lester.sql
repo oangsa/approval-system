@@ -1,1 +1,0 @@
-CREATE INDEX "audit_request_time_id_idx" ON "audit_events" USING btree ("request_id","occurred_at","id");
