@@ -8,7 +8,7 @@ import { isApiFailure } from "~/api/errors";
 import { Button } from "~/components/ui/button";
 
 type TaskResult = Awaited<ReturnType<typeof readApprovalTaskResult>>;
-interface IState { key: string; result: TaskResult | null; error: string; requestId?: string; }
+interface IState { key: string; result: TaskResult | null; error: string; requestId?: string; retryable?: boolean; }
 
 export function ReviewTaskPage()
 {
@@ -30,8 +30,9 @@ export function ReviewTaskPage()
         {
             if (!controller.signal.aborted)
             {
-                const denied = !isApiFailure(failure) || [401, 403, 404].includes(failure.status ?? 0);
-                setState({ key, result: null, error: denied ? "This task is unavailable." : "Could not load this task. Please try again.", requestId: isApiFailure(failure) && [500, 503].includes(failure.status ?? 0) ? failure.requestId : undefined });
+                const serverError = isApiFailure(failure) && failure.kind === "http" && [500, 503].includes(failure.status ?? 0);
+                const retryable = isApiFailure(failure) && (failure.kind === "network" || serverError);
+                setState({ key, result: null, error: retryable ? "Could not load this task. Please try again." : "This task is unavailable.", requestId: serverError ? failure.requestId : undefined, retryable });
             }
         });
         return () => controller.abort();
@@ -43,7 +44,7 @@ export function ReviewTaskPage()
     const approved = slots.filter((slot) => slot.status === "APPROVED").length;
     return <div className="mx-auto max-w-3xl space-y-6">
         <h1 className="text-2xl font-semibold">Review task</h1>
-        {!eligible && status !== "loading" && status !== "idle" ? <p role="alert">This task is unavailable.</p> : result && !validStage ? <div role="alert" className="space-y-3"><p>This task is unavailable.</p><Button onClick={() => setAttempt((value) => value + 1)}>Reload task</Button></div> : current?.error ? <div role="alert" className="space-y-3"><p>{current.error}</p>{current.requestId && <p className="select-text">Request ID: {current.requestId}</p>}<Button onClick={() => setAttempt((value) => value + 1)}>Retry</Button></div> : result ? <>
+        {!eligible && status !== "loading" && status !== "idle" ? <p role="alert">This task is unavailable.</p> : result && !validStage ? <div role="alert" className="space-y-3"><p>This task is unavailable.</p><Button onClick={() => setAttempt((value) => value + 1)}>Reload task</Button></div> : current?.error ? <div role="alert" className="space-y-3"><p>{current.error}</p>{current.requestId && <p className="select-text">Request ID: {current.requestId}</p>}{current.retryable && <Button onClick={() => setAttempt((value) => value + 1)}>Retry</Button>}</div> : result ? <>
             <section aria-label="Task summary" className="space-y-4 rounded-lg border bg-card p-6">
                 <h2 className="text-xl font-semibold">Task summary</h2>
                 <dl className="grid gap-4 sm:grid-cols-2">

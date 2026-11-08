@@ -6,6 +6,7 @@ import { isApiFailure } from "~/api/errors";
 import { RequestCollection } from "~/components/collections/RequestCollection";
 import { Button } from "~/components/ui/button";
 import { useSession } from "~/modules/auth/sessionContext";
+import { requestPriorityLabel } from "~/modules/requests/requestPresentation";
 import { formatDueLabel } from "~/modules/reviews/formatDue";
 import { searchApprovalTasks } from "~/services/approvalTaskService";
 
@@ -154,21 +155,33 @@ export function ReviewQueuePage()
                 return;
             }
             setState({ key, result, labels: {}, error: "", retry: "none" });
-            const entries = await Promise.all(result.items.map(async (task) =>
+            let nextIndex = 0;
+            const worker = async () =>
             {
-                try
+                while (!controller.signal.aborted && nextIndex < result.items.length)
                 {
-                    return [task.id, await requestApi.read(task.requestId, controller.signal)] as const;
+                    const task = result.items[nextIndex++];
+                    if (task === undefined)
+                    {
+                        continue;
+                    }
+                    try
+                    {
+                        const detail = await requestApi.read(task.requestId, controller.signal, generation);
+                        if (!controller.signal.aborted)
+                        {
+                            setState((previous) => !controller.signal.aborted && previous?.key === key && previous.result === result
+                                ? { ...previous, labels: { ...previous.labels, [task.id]: detail } }
+                                : previous);
+                        }
+                    }
+                    catch
+                    {
+                        // Keep the fallback when a detail lookup fails.
+                    }
                 }
-                catch
-                {
-                    return null;
-                }
-            }));
-            if (!controller.signal.aborted)
-            {
-                setState({ key, result, labels: Object.fromEntries(entries.filter((entry) => entry !== null)), error: "", retry: "none" });
-            }
+            };
+            await Promise.all(Array.from({ length: Math.min(4, result.items.length) }, () => worker()));
         }).catch((failure: unknown) =>
         {
             if (controller.signal.aborted)
@@ -188,7 +201,11 @@ export function ReviewQueuePage()
     const current = eligible && state?.key === key ? state : null;
     const label = (task: ApprovalTask) => current?.labels[task.id];
     const taskLink = (task: ApprovalTask) => <Link className="font-medium text-primary underline-offset-4 hover:underline focus-visible:outline-2" to={`/reviews/${task.id}`}>{label(task)?.requestNumber ?? `Request ${task.requestId}`}</Link>;
-    const description = (task: ApprovalTask) => label(task) ? `${label(task)!.title} · ${label(task)!.priority}` : "Request details unavailable";
+    const description = (task: ApprovalTask) =>
+    {
+        const detail = label(task);
+        return detail ? `${detail.title} · ${requestPriorityLabel(detail.priority)}` : "Request details unavailable";
+    };
     const filtered = !!query.searchTerm || query.search.length > 0;
     const isDefaultQuery = !appliedTerm && stage === null && due === null && orderBy === DEFAULT_ORDER_BY && pageNumber === 1;
     const retryNow = () =>

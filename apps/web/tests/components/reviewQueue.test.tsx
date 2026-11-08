@@ -1,7 +1,8 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import assert from "node:assert/strict";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { createMemoryRouter, MemoryRouter, RouterProvider } from "react-router";
 import { beforeEach, expect, test, vi } from "vitest";
-import type { ApprovalTask } from "@workflow/contracts";
+import type { ApprovalTask, RequestDetail } from "@workflow/contracts";
 import { ReviewQueuePage } from "../../app/modules/reviews/ReviewQueuePage";
 import { searchApprovalTasks } from "../../app/services/approvalTaskService";
 import { requestApi } from "../../app/api/requests";
@@ -57,6 +58,69 @@ function show()
 {
     return render(<MemoryRouter><ReviewQueuePage /></MemoryRouter>);
 }
+function deferred<T>()
+{
+    let resolve!: (value: T) => void;
+    let reject!: (reason: Error) => void;
+    const promise = new Promise<T>((done, fail) =>
+    {
+        resolve = done;
+        reject = fail;
+    });
+    return { promise, resolve, reject };
+}
+function detail(title: string, requestNumber: string): RequestDetail
+{
+    return { title, requestNumber, priority: "HIGH" } as RequestDetail;
+}
+test("loads labels incrementally with at most four detail reads", async () =>
+{
+    const tasks = Array.from({ length: 5 }, (_, index) => ({ ...task, id: `task-${index}`, requestId: `request-${index}` }));
+    const reads = tasks.map(() => deferred<RequestDetail>());
+    const firstRead = reads[0];
+    const thirdRead = reads[2];
+    assert(firstRead);
+    assert(thirdRead);
+    vi.mocked(searchApprovalTasks).mockResolvedValue({ ...page, items: tasks });
+    vi.mocked(requestApi.read).mockImplementation((requestId) =>
+    {
+        const read = reads[Number(requestId.split("-")[1])];
+        assert(read);
+        return read.promise;
+    });
+    show();
+    await waitFor(() => expect(requestApi.read).toHaveBeenCalledTimes(4));
+    await act(async () => thirdRead.resolve(detail("Completed title", "REQ-3")));
+    expect(screen.getByText("REQ-3")).toBeVisible();
+    expect(screen.getByText("Completed title · High")).toBeVisible();
+    await waitFor(() => expect(requestApi.read).toHaveBeenCalledTimes(5));
+    expect(requestApi.read).toHaveBeenLastCalledWith("request-4", expect.any(AbortSignal), 0);
+    await act(async () => firstRead.reject(new Error("denied")));
+    expect(screen.getByText("Request request-0")).toBeVisible();
+    expect(screen.getAllByText("Request details unavailable")).toHaveLength(4);
+});
+test("ignores late detail labels after an account switch", async () =>
+{
+    const oldRead = deferred<RequestDetail>();
+    vi.mocked(searchApprovalTasks).mockResolvedValue(page);
+    vi.mocked(requestApi.read).mockReturnValueOnce(oldRead.promise).mockResolvedValueOnce(detail("New title", "NEW-1"));
+    const view = show();
+    await waitFor(() => expect(requestApi.read).toHaveBeenCalledTimes(1));
+    const oldSignal = vi.mocked(requestApi.read).mock.calls[0]?.[1];
+    assert(oldSignal);
+    expect(requestApi.read).toHaveBeenNthCalledWith(1, id, oldSignal, 0);
+    session.user.id = "b";
+    session.generation = 1;
+    view.rerender(<MemoryRouter><ReviewQueuePage /></MemoryRouter>);
+    expect(await screen.findByText("New title · High")).toBeVisible();
+    expect(requestApi.read).toHaveBeenNthCalledWith(2, id, expect.any(AbortSignal), 1);
+    expect(oldSignal.aborted).toBe(true);
+    await act(async () => oldRead.resolve(detail("Old title", "OLD-1")));
+    expect(screen.queryByText("Old title · High")).not.toBeInTheDocument();
+    expect(screen.queryByText("OLD-1")).not.toBeInTheDocument();
+    expect(screen.getByText("New title · High")).toBeVisible();
+    expect(screen.getByText("NEW-1")).toBeVisible();
+});
 test("shows tasks with safe fallback and sends filters and pagination to the server", async () =>
 {
     vi.mocked(searchApprovalTasks).mockResolvedValue(page);
