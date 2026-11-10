@@ -20,6 +20,7 @@
 
 - Follow this single root `AGENTS.md` for every workspace package. Do not create nested `AGENTS.md` files.
 - All required specifications are in `docs/specs/`. Read the relevant requirements, design, API, UI, test, and traceability specifications there before implementation.
+- For Lab 5 work, read and use the handout, student guide, and starter-kit examples in `examples/Lab-5/` before planning or implementation. Extract `02_lab5-starter-kit.zip` locally when needed, preferably outside the repository (for example under `/tmp`); do not commit extracted copies. Adapt the examples to this repository’s approved Node.js/npm, React Router SSR, Elysia, and Drizzle stack rather than copying reference-stack assumptions. Follow the Lab 5 handout if the guide or starter kit disagrees, and preserve frozen product/API/UI contracts and this repository’s branch workflow.
 - Read the applicable shared guidelines before related work:
   - [Styling contract](docs/specs/generics/styling-contract.md) for UI styling, tokens, shared layouts, responsive behavior, accessibility, themes, and localization.
   - [Lookup table guideline](docs/specs/generics/lookup-table-guideline.md) for server-backed record pickers, selection behavior, eligibility, and lookup permissions.
