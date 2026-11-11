@@ -262,3 +262,33 @@ tests without APT or browser downloads: 24 passed, and the previously recorded
 mobile overflow assertion failed. This confirms the installation replacement
 locally but is not a green suite. The resulting actual UI failure is traced and
 fixed in a separate behavior/regression commit below; it is not suppressed by CI.
+
+### Mobile reviewer-card regression
+
+The container run reproduced the earlier mobile failure. Temporary DOM-width
+instrumentation traced a 390px viewport expanding to 1023px when an unbroken
+request title from an earlier list/detail fixture appeared in the reviewer queue.
+The search result could still contain that record before the asynchronous filter
+settled, explaining the timing-dependent observation. The mobile description
+paragraph had no wrapping rule. Screenshots taken after filtering could look
+normal even though the measured intermediate layout overflowed.
+
+Strengthened the existing reviewer journey with an 80-character unbroken suffix
+in its submitted title: it failed at the original unchanged 390px overflow
+assertion before the layout fix. Added Tailwind `wrap-anywhere` to the reviewer
+mobile-card content (matching the existing request-list wrapping pattern).
+The stronger test then passed three repeated journeys plus three SSR checks
+(6/6) in the same browser image. Temporary probes were removed. No sleep, retry,
+assertion relaxation, hidden overflow or data/filter behavior change was used.
+This is a responsive-layout fix within the existing UI contract, not new product
+behavior. Earlier ledger failures remain historical evidence, now with an
+identified cause and failing-before/passing-after regression.
+
+Final local validation: `npm run check` passed (typecheck, lint, 350 tests/40
+files and all builds), followed sequentially by **25/25 Chromium tests** in the
+new CI image with the strengthened mobile regression. The first root-container
+experiment left root-owned generated outputs, causing a host rebuild EACCES;
+workflow now uses the runner UID/GID and HOME=/tmp. Ownership was restored only
+on local generated build/type/artifact directories, and the sequential check and
+browser run passed with that exact non-root execution setup. No source/test
+permission workaround or disabled build was used. Temporary DOM probes are gone.
