@@ -334,7 +334,7 @@ runtime identity configuration and independent review responsibility.
 | Evidence needed | Status / accountable human |
 | --- | --- |
 | Resource inventory | Owner screenshots: no Cloud Run services/jobs or Artifact Registry repositories; API enabled; remaining SQL/storage/secret/trust inventory and teammate verification pending |
-| Both members can open the existing project | Pending separate member evidence; IAM changes are human-reviewed/executed only |
+| Both members can open the existing project | Owner confirmed teammate access in follow-up; IAM grants supplied; independently authored teammate verification still pending |
 | Billing/credits | Paid account and THB 629.73 available credits shown; expiry/eligibility and project linkage pending; no signup/upgrade/payment |
 | Alerts-only budget | THB 250, intended project selected, dates/thresholds confirmed above; delivery/saved state pending; not a cap |
 | Database provider | Supabase PostgreSQL approved by @oangsa on 2026-11-11; replace planned Cloud SQL provisioning, preserve existing backend/auth/contracts |
@@ -342,7 +342,7 @@ runtime identity configuration and independent review responsibility.
 | Supabase project/plan/region | Existing nomoieoovqhcaojufgfu, Free, Sydney ap-southeast-2; owner supplied screenshots/link; local connection and 9 migrations confirmed; independent access verification pending |
 | Budget, availability and teardown details | Pending @oangsa; Free-plan pause and cross-region implications recorded; no paid upgrade or resource execution performed |
 | Issue tracking | GitHub issue #24 fetched during final recheck: open, assigned to @oangsa, lab5 label present; board/history verification pending; branch already existed |
-| Specific independent teammate review | Pending @kittipichcha; AI checks never count as teammate approval |
+| Specific independent teammate review | @kittipichcha approved 5b50bab with empty body; specific rationale and final-revision coverage still pending; see verification follow-up |
 
 Supply sanitized Console/resource links and dated findings to #24/#26/#27; never
 include secret values or service-account key downloads. #24 implementer remains
@@ -352,3 +352,15 @@ The owner performed the Console changes and Supabase migration recorded above.
 No agent cloud deployment, IAM/billing change or hosted database change occurred. Implementation
 PR needs `lab5`, `Closes #24`, target `sprint-1-staging`, then reviewed promotion
 through dev and release-reviewed main. Only accepted main deploys.
+
+## Current acceptance handoff
+
+The [merge-readiness response](container-verification.md#merge-readiness-review-response--2026-11-11)
+records hosted CI, the actual teammate approval, owner-confirmed teammate access,
+restored draft status, missing sprint-staging branch protection and project-board
+inspection limits. Earlier chronological pending observations above are historical;
+this section and the current evidence table govern the follow-up status. #24 is
+not marked complete. #26 must apply the owner-approved Supabase/single-service
+Bangkok decisions instead of its earlier Cloud SQL/two-service wording, while
+preserving SSR, existing auth and accepted-main-only deployment. #25 owns the
+missing enforced merge gate; no repository settings were changed here.

@@ -144,3 +144,56 @@ failure is not proven fixed by this passing rerun. No UI/test change was made.
 `git diff --check` passed. A publication-file scan found no private-key/token
 signatures; manual review kept all credentials in private files. This bounded
 scan is not an exhaustive secret-history audit.
+
+## Merge-readiness review response — 2026-11-11
+
+Live GitHub checks supersede the pasted review's earlier review/CI observations:
+
+- PR #32 had been marked ready; it was restored to **draft** during this follow-up.
+  Keep it draft and unmerged while #24 acceptance remains incomplete. Retain the
+  required `Closes #24` implementation reference only under that no-merge gate;
+  no partial merge or issue-scope split is asserted or authorized here.
+- [Hosted Verification](https://github.com/oangsa/approval-system/actions/runs/42988016275)
+  succeeded for exact HEAD `5b50bab935ec8de8a7444f95f0fc9f75a255b82b`.
+  The inspected job reports successful locked installation, typecheck, lint,
+  web/API/contracts tests, build, test DB migrate/seed, integration, Chromium
+  installation, browser E2E and diagnostic upload. `test-diagnostics` artifact
+  ID 13840536933 was available/not expired at inspection. Hosted step success is
+  independently inspected; complete logs/artifact contents were not downloaded
+  and no additional hosted test counts or Docker build coverage are inferred.
+- [Teammate approval](https://github.com/oangsa/approval-system/pull/32#pullrequestreview-5859710679)
+  from @kittipichcha exists on `5b50bab`, submitted 2026-11-11 13:45:34 UTC.
+  Its body is empty. B-02 is therefore **partial**, not 'no submitted review':
+  independent approval exists, but the course's specific-check/rationale requirement
+  is not met by the empty body. Follow-up changes also need final-revision review.
+- Owner confirmed in this session that the teammate can access the project.
+  Record this as owner-reported access confirmation, not an independently authored
+  teammate comment or fabricated login test. The earlier IAM role screenshot
+  remains supporting evidence.
+- `GET branches/sprint-1-staging/protection` returned `Branch not protected`;
+  repository rulesets and effective branch rules returned empty lists. This is a
+  verified missing sprint-staging merge gate, handed to #25 for human-reviewed
+  configuration. CI success alone does not enforce branch protection.
+- Project-board inspection via `gh project list` was denied because the token
+  lacks `read:project`; issue projectItems returned no entries. No board state,
+  membership, historical automation transition or successful board update is
+  claimed. No token scope, credential, IAM, billing or repository setting changed.
+
+| Review item | Resolution / remaining gate |
+| --- | --- |
+| B-01 same-origin production routing | Open under #26; standalone web /api 404 remains a known prerequisite, not a new fix in #32 |
+| B-02 independent teammate review | Existing approval linked above; specific review rationale and coverage of final revision pending |
+| B-03 manual acceptance | Owner evidence and access confirmation reconciled in readiness document; remaining resource inventory, linked human evidence and independent verification pending |
+| B-04 closing incomplete issue | Draft restored; no merge/closure while acceptance incomplete; no partial-scope acceptance inferred |
+| CI/merge gates | Reviewed-revision hosted CI pass linked; missing sprint gate handed to #25; follow-up commit needs its own CI |
+| Runtime persistence / release | Local evidence retained; HTTPS workflow and restart/redeploy on accepted main remain #26 dependencies; final guide remains #27 |
+| NB-01/02/03/05 | No unrelated slimming, dependency or UI changes; intermittent overflow and per-process throttle limitations retained |
+| NB-04 evidence durability | Hosted run/review/artifact references now durable; original local logs remain session-local, not misrepresented as uploaded evidence |
+
+No cloud provisioning, production initialization or deployment was performed in
+this follow-up. The required source paths remain feature → sprint-1-staging →
+dev → main through reviewed PRs. Draft status and an empty-body approval do not
+satisfy the remaining gates. Documentation reconciliation was checked with
+`git diff --check`; no runtime change required rerunning the application suites
+already verified above. The follow-up source commit and hosted CI are traceable
+through the PR's commit/check history rather than a self-referential document SHA.
