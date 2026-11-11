@@ -197,3 +197,32 @@ satisfy the remaining gates. Documentation reconciliation was checked with
 `git diff --check`; no runtime change required rerunning the application suites
 already verified above. The follow-up source commit and hosted CI are traceable
 through the PR's commit/check history rather than a self-referential document SHA.
+
+## CI installation repair — repeated Ubuntu mirror failure
+
+Both Verification runs on `6d17428` (43038078331 and 43038067482) failed again
+on retry during `playwright install --with-deps chromium`, before browser tests.
+The inspected logs show APT's `mirror+file:/etc/apt/apt-mirrors.txt` source
+repeatedly failing DNS for `azure.archive.ubuntu.com`; old indexes were retained
+and subsequent package downloads exited 100. Ordinary tests/build/integration
+had passed. The unchanged-commit reruns disprove the assumption that one retry
+alone resolved this setup failure. No browser pass is attributed to these runs.
+
+The user requested a source fix. A narrowly scoped CI step now changes the
+Ubuntu 24.04 runner source from its Azure-first mirror list (or direct HTTP Azure
+source) to `https://archive.ubuntu.com/ubuntu/`, then runs strict APT index update
+(`APT::Update::Error-Mode=any`). Signed-By, suites and components are retained.
+Playwright's full dependency/browser installation and E2E test commands remain
+required; no continue-on-error, test retries, assertion changes or skipped tests
+were introduced. A failed alternate archive/update still fails CI.
+
+Local checks passed: extracted workflow shell `bash -n`, substitutions on both
+mirror-list/direct-Azure Deb822 fixtures, preservation of Ubuntu signing-key and
+suite declarations, and `git diff --check`. Hosted CI on the repair commit is the
+integration verification; pre-repair green runs do not verify the repair.
+
+Runner mirror mechanism was cross-checked against the primary source:
+https://github.com/actions/runner-images/blob/main/images/ubuntu/scripts/build/configure-apt-sources.sh
+This repairs the installer boundary only; it does not claim to repair a DNS
+service globally or clear the remaining #24 production/review gates. #25 retains
+ownership of repository merge-gate configuration.
