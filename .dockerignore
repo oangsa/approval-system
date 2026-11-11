@@ -11,3 +11,19 @@ node_modules
 .aws
 artifacts
 **/coverage
+**/.react-router
+**/*.tsbuildinfo
+**/playwright-report
+**/test-results
+**/*.log
+# Local database files, dumps, and credential exports must not enter build context.
+**/*.db
+**/*.sqlite
+**/*.sqlite3
+**/*.dump
+**/*.pem
+**/*.key
+**/gha-creds-*.json
+**/*service-account*.json
+**/pgdata
+**/uploads
