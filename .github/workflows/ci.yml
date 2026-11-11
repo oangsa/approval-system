@@ -59,7 +59,8 @@ jobs:
         # Host networking preserves the guarded loopback workflow_test target.
         run: |
           docker run --rm --init --network host --ipc host \
-            -e CI=true -e NODE_ENV -e TEST_DATABASE_URL \
+            --user "$(id -u):$(id -g)" \
+            -e HOME=/tmp -e CI=true -e NODE_ENV -e TEST_DATABASE_URL \
             -v "$GITHUB_WORKSPACE:/work" -w /work \
             approval-playwright:ci npm run test:e2e
         env:
