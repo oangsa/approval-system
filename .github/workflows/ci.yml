@@ -53,16 +53,15 @@ jobs:
           TEST_DATABASE_URL: postgresql://workflow_test:ci_test_only@127.0.0.1:5432/workflow_test
           DATABASE_URL: postgresql://127.0.0.1:5432/workflow_dev
           RUN_BUILT_HTTP_SMOKE: "1"
-      - name: Use Ubuntu archive for browser dependencies
-        # Avoid the runner's Azure-first mirror list after repeated DNS failures.
+      - name: Build browser test environment
+        run: docker build -f .github/ci/playwright.Dockerfile -t approval-playwright:ci .github/ci
+      - name: Run browser tests
+        # Host networking preserves the guarded loopback workflow_test target.
         run: |
-          sudo sed -i \
-            -e 's|mirror+file:/etc/apt/apt-mirrors.txt|https://archive.ubuntu.com/ubuntu/|g' \
-            -e 's|http://azure.archive.ubuntu.com/ubuntu/|https://archive.ubuntu.com/ubuntu/|g' \
-            /etc/apt/sources.list.d/ubuntu.sources
-          sudo apt-get -o APT::Update::Error-Mode=any update
-      - run: npm run test:e2e:install
-      - run: npm run test:e2e
+          docker run --rm --init --network host --ipc host \
+            -e CI=true -e NODE_ENV -e TEST_DATABASE_URL \
+            -v "$GITHUB_WORKSPACE:/work" -w /work \
+            approval-playwright:ci npm run test:e2e
         env:
           NODE_ENV: test
           TEST_DATABASE_URL: postgresql://workflow_test:ci_test_only@127.0.0.1:5432/workflow_test

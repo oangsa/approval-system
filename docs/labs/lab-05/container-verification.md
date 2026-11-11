@@ -226,3 +226,39 @@ https://github.com/actions/runner-images/blob/main/images/ubuntu/scripts/build/c
 This repairs the installer boundary only; it does not claim to repair a DNS
 service globally or clear the remaining #24 production/review gates. #25 retains
 ownership of repository merge-gate configuration.
+
+### Superseding repair: preinstalled browser environment
+
+The mirror-only repair `6fa51ee` failed in run 43044741085: strict update showed
+DNS failures for `archive.ubuntu.com` as well. This falsifies an Azure-only
+failure assumption; the earlier source override is removed rather than retained
+as ineffective CI complexity.
+
+CI now builds `.github/ci/playwright.Dockerfile` from the official
+`mcr.microsoft.com/playwright:v1.60.0-noble` browser/dependency image, matching
+locked @playwright/test 1.60.0, with Node 24/npm copied from the approved Node 24
+image. The ordinary checks/integration still execute on the host. Only browser
+execution moves into this image: no APT update/install or browser download occurs
+inside the verification job. Runtime package-manager versions and the full suite
+were checked locally in this same image.
+
+Docker host networking preserves existing guarded loopback workflow_test URLs
+and access to the isolated PostgreSQL service. Workspace bind mounting preserves
+browser artifacts for the existing always-run upload step. The image supplies
+browser binaries/dependencies, not test results: `npm run test:e2e` remains a
+required command and its nonzero exit fails the job. No application source,
+test assertion, timeout, retry count or target guard was weakened. Registry/image
+fetch and npm installation remain network prerequisites; global network recovery
+is not claimed.
+
+Primary guidance: https://playwright.dev/docs/ci and https://playwright.dev/docs/docker .
+The image tag must be updated in coordination with the root Playwright lockfile.
+This CI fix is user-requested; it does not change #25's merge-rule ownership or
+clear production acceptance gates.
+
+Local container build succeeded (image fc30ccfb6e92); actual runtime versions were
+Node v24.22.2/npm 11.19.1. The first full container run reached all 25 browser
+tests without APT or browser downloads: 24 passed, and the previously recorded
+mobile overflow assertion failed. This confirms the installation replacement
+locally but is not a green suite. The resulting actual UI failure is traced and
+fixed in a separate behavior/regression commit below; it is not suppressed by CI.
