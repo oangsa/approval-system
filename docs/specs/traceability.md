@@ -302,3 +302,8 @@ Issue #5 alignment corrections, recorded in [verification evidence](../features/
 closes historical task-context and permission-state gaps, plus success-stage and
 server-error support-ID gaps. Read-only handled task access requires a persisted
 actor/slot decision; current request/queue permissions remain unchanged.
+
+
+### Request search and shell polish slice
+
+[Issue #12](https://github.com/oangsa/approval-system/issues/12) remains responsible for FR-037–039/R12–R14 across requests and reviews; [#17](https://github.com/oangsa/approval-system/issues/17) retains FR-040/R17 and full-product theme/localization/report responsibilities. Owner requested the My Requests and shell subset early on 2026-11-13; [AC 1–6 and design](../features/request-search-polish/spec.md) map FR-005/037–040 to query, component, real-PostgreSQL and browser checks. No frozen behavior, permission or endpoint changes.
