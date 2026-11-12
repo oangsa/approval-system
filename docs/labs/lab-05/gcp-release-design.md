@@ -32,12 +32,18 @@ an independently verified account forecast. Review effective billing/usage befor
 provisioning. Reducing max instances from 3 to 1 and enabling a Cloud Run spend
 cap were recommendations, not separate approved settings; retain the existing
 approved max 3 until the owner chooses. No cloud, billing or IAM action follows
-automatically from this architecture acceptance. Migration-job sizing approval
-and human configuration/release gates remain pending.
+automatically from this architecture acceptance. Human configuration/release gates
+remain pending; the approval below supersedes the earlier pending sizing decision.
 
 The owner explicitly reconfirmed **0.5 vCPU / 512 MiB for the application service**
-when authorizing publication. Keep this setting; the separate migration job's
-proposed 1-vCPU sizing remains a distinct pending decision.
+when authorizing publication. Keep this setting. The owner subsequently approved
+the separate migration job at **1 vCPU / 512 MiB**, one task, retries zero,
+600-second timeout, release execution only. The owner will monitor costs and
+reconsider the approach if they grow; no continuously running migration instance,
+paid Supabase upgrade, new spending cap or change to application sizing is approved.
+At the owner's later planning assumption of 25,000 requests/day and 3–4 releases
+per month, the earlier light-lab cost estimate is not a forecast: request duration,
+response sizes, startup time and available free allowances must be measured.
 
 Owner amendment, 2026-11-12: explicitly authorize a database-backed health check
 and periodic calls to reduce Supabase Free inactivity. Reuse existing `GET /health`:

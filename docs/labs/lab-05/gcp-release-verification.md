@@ -204,4 +204,116 @@ Node v24.18.1/npm 11.16.0, fresh session-owned `approval-26-grants-db` PostgreSQ
 These results establish local permission compatibility, not successful Supabase
 authentication, effective PUBLIC/inherited privilege isolation, production TLS,
 Cloud Run deployment or grading acceptance. Production password setup and runtime/
-migration connection secrets remain human steps.
+migration connection secrets remained human steps at that checkpoint; the later
+owner evidence below supersedes this setup status, not the scope of local tests.
+
+## Owner setup and completion handoff — 2026-11-12
+
+Subsequent owner-provided evidence, with no agent production execution:
+
+- Owner executed the scoped runtime grants in Supabase SQL Editor. Nine effective
+  privilege checks all matched: CONNECT, user SELECT, request INSERT and the
+  request-type identity-column lock grant allowed; schema CREATE, password-hash
+  UPDATE, role-value UPDATE, audit UPDATE and Drizzle-schema USAGE denied.
+  This is a bounded check, not an exhaustive PUBLIC/inherited-grant audit.
+- Owner set the runtime DB password privately and created the runtime connection
+  secret. Screenshot showed the runtime identity on that secret's permissions page.
+- Owner created `approval_migrator` with login enabled and privileged role flags
+  disabled, then executed the named-object ownership transaction. Readback showed
+  the Drizzle journal and visible application tables owned by approval_migrator;
+  the image did not show every table, enum, sequence or function.
+- pg_dump client 16.15 was replaced by 17.11 in Cloud Shell to match server 17.11.
+  System-root verification failed before backup; using the downloaded
+  `prod-ca-2021.crt` with verify-full succeeded. A private 93 KiB custom archive of
+  public+drizzle has filename timestamp 20261112T095606Z; the owner's 09:59 UTC
+  readback showed the completed file and pg_restore --list succeeded.
+  No restore was performed: owner stated the database had no application data and
+  explicitly waived this initial restore exercise. Do not treat this as populated
+  database recovery proof or a blanket waiver for future releases.
+- Screenshots confirm the migrator identity has Secret Accessor on
+  `approval-migrator-database-url`, and both runtime/migrator identities have it on
+  `approval-supabase-ca`. No secret values or database passwords were received.
+- Owner explicitly approved the separate 1 vCPU / 512 MiB migration job after cost
+  discussion, keeping the application at 0.5 vCPU / 512 MiB. Owner will monitor
+  actual cost and reconsider the approach if it expands. The proposed job has one
+  task, zero retries, 600-second timeout and no schedule. No Supabase paid upgrade,
+  new spend cap or max-instance change is approved.
+
+Hosted Verification run [43191440703](https://github.com/oangsa/approval-system/actions/runs/43191440703)
+completed successfully for published head `f64dc56007d1c9bf0099c8ec522bde3171850e69`.
+This supersedes the earlier pending-CI wording for that head. PR #38 is still open;
+no specific teammate review or live deployment evidence was visible at recheck.
+
+### Remaining repository work and local verification
+
+The ownership SQL is now recorded in `deploy/migrator-ownership.sql`, with a real
+PostgreSQL test that executes it, checks 24 table owners, all eight application
+functions, enum and both sequences, runs schema DDL/journal insertion as the
+unprivileged migrator, and confirms restricted runtime access survives transfer.
+Roles, DDL, journal rows and grants are wrapped in a rolled-back fixture transaction.
+Sequence nextval calls are not transactional; only disposable fixtures are used.
+
+The first new test failed because its statement splitter treated a semicolon in a
+SQL comment as a delimiter; strip line comments before splitting this reviewed
+GRANT/ALTER-only file. The corrected test then exposed a real provisioning gap:
+`CREATE SCHEMA IF NOT EXISTS drizzle` fails under the migrator without database
+CREATE, even with existing schema USAGE/CREATE and table ownership. Added
+`GRANT CREATE ON DATABASE postgres TO approval_migrator` to the versioned setup.
+The targeted test passed with that grant. **The owner must apply this one additional
+grant in Supabase before executing the migration job.** No database CREATEDB,
+superuser, protected-object ownership or runtime schema grant is needed.
+
+`gcp-first-deployment.md` now provides the ordered human commands for accepted-main
+build, digest pinning, numeric secret versions, CA mounts, private initial service,
+minimum initialization/repeat check, custom resource-scoped deployment IAM, public
+invocation and automatic release. `deploy/release-role.yaml` is a proposed eight-
+permission custom role; no IAM permissions, secret reads, job overrides, create or
+delete privileges. It remains human-reviewed and unproven against live GCP IAM.
+The synthetic initializer URL is constructed explicitly rather than embedded as
+a credential-shaped literal; a human must classify historical GitGuardian incident
+39983502 as a test fixture. No history rewrite or production rotation is indicated
+by this fixture alert.
+
+Final local handoff verification: Node v24.18.1, npm 11.16.0, source based on
+`f64dc56007d1c9bf0099c8ec522bde3171850e69` plus this handoff follow-up. Fresh
+`approval-26-handoff-db` PostgreSQL 17 fixture, loopback 55437, guarded workflow_test,
+synthetic credentials/data only; removed after verification. Commands/results:
+
+- `npm run typecheck`, `npm run lint`, `npm run build`: passed, exit 0.
+- `npm test`: 354/354 across 41 files passed.
+- `npm run test:release`: 8/8 passed, with stubbed cloud commands/local proxy.
+- `NODE_ENV=test TEST_DATABASE_URL=<fixture> npm run db:test:migrate`: passed.
+- Same guarded environment, `npm run test:initialization` before seed: 1/1 passed.
+- Same guarded environment, `npm run db:test:seed`: passed.
+- Same guarded environment, `RUN_BUILT_HTTP_SMOKE=1 npm run test:integration`:
+  **73/73 across 10 files passed**, no skips, 23.55s, after the fixes above.
+- `bash -n` on all GCP guide shell blocks, YAML parse of custom role, relative
+  links in the new guide and `git diff --check`: passed. Commands were parsed,
+  not executed against cloud resources. No gcloud installed/used for live checks.
+
+Logs remain local under `/tmp/approval-26-handoff-*.log`; they are not hosted release
+evidence. Browser journeys and Docker builds were not repeated locally for these
+SQL/test/docs/IAM-definition changes; the prior results retain their own source
+attribution. New published-head CI must pass before review/promotion.
+
+### Acceptance checklist — keep #26 open
+
+| Criterion | Evidence / outstanding execution |
+| --- | --- |
+| R-03 / C-04 public sign-in, submission, decision, rejection | Pending first HTTPS deployment and teammate verification |
+| R-04 persistent data | Supabase selected/configured; live restart/redeploy persistence still pending |
+| R-07 main-only repeatable pipeline | Implemented/offline tested; real OIDC CD run pending |
+| R-08 / C-06 matching SHA/digest/revision/marker | Implemented; live evidence and reviewed promotion chain pending |
+| Sprint 1 behavior and required CI | Prior current published head passed hosted Verification; later edits need their own checks |
+| Safe repeatable initialization | Local real-PostgreSQL test passes; human initial/repeat execution still pending |
+| Failed verification/migration leaves old traffic | Offline tests pass; cloud behavior remains unproven |
+| Exact automated/manual verification evidence | Local and earlier CI evidence recorded; final release evidence pending |
+| Board, labels and both members' contributions | Issue/PR lab5 labels confirmed; board status and teammate-specific review/verification pending |
+| Existing resources reused/configured | Existing project/DB/registry/identities/secrets reused; one extra DB grant, service/job and deployer bindings pending |
+| Main trust/environment and independent live verification | Configuration screenshots only; full effective readback, successful token exchange and teammate verification pending |
+
+Owner participation so far: architecture/budget decisions and manual GCP, GitHub
+Settings, Supabase grant/ownership/backup operations evidenced above. AI assistance:
+source/procedures and disposable local verification. The requested teammate review
+is not evidence of completed review or equal contribution. #27 assembles final
+evidence after these actual executions, not in place of them.

@@ -37,12 +37,14 @@ it is monthly, service-specific, based on gross estimated costs and can pause th
 application; delayed enforcement can overshoot and other services remain billed.
 Its availability/amount/uptime trade-off requires an owner decision. Preserve the
 existing alerts-only budget until a human reviews and executes any replacement.
-The separate job's **proposed**, not approved, sizing is 1 CPU / 512 MiB, one
-task/parallelism 1, retries 0, timeout 600s. Owner asked about charges; no sizing
-approval is inferred. Jobs bill execution time with a minimum duration, subject
+The owner subsequently explicitly approved the separate job at **1 CPU / 512 MiB**,
+one task/parallelism 1, retries 0, timeout 600s, execution during releases only.
+The owner will monitor actual costs and reconsider the approach if they grow.
+Jobs bill execution time with a minimum duration, subject
 to billing-account free allowances; a ten-minute timeout is not a fixed charge.
 Use the current [pricing page](https://cloud.google.com/run/pricing) and regional
-calculator to record cost implications and owner decision before provisioning.
+calculator when reviewing actual costs before provisioning. This approval does
+not change the application's 0.5 CPU / 512 MiB or authorize a Supabase paid upgrade.
 
 Check #35's dependency advisories and record remediation/risk disposition before
 production exposure. Per-process login throttling is shared neither across
@@ -61,6 +63,10 @@ migrator owns/changes application schema and Drizzle history. Initialization
 needs account/configuration insert/select and only initial publication update.
 Have a human review actual PostgreSQL grants/ownership, including existing
 Supabase ownership; do not grant browser access or adopt Supabase Auth.
+The one-time named-object ownership SQL is versioned in
+[`deploy/migrator-ownership.sql`](../../../deploy/migrator-ownership.sql).
+The owner executed it and supplied partial owner readback; complete effective
+readback/independent review remains distinct from the local PostgreSQL test.
 
 Runtime identity: Secret Accessor on only runtime DB URL/JWT secret (and mounted
 CA if needed). Migrator: only migration DB URL/CA secrets. Deployer: registry
@@ -119,6 +125,11 @@ a temporary runner credential file; `.dockerignore` excludes `gha-creds-*.json`.
 
 ## 3. Packaging, first deployment and connection configuration
 
+Use the ordered, human-executed commands in
+[first deployment](gcp-first-deployment.md) for exact resource creation, secret/CA
+mounts, initializer invocation, resource-scoped deployer permissions and final
+acceptance. The following describes the sequence and operational boundaries.
+
 The combined image's `/app` working directory supports `npm run db:migrate`
 and `npm run db:initialize-production`. Default startup launches Elysia on
 loopback 3001, SSR on loopback 3002, and same-origin ingress on HOST/PORT.
@@ -130,7 +141,7 @@ Human first-deployment sequence, only **after the exact source reaches accepted
 main through all reviewed PRs and CI**:
 
 1. Inventory/configure registry, identities and versioned secrets. Review SQL
-   and take a verified backup before DB execution. Approve job sizing separately.
+   and review recovery before DB execution. Job sizing is now owner-approved.
 2. Build the accepted SHA from a clean checkout using the command below. For
    manual bootstrap use tag `bootstrap-FULL_SHA`, so an immutable registry does
    not conflict with CD's later full-SHA tag. Push through the human's reviewed
@@ -279,7 +290,12 @@ and RPO/RTO decision without dump content or credentials. Dumps contain producti
 data/authentication material: never upload them as GitHub evidence. Human reviews
 restored ownership/grants and tests the journey before considering cutover. No
 automatic rollback/reset of the database. If backup/restore is unproven, defer
-migration approval.
+migration approval for databases containing application data. For this initial
+setup only, the owner stated the database had no application data and explicitly
+waived the restore exercise. A 93 KiB public+drizzle archive was created successfully
+using pg_dump 17.11 with the Supabase CA, and pg_restore --list succeeded; that is
+not proof of restoration. Keep this waiver bounded to the empty initial setup.
+Before future migrations with populated data, review backup/recovery again.
 
 Migration failure: release script exits before service update. Keep serving the
 old revision; inspect sanitized execution failure and journal privately. Take a
