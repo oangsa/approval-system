@@ -99,7 +99,7 @@ Playwright builds and starts the SSR web server and the Node API automatically, 
 
 The suite checks server-rendered HTML, accessible content/title, real React hydration commits without browser errors, desktop/mobile overflow, and API health through its real listener. Authentication journeys cover real login, wrong credentials, refresh-cookie bootstrap, logout and re-authentication, account switching without stale identity, drawer focus management, and public SSR privacy. It observes React's DevTools commit hook instead of adding testing markers or artificial controls to the application.
 
-Failure screenshots, retained traces, and HTML reports are under `artifacts/playwright/`; coverage is under `artifacts/coverage/`. Generated artifacts are Git-ignored. GitHub Actions provisions disposable PostgreSQL, runs checks/builds/tests, installs Chromium, runs the browser suite, and uploads diagnostics. It performs no deployment.
+Failure screenshots, retained traces, and HTML reports are under `artifacts/playwright/`; coverage is under `artifacts/coverage/`. Generated artifacts are Git-ignored. GitHub Actions provisions disposable PostgreSQL, runs checks/builds/tests, and builds both production API and web images from the repository root. It builds and uses the preinstalled-browser image defined in `.github/ci/playwright.Dockerfile` to run the browser suite, then uploads diagnostics. It does not push images or deploy. See [Lab 5 CI quality gates](docs/labs/lab-05/ci-quality-gates.md) for the required check and C-01/C-02 evidence procedures.
 
 ## Structure and architecture
 
