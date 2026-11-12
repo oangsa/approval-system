@@ -306,3 +306,7 @@ actor/slot decision; current request/queue permissions remain unchanged.
 ### Public landing presentation
 
 Owner-requested landing work refines UI §5/§7.1 and public SSR without adding a product capability. [LAND-01–05](../features/public-landing/spec.md) map to homepage component regressions, desktop/mobile browser smoke and the release smoke marker; see [execution evidence](../features/public-landing/verification.md). This does not claim global theme/localization completion or change the existing authentication/authorization criteria.
+
+### Request search and shell polish slice
+
+[Issue #12](https://github.com/oangsa/approval-system/issues/12) remains responsible for FR-037–039/R12–R14 across requests and reviews; [#17](https://github.com/oangsa/approval-system/issues/17) retains FR-040/R17 and full-product theme/localization/report responsibilities. Owner requested the My Requests and shell subset early on 2026-11-13; [AC 1–6 and design](../features/request-search-polish/spec.md) map FR-005/037–040 to query, component, real-PostgreSQL and browser checks. No frozen behavior, permission or endpoint changes.

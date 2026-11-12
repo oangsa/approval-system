@@ -16,6 +16,7 @@ async function submittedTask(page: Page)
 {
     const title = `Decision evidence ${Date.now()}`;
     await login(page, "requester-a@example.test");
+    await page.goto("/requests");
     await page.getByRole("link", { name: "New request" }).click();
     await page.getByLabel("Request type (required)").selectOption({ label: "General request" });
     await page.getByRole("button", { name: "Next", exact: true }).click();

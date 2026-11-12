@@ -632,3 +632,7 @@ The M01–M03 test setup and per-case assertions are maintained in [identity-acc
 ### Public landing regression scope
 
 [LAND-01–05](../features/public-landing/spec.md) replace the starter-page assertions with public SSR content, labelled illustrative data, working sign-in/overview links, known-client-session dashboard redirection, responsive hydration, keyboard skip navigation, reduced motion and no-JavaScript navigation. `e2e/smoke.spec.ts` also verifies that a public landing load makes no API requests. Deployment smoke uses the product title and main landmark rather than the obsolete Lab 5 release slogan, preserving compatibility with earlier public pages during rollback. Actual execution is recorded in the [landing verification](../features/public-landing/verification.md); broader theme/localization acceptance remains separately scoped.
+
+### Request search and shell polish verification
+
+The [bounded specification](../features/request-search-polish/spec.md) defines AC 1–6 and UT-12/SEC-11/UI-16/E2E-13 mappings. Query tests cover operator/date/URL validation; component tests cover dialog drafts, chips, paging, type lookup cancellation and account/query isolation; browser tests cover keyboard/mobile behavior, navigation, history and real API payloads. Actual execution belongs in the feature verification record; this plan does not assert passing results.

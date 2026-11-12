@@ -200,6 +200,7 @@ All paths below are **frontend React Router paths**, not API routes. Reuse featu
 
 - Reuse `DataTable` with request number, title, request type, priority, status, last update, and optional date/department where authorized.
 - Search request number/title; filter status and date; sort and paginate through `/requests/search`.
+- **2026-11-13 bounded implementation:** New request lives on this page, not in sidebar navigation; the creation route is unchanged. Advanced filters use a draft dialog, applied removable chips, supported date ranges and page sizes 10/20/50/100; see [acceptance and design](../features/request-search-polish/spec.md). This delivers part of #12/#17, not their full scope.
 - Primary action **New request**. Row primary action **Open details**; optional contextual **Edit draft/returned**, **Withdraw** when `availableActions` permits.
 - Status labels and timestamps must reflect server state; do not optimistically fabricate terminal approval status.
 - A newly registered user without a department may save permitted drafts but receives a clear department-assignment explanation before submission.

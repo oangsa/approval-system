@@ -1,6 +1,6 @@
 # Filter and search guideline
 
-**Status:** Derived engineering guideline, 2026-11-06. Documentation only; no QueryBuilder, route, schema or UI implementation in this change.
+**Status:** Derived engineering guideline, 2026-11-06; implementation baseline corrected 2026-11-13. The guideline itself does not authorize new routes, permissions or contract changes.
 
 **Authority:** [API specification](../api-specs.md) §§2.2–2.4, 4, 6.5.1, 6.8, 6.10; [UI specification](../ui-specs.md) §§6, 8, 10–14; [system design](../system-sds.md); [SRS](../srs.md); root [AGENTS.md](../../../AGENTS.md). Frozen behavior wins. QueryBuilder structure and numeric defaults are recommendations, not new product/API authority.
 
@@ -124,9 +124,9 @@ The old builder is **not sufficient unchanged**. It accepts arbitrary/dotted ide
 
 ### 5.2 What exists in this repository
 
-At local baseline `8d02023`, [createApplication](../../../apps/api/src/Presentations/createApplication.ts) exposes health infrastructure; [database schema](../../../apps/api/src/Infrastructures/Database/schema.ts) has no product tables; [shared contracts](../../../packages/contracts/src/index.ts) export only a health schema; [web HTTP helper](../../../apps/web/app/api/http.ts) returns parsed JSON without pagination metadata handling. There is no implemented search route, product authorization, search Zod contract, repository QueryBuilder or lookup foundation.
+**Outdated assessment replaced (2026-11-13):** The health-only baseline `8d02023` no longer describes this repository. Owner-scoped request search now runs through [RequestRoutes](../../../apps/api/src/Presentations/Routes/RequestRoutes.ts), [RequestService](../../../apps/api/src/Applications/Requests/RequestService.ts) and [RequestRepository](../../../apps/api/src/Infrastructures/Database/Repositories/RequestRepository.ts). Shared [request collection schemas](../../../packages/contracts/src/requestCollection.ts) define the field/operator matrix and omit values for null checks. The [HTTP client](../../../apps/web/app/api/http.ts) parses direct arrays and X-Pagination and rejects missing/invalid metadata. Product tables and real-PostgreSQL search tests exist.
 
-**Assessment:** The agreed Elysia/Node.js 24, Clean Architecture, Drizzle/PostgreSQL and shared-Zod stack can support these interactions. The architecture and frozen transport fit; working backend support is **not yet present or verified**. This document records design guidance and implementation prerequisites only.
+The repository uses resource-specific Drizzle composition rather than a global QueryBuilder; do not add another abstraction solely to match the recommendation below. [Request search polish](../../features/request-search-polish/spec.md) defines the bounded My Requests UI implementation, URL validation and page recovery. Review Queue expansion and other future collections remain separate. Existing tests are not proof of a new execution; record actual verification separately.
 
 ### 5.3 Recommended shared boundary
 
