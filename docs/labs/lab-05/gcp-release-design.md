@@ -143,3 +143,15 @@ Owner: budget/configuration/execution decisions. Reviewer: @kittipichcha,
 independent specific review of the final source and evidence. AI assistance:
 readiness/source inspection and implementation/verification preparation, never
 substituted for either human's participation or approval. #27 assembles evidence.
+
+## Owner amendment — Singapore custom-domain cutover, 2026-11-13
+
+Owner explicitly chose moving Cloud Run to Singapore (`asia-southeast1`) to map
+`approval-system.oangsa.com`. Keep the accepted application and job sizing and
+existing Sydney Supabase database/identities/secrets. Reuse the Bangkok registry
+through `ARTIFACT_REGION=asia-southeast3`; this avoids copying/duplicating images,
+but cross-region image transfer can be billed. Temporarily retain Bangkok until
+Singapore HTTPS authentication and automatic CD pass; no deletion is authorized.
+Direct domain mapping is Preview and Google does not recommend it for production
+services; this selected lab option has managed TLS with provisioning delay.
+See [cutover commands](gcp-singapore-cutover.md).
