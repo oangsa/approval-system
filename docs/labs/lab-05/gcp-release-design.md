@@ -73,9 +73,12 @@ and `X-Release-Sha` header provide read-only release evidence.
 Only `push main` invokes deployment. Reuse the entire CI workflow against that
 exact SHA; no success bypass, branch parameter, manual unverified release or
 production seed. Serialize with cancellation disabled. A protected `production`
-environment gates the mutation job. It must restrict deployments to main and
-require human review of the exact SHA, migration SQL, backup and configuration.
-The owner must configure it before enabling CD; YAML cannot enforce its settings.
+environment restricts the mutation job to main. The owner subsequently declined
+an additional environment reviewer requirement, retaining the existing reviewed
+PR/branch rules. Therefore there is no separate manual approval at the deployment
+job: human review of the exact SHA, migration SQL, backup and configuration must
+be completed before the release PR merges into main. The owner must configure the
+environment before enabling CD; YAML cannot enforce its settings.
 
 Build/tag full SHA, push, resolve/validate digest. Update the precreated migration
 job to that digest with exact `npm run db:migrate` from `/app`; execute and wait.

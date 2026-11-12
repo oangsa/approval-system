@@ -143,3 +143,65 @@ production monitor was enabled. The owner subsequently authorized scoped commits
 feature-branch publication and the staging PR; external publication is recorded
 separately from those earlier local results. The owner also reconfirmed the
 application service at 0.5 vCPU / 512 MiB; migration-job sizing remains pending.
+
+## Human configuration and runtime grants follow-up — 2026-11-12
+
+Owner-supplied Console/screenshots during setup (not agent cloud execution):
+
+- `approval-releases`: Docker/Standard, Bangkok, Google-managed encryption,
+  scanning disabled. Edit view showed immutable image tags selected Enabled;
+  independent effective-setting review remains required.
+- `approval-runtime`, `approval-migrator`, `approval-deployer`: enabled, no keys.
+  Repository permission entry showed deployer as Artifact Registry Writer.
+- `github-actions` pool and `github-main` OIDC provider enabled. Reviewed mapping
+  is `google.subject=assertion.sub` and
+  `attribute.repository_id=assertion.repository_id`. Owner entered the six-part
+  condition documented in the updated runbook, using the environment claim
+  directly and event `push`. Connected-account readback showed
+  `approval-deployer` restricted to `attribute.repository_id="1446443279"`.
+  No actual production token exchange is claimed.
+- GitHub `production` environment showed one branch (`main`), no tags and no
+  required reviewers. Owner explicitly chose existing PR review rules without an
+  extra environment reviewer requirement. This departs from the earlier manual
+  environment approval proposal: reviewed release PRs must cover SQL/backup/
+  configuration before merging, because main deployment has no second approval.
+- Five environment variable names were visible: GCP project/region, artifact
+  repository, WIF provider/account. Last two values were truncated in the screenshot;
+  complete values remain independently unverified.
+- Owner created `approval-jwt-secret` privately and reported saving runtime-only
+  Secret Accessor after the reviewed per-secret grant form. No secret value was
+  received. Full effective inherited-access review remains pending.
+- Supabase role inventory initially showed only `postgres` plus protected roles.
+  Owner created `approval_runtime`; details showed login enabled and all privileged
+  flags disabled. Visible application tables and Drizzle history were owned by
+  `postgres`, with RLS false. The bottom of the result list was outside the image;
+  no full schema audit is claimed. Earlier Roles screenshot showed 11/60 active
+  connections at that instant, not a verified sustained connection budget.
+
+The repository now provides `deploy/runtime-grants.sql`: additive, transactionally
+applied grants on named existing application objects. It creates no schema,
+password or business records, grants no Drizzle access, and preserves ownership,
+RLS and triggers. Column-level UPDATE grants needed by current row-locking queries
+are explicitly documented; inherited/PUBLIC access still needs live readback.
+Human review and execution against Supabase are pending.
+
+Local follow-up source: prior published head
+`221fb3f89df5668fc22eb5b7479516323746fcab` plus the grants/test/docs changes.
+Node v24.18.1/npm 11.16.0, fresh session-owned `approval-26-grants-db` PostgreSQL
+17 fixture at loopback 55436, guarded `workflow_test`, synthetic seed only:
+
+- `npm run typecheck`, `npm run lint`, `npm run build`: passed, exit 0.
+- Guarded `npm run db:test:migrate` then `npm run db:test:seed`: passed.
+- `NODE_ENV=test TEST_DATABASE_URL=<disposable-fixture> RUN_BUILT_HTTP_SMOKE=1 npm run test:integration`:
+  **72/72 tests across 9 files passed**, no skips, 23.01s. New test applies the exact
+  grant statements (database name adapted only for the fixture), sets the runtime
+  role, runs real submission/approval services and checks denial of schema creation,
+  password-hash updates, audit rewrites, routing-content updates and migration
+  history access. Role/grants/test records roll back together.
+- No normal unit/browser logic changed; their previous results remain attributed
+  to the earlier source snapshot, not represented as rerun here.
+
+These results establish local permission compatibility, not successful Supabase
+authentication, effective PUBLIC/inherited privilege isolation, production TLS,
+Cloud Run deployment or grading acceptance. Production password setup and runtime/
+migration connection secrets remain human steps.

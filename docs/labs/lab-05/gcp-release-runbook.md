@@ -70,30 +70,31 @@ identities. It must not administer IAM, billing, secrets or databases. Prefer
 resource-scoped/custom permissions where supported; review any broader role.
 Use job execution without overrides; retries are deliberately zero. No JSON keys.
 
-Create/reuse GitHub environment **production**, restrict to main, require an
-independent human reviewer and prevent self-review/bypass where supported.
-Before approving each release, inspect the exact SHA, successful reusable CI,
-SQL diff, backup/recovery record and configuration. Capture effective settings;
-an environment name in YAML does not establish protection. Keep all three branch
-rulesets requiring `verify` and independent teammate review, without bypass.
+Create/reuse GitHub environment **production**, restrict to main. Owner explicitly
+declined another environment reviewer requirement on 2026-11-12 and retained the
+existing reviewed PR/branch rules. There is no additional deployment approval
+click. Before merging each release PR into main, inspect the exact SHA, CI, SQL
+diff, backup/recovery record and configuration. Capture effective settings; an
+environment name in YAML does not establish protection. Preserve existing branch
+rules requiring `verify` and independent teammate review. No new ruleset is needed.
 
 WIF issuer: `https://token.actions.githubusercontent.com`; default provider
 audience. Map `google.subject=assertion.sub` and
 `attribute.repository_id=assertion.repository_id`. The human validates this
-condition against the actual OIDC subject format (including any immutable-subject
-customization), not a guessed string:
+condition against the signed GitHub claims:
 
 ```text
 assertion.repository_id == '1446443279' &&
 assertion.repository_owner_id == '71574088' &&
 assertion.ref == 'refs/heads/main' &&
 assertion.workflow_ref == 'oangsa/approval-system/.github/workflows/deploy.yml@refs/heads/main' &&
-assertion.sub == 'repo:oangsa/approval-system:environment:production'
+assertion.environment == 'production' &&
+assertion.event_name == 'push'
 ```
 
 Repository/owner IDs were read from the connected GitHub repository on
-2026-11-12. If immutable subjects are enabled, replace only the last value with
-the verified form `repo:oangsa@71574088/approval-system@1446443279:environment:production`.
+2026-11-12. Use the signed environment claim directly, independently of legacy or
+immutable subject formatting. The subject mapping remains `assertion.sub`.
 Restrict deployer impersonation to that repository attribute and provider.
 Confirm no deployer keys exist. Retain sanitized provider/condition/binding and
 environment readbacks plus @kittipichcha's specific verification. Official
@@ -169,6 +170,20 @@ statements/migration compatibility. Require `sslmode=verify-full`. If its CA is
 not system-trusted, mount the reviewed CA and set `NODE_EXTRA_CA_CERTS` for all
 Node migration/runtime/initializer processes; never disable verification.
 Test TLS and effective DB role privately from the job/runtime network.
+
+For the restricted `approval_runtime` database login, review
+[`deploy/runtime-grants.sql`](../../../deploy/runtime-grants.sql) against the live
+Sprint 1 object inventory before a human executes it as the existing owner.
+It changes grants only on named application objects, with no schema/data/password
+changes or access to Drizzle history. Runtime cannot administer accounts,
+password hashes, role values, routing content or schema with these direct grants.
+Existing `SELECT ... FOR SHARE` queries require UPDATE on at least one column;
+the script grants that on named identity columns. This still permits rekeying
+an otherwise unconstrained identity column, so do not describe these permissions
+as read-only configuration access. Existing constraints/immutability triggers stay.
+No grants on future tables are automatic: review grants with later migrations.
+Check inherited/PUBLIC permissions separately after execution; this additive
+script does not revoke unrelated existing grants or change Supabase roles/RLS.
 
 Existing postgres-js pool maximum is 5 per process; reserve at least 15 steady
 API connections plus rollout overlap and migration/initializer connections.
