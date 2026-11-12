@@ -4,14 +4,16 @@ set -euo pipefail
 : "${PROJECT_ID:?}" "${REGION:?}" "${REGISTRY:?}" "${SERVICE_NAME:?}" "${MIGRATE_JOB_NAME:?}" "${PUBLIC_ORIGIN:?}" "${IMAGE_TAG:?}"
 [[ "${GITHUB_REF:-}" == refs/heads/main ]] || { echo 'Only main releases are allowed.' >&2; exit 1; }
 [[ "$IMAGE_TAG" =~ ^[a-f0-9]{40}$ ]] || exit 1
-[[ "$PROJECT_ID" =~ ^[a-z][a-z0-9-]+$ && "$REGION" == asia-southeast3 ]] || exit 1
+[[ "$PROJECT_ID" =~ ^[a-z][a-z0-9-]+$ && ( "$REGION" == asia-southeast1 || "$REGION" == asia-southeast3 ) ]] || exit 1
 for name in "$REGISTRY" "$SERVICE_NAME" "$MIGRATE_JOB_NAME"; do
   [[ "$name" =~ ^[a-z][a-z0-9-]{0,48}$ ]] || exit 1
 done
 [[ "$PUBLIC_ORIGIN" =~ ^https://[a-z0-9-]+\.([a-z0-9-]+\.)?run\.app$ ]] || exit 1
+registryRegion="${REGISTRY_REGION:-$REGION}"
+[[ "$registryRegion" == asia-southeast1 || "$registryRegion" == asia-southeast3 ]] || exit 1
 if [[ "${1:-}" == validate ]]; then exit 0; fi
 
-image="$REGION-docker.pkg.dev/$PROJECT_ID/$REGISTRY/application"
+image="$registryRegion-docker.pkg.dev/$PROJECT_ID/$REGISTRY/application"
 digest="$(gcloud artifacts docker images describe "$image:$IMAGE_TAG" --project="$PROJECT_ID" --format='value(image_summary.fully_qualified_digest)')"
 [[ "$digest" == "$image@sha256:"* && "${digest#"$image@sha256:"}" =~ ^[a-f0-9]{64}$ ]] || { echo 'Invalid image digest.' >&2; exit 1; }
 common=(--project="$PROJECT_ID" --region="$REGION" --quiet)

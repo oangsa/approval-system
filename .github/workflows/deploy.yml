@@ -23,6 +23,7 @@ jobs:
     env:
       PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
       REGION: ${{ vars.GCP_REGION }}
+      REGISTRY_REGION: ${{ vars.ARTIFACT_REGION || vars.GCP_REGION }}
       REGISTRY: ${{ vars.ARTIFACT_REPOSITORY }}
       SERVICE_NAME: ${{ vars.SERVICE_NAME }}
       MIGRATE_JOB_NAME: ${{ vars.MIGRATE_JOB_NAME }}
@@ -49,10 +50,10 @@ jobs:
       - uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1, course reference
       - name: Build and push accepted revision
         run: |
-          gcloud auth configure-docker "$REGION-docker.pkg.dev" --quiet
-          IMAGE="$REGION-docker.pkg.dev/$PROJECT_ID/$REGISTRY/application:$IMAGE_TAG"
+          gcloud auth configure-docker "$REGISTRY_REGION-docker.pkg.dev" --quiet
+          IMAGE="$REGISTRY_REGION-docker.pkg.dev/$PROJECT_ID/$REGISTRY/application:$IMAGE_TAG"
           if DIGEST_IMAGE="$(gcloud artifacts docker images describe "$IMAGE" --project="$PROJECT_ID" --format='value(image_summary.fully_qualified_digest)')"; then
-            PREFIX="$REGION-docker.pkg.dev/$PROJECT_ID/$REGISTRY/application@sha256:"
+            PREFIX="$REGISTRY_REGION-docker.pkg.dev/$PROJECT_ID/$REGISTRY/application@sha256:"
             [[ "$DIGEST_IMAGE" == "$PREFIX"* && "${DIGEST_IMAGE#"$PREFIX"}" =~ ^[a-f0-9]{64}$ ]]
             docker pull "$DIGEST_IMAGE"
             [[ "$(docker image inspect "$DIGEST_IMAGE" --format '{{index .Config.Labels "org.opencontainers.image.revision"}}')" == "$IMAGE_TAG" ]]

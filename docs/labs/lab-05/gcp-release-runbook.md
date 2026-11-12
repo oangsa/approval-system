@@ -125,6 +125,12 @@ a temporary runner credential file; `.dockerignore` excludes `gha-creds-*.json`.
 
 ## 3. Packaging, first deployment and connection configuration
 
+For the subsequent owner-approved Singapore/custom-domain move, follow
+[Singapore cutover](gcp-singapore-cutover.md). Set GCP_REGION=asia-southeast1
+and ARTIFACT_REGION=asia-southeast3 to reuse the existing registry. Keep
+PUBLIC_ORIGIN as the new default run.app origin; add the custom domain to
+AUTH_ALLOWED_ORIGINS, not to the pipeline canonical-origin variable.
+
 Use the ordered, human-executed commands in
 [first deployment](gcp-first-deployment.md) for exact resource creation, secret/CA
 mounts, initializer invocation, resource-scoped deployer permissions and final
