@@ -179,11 +179,11 @@ export PRODUCTION_DB_HOST
 export PRODUCTION_DB_USER=approval_migrator.nomoieoovqhcaojufgfu
 read -r -p 'Requester email: ' INIT_REQUESTER_EMAIL
 read -r -p 'Requester display name: ' INIT_REQUESTER_NAME
-read -r -s -p 'Requester password (16+ characters): ' INIT_REQUESTER_PASSWORD
+read -r -s -p 'Requester password (8+ characters): ' INIT_REQUESTER_PASSWORD
 echo
 read -r -p 'Reviewer email: ' INIT_REVIEWER_EMAIL
 read -r -p 'Reviewer display name: ' INIT_REVIEWER_NAME
-read -r -s -p 'Reviewer password (16+ characters): ' INIT_REVIEWER_PASSWORD
+read -r -s -p 'Reviewer password (8+ characters): ' INIT_REVIEWER_PASSWORD
 echo
 export INIT_REQUESTER_EMAIL INIT_REQUESTER_NAME INIT_REQUESTER_PASSWORD
 export INIT_REVIEWER_EMAIL INIT_REVIEWER_NAME INIT_REVIEWER_PASSWORD

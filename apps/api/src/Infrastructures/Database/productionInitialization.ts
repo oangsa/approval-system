@@ -7,7 +7,7 @@ import { seededDefinition, seededPolicyId, seededTypeId, seededVersionId } from 
 import { approvalPolicyVersions, departmentMemberships, departments, requestTypes, requestTypeVersions, reviewerAssignmentRules, roles, userRoles, users } from "./schema";
 import { PasswordHasher } from "../Security/PasswordHasher";
 
-const accountSchema = z.object({ email: z.string().trim().toLowerCase().pipe(z.email()), displayName: z.string().trim().min(1).max(100), password: z.string().min(16).max(1024) });
+const accountSchema = z.object({ email: z.string().trim().toLowerCase().pipe(z.email()), displayName: z.string().trim().min(1).max(100), password: z.string().min(8).max(1024) });
 export const initializationSchema = z.object({
     requester: accountSchema,
     reviewer: accountSchema,
