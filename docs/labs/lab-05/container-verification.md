@@ -1,5 +1,10 @@
 # Issue #24 — local verification, 2026-11-11
 
+Current repository/acceptance status is recorded in the
+[2026-11-12 release-process correction](release-process-verification.md).
+PR #32 has merged; #24 was reopened because acceptance remains incomplete.
+Earlier draft-state observations below are historical.
+
 Source HEAD: `b01d3db4313c145075431e22cd9020117b30505a` on
 `feature/24-lab5-cloud-docker`. Initial image verification included then-uncommitted
 `.dockerignore` and environment-example changes described in

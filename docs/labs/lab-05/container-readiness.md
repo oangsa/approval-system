@@ -1,5 +1,10 @@
 # Issue #24 — container readiness and handoff
 
+Current repository/acceptance status is recorded in the
+[2026-11-12 release-process correction](release-process-verification.md).
+PR #32 has merged; #24 was reopened because acceptance remains incomplete.
+Earlier draft-state observations below are historical.
+
 Local audit dated 2026-11-11; R-01/R-02/R-04, C-03 and C-05 prerequisites.
 This is input to #27, not its final `deployment.md`. Cloud resources/trust belong
 to #26; CI gates belong to #25. No cloud execution or release acceptance is claimed.
