@@ -5,6 +5,7 @@
   },
   "include": [
     "scripts/**/*.ts",
+    "deploy/**/*.ts",
     "e2e/**/*.ts",
     "playwright.config.ts",
     "vitest.config.ts"
