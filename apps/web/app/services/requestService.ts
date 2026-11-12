@@ -1,4 +1,4 @@
-import { createRequestSchema, type CreateRequest, type RequestDetail, type RequestSearchQuery } from "@workflow/contracts";
+import { createRequestSchema, requestTypeSearchSchema, type CreateRequest, type RequestDetail, type RequestSearchQuery } from "@workflow/contracts";
 import { requestApi } from "~/api/requests";
 
 /** One in-memory editing session; no request content or action key is persisted in browser storage. */
@@ -47,6 +47,11 @@ export class RequestEditingSession
 export function searchRequests(query: RequestSearchQuery, signal?: AbortSignal, generation?: number)
 {
     return requestApi.search(query, signal, generation);
+}
+
+export function searchRequestTypes(term: string, page: number, signal: AbortSignal, generation: number)
+{
+    return requestApi.searchTypes(requestTypeSearchSchema.parse({ pageNumber: page, pageSize: 20, ...(term.trim() ? { searchTerm: { name: "code,name", value: term.trim() } } : {}) }), signal, generation);
 }
 
 export async function readRequestResult(id: string, signal?: AbortSignal, generation?: number)

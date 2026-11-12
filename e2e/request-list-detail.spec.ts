@@ -45,6 +45,56 @@ test("REQ-E2E-01 and REQ-E2E-02: requester list and persisted detail", async ({ 
     await expect(row).toContainText(number!);
     await expect(row).toContainText("Pending approval");
     await expect(page.getByText(/1 results/)).toBeVisible();
+    const filters = page.getByRole("button", { name: /^Filters/ });
+    await filters.click();
+    const filterDialog = page.getByRole("dialog", { name: "Advanced filters" });
+    await page.screenshot({ path: "artifacts/playwright/request-filters-desktop.png", fullPage: true, animations: "disabled" });
+    await filterDialog.getByLabel("Priority", { exact: true }).selectOption("URGENT");
+    await filterDialog.getByRole("button", { name: "Cancel", exact: true }).click();
+    await expect(row).toBeVisible();
+    await filters.click();
+    await expect(filterDialog.getByLabel("Priority", { exact: true })).toHaveValue("");
+    await filterDialog.getByLabel("Status", { exact: true }).selectOption("PENDING");
+    await filterDialog.getByLabel("Created from", { exact: true }).fill("2000-01-01");
+    await filterDialog.getByLabel("Created through", { exact: true }).fill("2099-12-31");
+    await filterDialog.getByRole("button", { name: "Request type All request types" }).click();
+    await filterDialog.getByRole("button", { name: "General request (GENERAL)" }).click();
+    const searchResponse = page.waitForResponse((response) => response.url().endsWith("/v1/requests/search") && response.request().method() === "POST");
+    await filterDialog.getByRole("button", { name: "Apply filters" }).click();
+    const filteredResponse = await searchResponse;
+    expect(filteredResponse.status()).toBe(200);
+    expect(filteredResponse.request().postDataJSON().search).toEqual([
+        { name: "status", condition: "EQUAL", value: "PENDING" },
+        { name: "typeId", condition: "EQUAL", value: expect.any(String) },
+        { name: "createdAt", condition: "GREATEROREQUAL", value: "1999-12-31T17:00:00.000Z" },
+        { name: "createdAt", condition: "LESSER", value: "2099-12-31T17:00:00.000Z" },
+    ]);
+    await expect(row).toBeVisible();
+    await page.reload();
+    await expect(row).toBeVisible();
+    await expect(page.getByRole("button", { name: "Remove Status is Pending approval" })).toBeVisible();
+    await filters.click();
+    await filterDialog.getByRole("button", { name: "Reset filters" }).click();
+    await page.keyboard.press("Escape");
+    await expect(filterDialog).not.toBeVisible();
+    await expect(filters).toBeFocused();
+    await expect(page.getByRole("button", { name: "Remove Status is Pending approval" })).toBeVisible();
+    await page.getByLabel("Rows per page").selectOption("10");
+    await expect(page).toHaveURL(/pageSize=10/);
+    await expect(row).toBeVisible();
+    await page.goBack();
+    await expect(page.getByLabel("Rows per page")).toHaveValue("20");
+    await expect(row).toBeVisible();
+    await page.getByRole("button", { name: "Remove Status is Pending approval" }).click();
+    await expect(page.getByRole("button", { name: /^Remove Created:/ })).toBeVisible();
+    await expect(row).toBeVisible();
+    const titleSort = page.getByRole("columnheader", { name: "Request", exact: true }).getByRole("button");
+    await titleSort.focus();
+    await page.keyboard.press("Enter");
+    await expect(row).toBeVisible();
+    await expect(titleSort).toBeFocused();
+    await expect(page.getByRole("columnheader", { name: "Request", exact: true })).toHaveAttribute("aria-sort", "ascending");
+    await page.screenshot({ path: "artifacts/playwright/request-list-desktop.png", fullPage: true, animations: "disabled" });
     await row.getByRole("link", { name: title }).click();
     await expect(page.getByRole("heading", { level: 1, name: title })).toBeVisible();
     const detailUrl = page.url();
@@ -91,6 +141,22 @@ test("REQ-E2E-01 and REQ-E2E-02: requester list and persisted detail", async ({ 
     await expect(card).toContainText("Pending approval");
     await expect(card.getByRole("link", { name: title })).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    await page.screenshot({ path: "artifacts/playwright/request-list-mobile.png", fullPage: true, animations: "disabled" });
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await page.getByRole("button", { name: /^Filters/ }).click();
+    const mobileFilters = page.getByRole("dialog", { name: "Advanced filters" });
+    await expect(mobileFilters).toBeVisible();
+    expect(await mobileFilters.evaluate((element) => element.matches(":modal"))).toBe(true);
+    for (let index = 0; index < 6; index++)
+    {
+        await page.keyboard.press("Shift+Tab");
+        expect(await mobileFilters.evaluate((element) => element.contains(document.activeElement))).toBe(true);
+    }
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    await page.screenshot({ path: "artifacts/playwright/request-filters-mobile.png", fullPage: true, animations: "disabled" });
+    await page.keyboard.press("Escape");
+    await expect(mobileFilters).not.toBeVisible();
+    await expect(page.getByRole("button", { name: /^Filters/ })).toBeFocused();
     await card.getByRole("link", { name: title }).click();
     await expect(page.getByRole("heading", { level: 1, name: title })).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
