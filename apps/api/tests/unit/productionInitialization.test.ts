@@ -30,3 +30,12 @@ test("initializer rejects duplicate identities and short passwords", () =>
     expect(initializationSchema.safeParse({ requester, reviewer: requester }).success).toBe(false);
     expect(initializationSchema.safeParse({ requester, reviewer: { ...requester, email: "reviewer@example.test", password: "short" } }).success).toBe(false);
 });
+
+test("initializer accepts eight-character passwords and rejects seven-character passwords", () =>
+{
+    const requester = { email: "requester@example.test", displayName: "Requester", password: "abcdefgh" };
+    const reviewer = { email: "reviewer@example.test", displayName: "Reviewer", password: "ijklmnop" };
+    expect(initializationSchema.safeParse({ requester, reviewer }).success).toBe(true);
+    expect(initializationSchema.safeParse({ requester: { ...requester, password: "abcdefg" }, reviewer }).success).toBe(false);
+    expect(initializationSchema.safeParse({ requester, reviewer: { ...reviewer, password: "ijklmno" } }).success).toBe(false);
+});
