@@ -1,10 +1,14 @@
 import { expect, test } from "vitest";
 import { assertProductionInitializationTarget, initializationSchema } from "../../src/Infrastructures/Database/productionInitialization";
 
+// Synthetic parser fixture only; no hosted credentials or network connection.
+const fixtureUrl = new URL("postgresql://fixture.pooler.supabase.com:5432/postgres?sslmode=verify-full");
+fixtureUrl.username = "postgres.fixture";
+fixtureUrl.password = "fixture";
 const environment = {
     NODE_ENV: "production", PRODUCTION_INIT_ACK: "initialize-minimum-sprint-1",
     PRODUCTION_DB_HOST: "fixture.pooler.supabase.com", PRODUCTION_DB_USER: "postgres.fixture",
-    DATABASE_URL: "postgresql://postgres.fixture:fixture@fixture.pooler.supabase.com:5432/postgres?sslmode=verify-full",
+    DATABASE_URL: fixtureUrl.toString(),
 };
 test("production initializer requires explicit acknowledgment and exact TLS/session database identity", () =>
 {
