@@ -23,6 +23,7 @@ test("REQ-E2E-01 and REQ-E2E-02: requester list and persisted detail", async ({ 
         if (/^\/api\/v1\/requests\/[^/]+\/(revisions|comments|attachments|history|discussion|files)(\/|$)/.test(pathname) || /^\/api\/v1\/attachments\/[^/]+\/download$/.test(pathname)) futureCalls.push(outgoing.url());
     });
     await signIn(page, "requester-a@example.test");
+    await page.goto("/requests");
     await page.getByRole("link", { name: "New request" }).click();
     await page.getByLabel("Request type (required)", { exact: true }).selectOption({ label: "General request" });
     await page.getByRole("button", { name: "Next", exact: true }).click();
