@@ -10,7 +10,7 @@ async function login(page: Page, email: string)
 }
 test("assigned reviewer opens submitted request on desktop and mobile", async ({ page }) =>
 {
-    const title = `Reviewer queue ${Date.now()}`;
+    const title = `Reviewer queue ${Date.now()}${"x".repeat(80)}`;
     await login(page, "requester-a@example.test");
     await page.getByRole("link", { name: "New request" }).click();
     await page.getByLabel("Request type (required)").selectOption({ label: "General request" });

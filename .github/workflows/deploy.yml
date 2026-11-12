@@ -1,0 +1,65 @@
+name: Production release
+on:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+concurrency:
+  group: approval-production-release
+  cancel-in-progress: false
+jobs:
+  verification:
+    if: github.ref == 'refs/heads/main'
+    uses: ./.github/workflows/ci.yml
+  release:
+    needs: verification
+    if: github.ref == 'refs/heads/main' && needs.verification.result == 'success'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    environment: production
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+      REGION: ${{ vars.GCP_REGION }}
+      REGISTRY: ${{ vars.ARTIFACT_REPOSITORY }}
+      SERVICE_NAME: ${{ vars.SERVICE_NAME }}
+      MIGRATE_JOB_NAME: ${{ vars.MIGRATE_JOB_NAME }}
+      PUBLIC_ORIGIN: ${{ vars.PUBLIC_ORIGIN }}
+      IMAGE_TAG: ${{ github.sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+      - name: Validate reviewed configuration
+        env:
+          WIF_PROVIDER: ${{ vars.WIF_PROVIDER }}
+          WIF_SERVICE_ACCOUNT: ${{ vars.WIF_SERVICE_ACCOUNT }}
+        run: |
+          test -n "$WIF_PROVIDER" && test -n "$WIF_SERVICE_ACCOUNT"
+          bash deploy/release.sh validate
+      - uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3, course reference
+        with:
+          workload_identity_provider: ${{ vars.WIF_PROVIDER }}
+          service_account: ${{ vars.WIF_SERVICE_ACCOUNT }}
+      - uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1, course reference
+      - name: Build and push accepted revision
+        run: |
+          gcloud auth configure-docker "$REGION-docker.pkg.dev" --quiet
+          IMAGE="$REGION-docker.pkg.dev/$PROJECT_ID/$REGISTRY/application:$IMAGE_TAG"
+          if DIGEST_IMAGE="$(gcloud artifacts docker images describe "$IMAGE" --project="$PROJECT_ID" --format='value(image_summary.fully_qualified_digest)')"; then
+            PREFIX="$REGION-docker.pkg.dev/$PROJECT_ID/$REGISTRY/application@sha256:"
+            [[ "$DIGEST_IMAGE" == "$PREFIX"* && "${DIGEST_IMAGE#"$PREFIX"}" =~ ^[a-f0-9]{64}$ ]]
+            docker pull "$DIGEST_IMAGE"
+            [[ "$(docker image inspect "$DIGEST_IMAGE" --format '{{index .Config.Labels "org.opencontainers.image.revision"}}')" == "$IMAGE_TAG" ]]
+          else
+            docker build -f deploy/Dockerfile --build-arg RELEASE_SHA="$IMAGE_TAG" -t "$IMAGE" .
+            docker push "$IMAGE"
+          fi
+      - run: npm ci
+      - name: Run gated migration, prepare revision, smoke and switch traffic
+        run: bash deploy/release.sh

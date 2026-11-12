@@ -9,8 +9,10 @@
     "typecheck": "tsc -p tsconfig.json",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
+    "db:initialize-production": "node --import tsx scripts/initialize-production.ts",
     "db:check": "node --env-file-if-exists=.env --import tsx scripts/check-database.ts",
     "test:integration": "vitest run --config vitest.postgres.config.ts",
+    "test:initialization": "vitest run --config vitest.initialization.config.ts",
     "db:test:migrate": "drizzle-kit migrate --config drizzle.test.config.ts",
     "db:test:seed": "node --import tsx scripts/seed-test.ts",
     "db:seed": "node --env-file-if-exists=.env --import tsx scripts/seed-development.ts"

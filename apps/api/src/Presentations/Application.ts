@@ -9,9 +9,9 @@ export class Application
 {
     public readonly app;
     private closed = false;
-    constructor(adapter: ElysiaAdapter, identity?: IIdentityHttpDependencies, private readonly close?: () => Promise<void>, requests?: RequestService, approvalTasks?: ApprovalTaskService, decisions?: DecisionService)
+    constructor(adapter: ElysiaAdapter, identity?: IIdentityHttpDependencies, private readonly close?: () => Promise<void>, requests?: RequestService, approvalTasks?: ApprovalTaskService, decisions?: DecisionService, checkHealth?: () => Promise<void>)
     {
-        this.app = createApplication(adapter, identity, requests, approvalTasks, decisions);
+        this.app = createApplication(adapter, identity, requests, approvalTasks, decisions, checkHealth);
     }
     public Start(port: number, hostname: string): void
     {
