@@ -628,3 +628,8 @@ The M01–M03 test setup and per-case assertions are maintained in [identity-acc
 ### Issue #5 decision and audit coverage
 
 [Feature STS](../features/approval-decisions-audit/sts.md) and [actual evidence](../features/approval-decisions-audit/verification.md) map FT-009/010/011/013, EP-041/046, UT-01/02, API-08, DB-05/08/09, CX-03/08/09/14, SEC-05, UI-09/10 and E2E-02 to decision contracts, the shared guard/transition engine, real PostgreSQL API/rollback/races/restart, and confirmation/history browser journeys. Future stage-two, RETURN/delegation/bulk checks remain with their owning expansions. The one-stage engine must fail closed for those unsupported operations.
+
+
+### Request search and shell polish verification
+
+The [bounded specification](../features/request-search-polish/spec.md) defines AC 1–6 and UT-12/SEC-11/UI-16/E2E-13 mappings. Query tests cover operator/date/URL validation; component tests cover dialog drafts, chips, paging, type lookup cancellation and account/query isolation; browser tests cover keyboard/mobile behavior, navigation, history and real API payloads. Actual execution belongs in the feature verification record; this plan does not assert passing results.

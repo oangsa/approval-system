@@ -558,3 +558,8 @@ Every selected capability maps one-to-one to `FR-NNN`/`AC-NNN`/`FT-NNN`; associa
 ## 17. Identity & Access feature records (additive)
 
 The feature-level implementation design, criteria, tests, and DoD for M01–M03 are maintained in [identity-access/sds.md](../features/identity-access/sds.md), [acceptance-criteria.md](../features/identity-access/acceptance-criteria.md), [sts.md](../features/identity-access/sts.md), and [dod.md](../features/identity-access/dod.md). These records refine the identity/session portion of this proposed system design; they do not change the shared architecture, global status, or ownership boundaries. Implementation and test status remains NOT RUN.
+
+
+### Implemented request collection boundary — 2026-11-13
+
+[Bounded request search polish](../features/request-search-polish/spec.md) keeps URL/UI state and filter mapping in the requests feature, shared presentation in collections, orchestration in services, transport/header validation in API clients, and resource-scoped SQL in Infrastructure. No global query framework, new endpoint or schema migration is introduced. Sidebar creation navigation is removed; My Requests retains the creation action. This records a partial #12/#17 implementation, not final product completion.
