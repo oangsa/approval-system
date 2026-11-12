@@ -112,3 +112,17 @@ test("periodic database health checks use main, explicit opt-in and no cloud cre
     assert.match(workflow, /--fail --max-time 30 "\$PUBLIC_ORIGIN\/health"/);
     assert.doesNotMatch(workflow, /secrets\.|id-token|gcloud|DATABASE_URL/);
 });
+
+test("Singapore cutover reuses Bangkok registry and rejects unrelated regions", () =>
+{
+    const result = release("", { REGION: "asia-southeast1", REGISTRY_REGION: "asia-southeast3" });
+    assert.equal(result.status, 0, result.error);
+    assert.match(result.calls, /--region=asia-southeast1/);
+    assert.match(result.calls, /--image=asia-southeast3-docker.pkg.dev/);
+    for (const override of [{ REGION: "us-central1" }, { REGISTRY_REGION: "us-central1" }])
+    {
+        const invalid = release("", override);
+        assert.notEqual(invalid.status, 0);
+        assert.equal(invalid.calls, "");
+    }
+});
