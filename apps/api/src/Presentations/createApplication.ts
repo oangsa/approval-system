@@ -13,7 +13,7 @@ import { checkOrigin, corsHeaders, preflight } from "./cors";
 import { errorResponse, HttpError } from "./errors";
 import { authRouteDescriptors, registerAuthRoutes } from "./Routes/AuthRoutes";
 
-export function createApplication(adapter?: ElysiaAdapter, identity?: IIdentityHttpDependencies, requests?: RequestService, approvalTasks?: ApprovalTaskService, decisions?: DecisionService)
+export function createApplication(adapter?: ElysiaAdapter, identity?: IIdentityHttpDependencies, requests?: RequestService, approvalTasks?: ApprovalTaskService, decisions?: DecisionService, checkHealth?: () => Promise<void>)
 {
     const ids = new WeakMap<Request, string>();
     const app = new Elysia({ adapter })
@@ -65,7 +65,19 @@ export function createApplication(adapter?: ElysiaAdapter, identity?: IIdentityH
             if (result.statusCode >= 500) console.error({ code: result.code, requestId: id });
             return result;
         })
-        .get("/health", () => ({ status: "ok" as const }), { response: healthResponseSchema });
+        .get("/health", async ({ set }) =>
+        {
+            set.headers["Cache-Control"] = "no-store";
+            try
+            {
+                await checkHealth?.();
+            }
+            catch
+            {
+                throw new HttpError("SERVICE_UNAVAILABLE");
+            }
+            return { status: "ok" as const };
+        }, { response: healthResponseSchema });
     if (identity) registerAuthRoutes(app, identity);
     if (identity && requests) registerRequestRoutes(app, identity, requests);
     if (identity && approvalTasks) registerApprovalTaskRoutes(app, identity, approvalTasks);

@@ -16,6 +16,27 @@ test("health endpoint returns the shared successful response", async () =>
     expect(response.status).toBe(200);
     expect(healthResponseSchema.parse(await response.json())).toEqual({ status: "ok" });
 });
+test("health waits for the database probe and disables caching", async () =>
+{
+    const probe = vi.fn().mockResolvedValue(undefined);
+    const app = createApplication(undefined, undefined, undefined, undefined, undefined, probe);
+    const response = await app.handle(new Request("http://localhost/health"));
+    expect(probe).toHaveBeenCalledOnce();
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ status: "ok" });
+    expect(response.headers.get("cache-control")).toBe("no-store");
+});
+test("unavailable health probe returns sanitized 503 without infrastructure details", async () =>
+{
+    const log = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const probe = vi.fn().mockRejectedValue(new Error("private-database-connection-value"));
+    const app = createApplication(undefined, undefined, undefined, undefined, undefined, probe);
+    const response = await app.handle(new Request("http://localhost/health"));
+    const body = await expectHttpError(response, 503);
+    expect(body.code).toBe("SERVICE_UNAVAILABLE");
+    expect(JSON.stringify([body, log.mock.calls])).not.toContain("private-database");
+    expect(response.headers.get("cache-control")).toBe("no-store");
+});
 test("HTTP-CONTINUE red: unknown route uses complete error envelope", async () =>
 {
     const response = await createApplication().handle(new Request("http://localhost/missing"));
