@@ -1,5 +1,7 @@
 # Lab 5 release-process correction — 2026-11-12
 
+**Current note (2026-11-12):** Issue #24 is closed as completed at 02:42:54 UTC, despite the outstanding criteria and historical reopening recorded below; owner reconciliation is pending. The later C-02 technical demonstration is recorded in the [CI quality-gates ledger](ci-quality-gates.md#hosted-execution-and-follow-ups).
+
 This record supersedes earlier draft/merge-status observations in the container
 handoff. It records repository administration, not application release acceptance.
 The administration changes preceded this documentation commit. No history rewrite,
@@ -101,7 +103,7 @@ endpoint. The ruleset is active, with no bypass actors and administrator bypass
 No staging changes were promoted and no existing branch was reset. The separate
 legacy `staging` branch is not used as a substitute for the required branches.
 
-**C-02 remains Not Run.** Configuration/readback does not prove the deliberately
+**Historical status at this administration readback: C-02 had not run.** Configuration/readback alone did not prove the deliberately
 failed-check/blocked-merge scenario. #25 must retain a temporary failing-test PR
 targeting `main`, its failed required-check evidence and blocked merge state,
 then close it without merging. Docker-build gate work, specific teammate settings
