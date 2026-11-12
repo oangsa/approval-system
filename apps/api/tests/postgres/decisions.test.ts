@@ -275,7 +275,7 @@ test.skipIf(process.env.RUN_BUILT_HTTP_SMOKE !== "1")("API process restart prese
         try
         {
             let ready = false;
-            for (let attempt = 0; attempt < 50; attempt++)
+            for (let attempt = 0; attempt < 100; attempt++)
             {
                 if (startupError || child.exitCode !== null) throw startupError ?? new Error("Listener stopped");
                 try

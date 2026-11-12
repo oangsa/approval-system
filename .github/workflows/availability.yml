@@ -1,0 +1,25 @@
+name: Database availability check
+on:
+  schedule:
+    - cron: '23 */6 * * *'
+  workflow_dispatch:
+permissions: {}
+concurrency:
+  group: approval-availability-check
+  cancel-in-progress: false
+jobs:
+  check:
+    if: github.ref == 'refs/heads/main' && vars.AVAILABILITY_CHECK_ENABLED == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    env:
+      PUBLIC_ORIGIN: ${{ vars.PUBLIC_ORIGIN }}
+    steps:
+      - name: Read-only application and database health
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$PUBLIC_ORIGIN" =~ ^https://[a-z0-9-]+\.([a-z0-9-]+\.)?run\.app$ ]]
+          curl --silent --show-error --fail --max-time 30 "$PUBLIC_ORIGIN/health" \
+            | jq --exit-status '. == {"status":"ok"}' > /dev/null
+          echo 'Database-backed health check passed.'

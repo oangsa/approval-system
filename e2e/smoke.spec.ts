@@ -43,7 +43,7 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
         const response = await page.goto("/");
         expect(response?.status()).toBe(200);
         await expect(page.getByRole("heading", { level: 1, name: "Workflow and Approval System" })).toBeVisible();
-        await expect(page.getByRole("main")).toContainText("Project foundation is ready.");
+        await expect(page.getByRole("main")).toContainText("Lab 5 release · Sprint 1 approval workflow");
         await expect(page).toHaveTitle("Workflow and Approval System");
         await page.waitForFunction(() => (window as typeof window & { foundationHydrated?: boolean }).foundationHydrated === true);
         expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(viewport.width);

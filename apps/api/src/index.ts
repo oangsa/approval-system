@@ -17,7 +17,7 @@ async function main(): Promise<void>
     try
     {
         const identity = await createIdentityComposition(environment, database);
-        const application = new Application(node(), identity, () => database.Close(), new RequestService(new RequestUnitOfWork(database.connection)), new ApprovalTaskService(new ApprovalTaskUnitOfWork(database.connection)), new DecisionService(new DecisionUnitOfWork(database.connection)));
+        const application = new Application(node(), identity, () => database.Close(), new RequestService(new RequestUnitOfWork(database.connection)), new ApprovalTaskService(new ApprovalTaskUnitOfWork(database.connection)), new DecisionService(new DecisionUnitOfWork(database.connection)), () => database.Check());
         application.Start(environment.PORT, environment.HOST);
         let shuttingDown = false;
         const shutdown = async () =>

@@ -1,0 +1,12 @@
+title: Approval release updater
+description: Update the selected precreated service and migration job; execute migrations and inspect readiness.
+stage: GA
+includedPermissions:
+  - run.services.get
+  - run.services.update
+  - run.revisions.get
+  - run.jobs.get
+  - run.jobs.update
+  - run.jobs.run
+  - run.executions.get
+  - run.operations.get
