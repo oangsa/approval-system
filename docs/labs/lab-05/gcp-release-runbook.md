@@ -241,7 +241,7 @@ connections to `postgres`. Inject these account values privately:
 - `INIT_REQUESTER_EMAIL`, `INIT_REQUESTER_NAME`, `INIT_REQUESTER_PASSWORD`.
 - `INIT_REVIEWER_EMAIL`, `INIT_REVIEWER_NAME`, `INIT_REVIEWER_PASSWORD`.
 
-Choose distinct real application identities and strong passwords of 16–1024
+Choose distinct real application identities and strong passwords of 8–1024
 characters; no sample/test credentials in production. New accounts receive
 REQUESTER/REVIEWER respectively, primary active OPS membership, the published
 GENERAL form and one eligible `general-review` assignment. No administrator
