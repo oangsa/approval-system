@@ -168,7 +168,8 @@ All paths below are **frontend React Router paths**, not API routes. Reuse featu
 
 ### 7.1 Public landing and login
 
-- Quiet centered auth card, high-contrast text, no decorative marketing section required.
+- Public `/`: product introduction, sign-in action and a short workflow overview. A clearly labelled static example may explain progress; never render private requests or live-looking fabricated metrics. The responsive landing is SSR-capable and remains readable without JavaScript. See the [bounded implementation criteria](../features/public-landing/spec.md).
+- Login: quiet centered auth card and high-contrast text; the landing does not replace or add fields to the authentication flow.
 - Email/password inputs, proper labels/autocomplete, show/hide password, submit busy state, generic invalid-credential message, clear navigation to Register and Recover.
 - The UI never asks user to select a role or department during login/registration.
 - On success, navigate to `/dashboard`; token remains only in memory and refresh cookie is managed by browser/backend.
