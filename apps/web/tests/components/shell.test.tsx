@@ -62,8 +62,8 @@ function renderShell(): void
 
 test("navigation items are filtered by the current role union", () =>
 {
-    expect(visibleNavigation(navigationItems, ["REQUESTER"]).map((item) => item.to)).toEqual(["/dashboard", "/requests", "/requests/new", "/settings"]);
-    expect(visibleNavigation(navigationItems, ["REQUESTER", "REVIEWER"]).map((item) => item.to)).toEqual(["/dashboard", "/requests", "/requests/new", "/reviews", "/settings"]);
+    expect(visibleNavigation(navigationItems, ["REQUESTER"]).map((item) => item.to)).toEqual(["/dashboard", "/requests", "/settings"]);
+    expect(visibleNavigation(navigationItems, ["REQUESTER", "REVIEWER"]).map((item) => item.to)).toEqual(["/dashboard", "/requests", "/reviews", "/settings"]);
     expect(visibleNavigation(navigationItems, ["REVIEWER"]).map((item) => item.to)).toEqual(["/dashboard", "/reviews", "/settings"]);
     expect(visibleNavigation([], ["ADMINISTRATOR"])).toEqual([]);
 });
@@ -77,6 +77,8 @@ test("the shell renders the current account and only routes that ship in this fe
     expect(screen.getByRole("link", { name: /Settings/ })).toHaveAttribute("href", "/settings");
     expect(screen.getByRole("link", { name: "My Requests" })).toHaveAttribute("href", "/requests");
     expect(screen.queryByRole("link", { name: /Approvals/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "New request" })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Skip to content" })).toHaveAttribute("href", "#main-content");
     expect(screen.getByRole("button", { name: "Ada Lovelace" })).toBeInTheDocument();
 });
 
@@ -268,4 +270,23 @@ test("drawer closes at desktop breakpoint and unmounts safely", async () =>
     {
         Object.defineProperty(window, "innerWidth", { configurable: true, value: original });
     }
+});
+
+test("tablet defaults to an icon rail and desktop breakpoint restores expanded navigation", () =>
+{
+    currentUser = identity();
+    const listeners: ((event: MediaQueryListEvent) => void)[] = [];
+    const remove = vi.fn();
+    vi.stubGlobal("matchMedia", vi.fn().mockReturnValue({
+        matches: false,
+        addEventListener: (_type: string, listener: (event: MediaQueryListEvent) => void) => listeners.push(listener),
+        removeEventListener: remove,
+    }));
+    const view = render(<MemoryRouter><AppShell>Page content</AppShell></MemoryRouter>);
+    expect(screen.getByRole("button", { name: "Expand navigation" })).toHaveAttribute("aria-expanded", "false");
+    expect(screen.getByRole("link", { name: "My Requests" })).toBeInTheDocument();
+    act(() => listeners[0]!({ matches: true } as MediaQueryListEvent));
+    expect(screen.getByRole("button", { name: "Collapse navigation" })).toHaveAttribute("aria-expanded", "true");
+    view.unmount();
+    expect(remove).toHaveBeenCalledWith("change", listeners[0]);
 });

@@ -1,4 +1,4 @@
-import { createRequestSchema, type CreateRequest, type RequestDetail, type RequestSearchQuery } from "@workflow/contracts";
+import { createRequestSchema, requestTypeSearchSchema, type CreateRequest, type RequestDetail, type RequestSearchQuery } from "@workflow/contracts";
 import { requestApi } from "~/api/requests";
 
 /** One in-memory editing session; no request content or action key is persisted in browser storage. */
@@ -49,10 +49,21 @@ export function searchRequests(query: RequestSearchQuery, signal?: AbortSignal, 
     return requestApi.search(query, signal, generation);
 }
 
+export function searchRequestTypes(term: string, page: number, signal: AbortSignal, generation: number)
+{
+    return requestApi.searchTypes(requestTypeSearchSchema.parse({ pageNumber: page, pageSize: 20, ...(term.trim() ? { searchTerm: { name: "code,name", value: term.trim() } } : {}) }), signal, generation);
+}
+
 export async function readRequestResult(id: string, signal?: AbortSignal, generation?: number)
 {
     const detail = await requestApi.read(id, signal, generation);
     const revision = detail.submittedRevision ?? detail.workingRevision;
     const definition = revision ? await requestApi.version(detail.typeId, revision.formDefinitionVersionId, detail.id, signal, generation) : null;
     return { detail, definition };
+}
+
+export async function readRequestTypeSelection(id: string, signal: AbortSignal, generation: number)
+{
+    const type = await requestApi.type(id, signal, generation);
+    return type.isEnabled ? { id: type.id, name: type.name, code: type.code } : null;
 }

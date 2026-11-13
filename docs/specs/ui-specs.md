@@ -168,7 +168,8 @@ All paths below are **frontend React Router paths**, not API routes. Reuse featu
 
 ### 7.1 Public landing and login
 
-- Quiet centered auth card, high-contrast text, no decorative marketing section required.
+- Public `/`: product introduction, sign-in action and a short workflow overview. A clearly labelled static example may explain progress; never render private requests or live-looking fabricated metrics. The responsive landing is SSR-capable and remains readable without JavaScript. See the [bounded implementation criteria](../features/public-landing/spec.md).
+- Login: quiet centered auth card and high-contrast text; the landing does not replace or add fields to the authentication flow.
 - Email/password inputs, proper labels/autocomplete, show/hide password, submit busy state, generic invalid-credential message, clear navigation to Register and Recover.
 - The UI never asks user to select a role or department during login/registration.
 - On success, navigate to `/dashboard`; token remains only in memory and refresh cookie is managed by browser/backend.
@@ -199,6 +200,7 @@ All paths below are **frontend React Router paths**, not API routes. Reuse featu
 
 - Reuse `DataTable` with request number, title, request type, priority, status, last update, and optional date/department where authorized.
 - Search request number/title; filter status and date; sort and paginate through `/requests/search`.
+- **2026-11-13 bounded implementation:** New request lives on this page, not in sidebar navigation; the creation route is unchanged. Advanced filters use a draft dialog, applied removable chips, supported date ranges and page sizes 10/20/50/100; see [acceptance and design](../features/request-search-polish/spec.md). This delivers part of #12/#17, not their full scope.
 - Primary action **New request**. Row primary action **Open details**; optional contextual **Edit draft/returned**, **Withdraw** when `availableActions` permits.
 - Status labels and timestamps must reflect server state; do not optimistically fabricate terminal approval status.
 - A newly registered user without a department may save permitted drafts but receives a clear department-assignment explanation before submission.
@@ -463,3 +465,7 @@ Use accessible toast for noncritical confirmations; destructive/irreversible ope
 ## 19. Identity & Access implementation scope (additive)
 
 The preimplementation design and child criteria for M01–M03 are in [identity-access/sds.md](../features/identity-access/sds.md) and [acceptance-criteria.md](../features/identity-access/acceptance-criteria.md); the planned browser checks are in [sts.md](../features/identity-access/sts.md). This feature implements only the login route, a protected shell, safe dashboard placeholder, read-only account summary, and unauthorized screen. It does not remove or change the other frozen routes, shell requirements, UI criteria, or downstream ownership. Navigation in this feature points only to shipped routes. UI implementation and checks remain PLANNED / NOT RUN.
+
+### Owner-requested UI refinement — 2026-11-13
+
+[POL-01–07](../features/ui-refinement/spec.md) refine the existing Sidebar, My Requests/advanced filters and public Landing Page. The owner selected only the local AXONS frontend and Maintenance Tracking System as design references. Existing frozen behavior and reference-adaptation boundaries remain authoritative; theme/localization, notifications and reporting retain their owning scopes.

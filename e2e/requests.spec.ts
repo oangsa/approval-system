@@ -7,6 +7,7 @@ async function openWizard(page: import("@playwright/test").Page)
     await page.getByLabel("Password", { exact: true }).fill("Test-password-42!");
     await page.getByRole("button", { name: "Sign in" }).click();
     await expect(page).toHaveURL(/\/dashboard$/);
+    await page.goto("/requests");
     await page.getByRole("link", { name: "New request" }).click();
     await expect(page.getByRole("heading", { name: "New request" })).toBeVisible();
 }
