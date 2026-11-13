@@ -271,3 +271,22 @@ test("drawer closes at desktop breakpoint and unmounts safely", async () =>
         Object.defineProperty(window, "innerWidth", { configurable: true, value: original });
     }
 });
+
+test("tablet defaults to an icon rail and desktop breakpoint restores expanded navigation", () =>
+{
+    currentUser = identity();
+    const listeners: ((event: MediaQueryListEvent) => void)[] = [];
+    const remove = vi.fn();
+    vi.stubGlobal("matchMedia", vi.fn().mockReturnValue({
+        matches: false,
+        addEventListener: (_type: string, listener: (event: MediaQueryListEvent) => void) => listeners.push(listener),
+        removeEventListener: remove,
+    }));
+    const view = render(<MemoryRouter><AppShell>Page content</AppShell></MemoryRouter>);
+    expect(screen.getByRole("button", { name: "Expand navigation" })).toHaveAttribute("aria-expanded", "false");
+    expect(screen.getByRole("link", { name: "My Requests" })).toBeInTheDocument();
+    act(() => listeners[0]!({ matches: true } as MediaQueryListEvent));
+    expect(screen.getByRole("button", { name: "Collapse navigation" })).toHaveAttribute("aria-expanded", "true");
+    view.unmount();
+    expect(remove).toHaveBeenCalledWith("change", listeners[0]);
+});
