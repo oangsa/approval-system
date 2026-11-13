@@ -465,3 +465,7 @@ Use accessible toast for noncritical confirmations; destructive/irreversible ope
 ## 19. Identity & Access implementation scope (additive)
 
 The preimplementation design and child criteria for M01–M03 are in [identity-access/sds.md](../features/identity-access/sds.md) and [acceptance-criteria.md](../features/identity-access/acceptance-criteria.md); the planned browser checks are in [sts.md](../features/identity-access/sts.md). This feature implements only the login route, a protected shell, safe dashboard placeholder, read-only account summary, and unauthorized screen. It does not remove or change the other frozen routes, shell requirements, UI criteria, or downstream ownership. Navigation in this feature points only to shipped routes. UI implementation and checks remain PLANNED / NOT RUN.
+
+### Owner-requested UI refinement — 2026-11-13
+
+[POL-01–07](../features/ui-refinement/spec.md) refine the existing Sidebar, My Requests/advanced filters and public Landing Page. The owner selected only the local AXONS frontend and Maintenance Tracking System as design references. Existing frozen behavior and reference-adaptation boundaries remain authoritative; theme/localization, notifications and reporting retain their owning scopes.
