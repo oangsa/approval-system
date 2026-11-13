@@ -629,6 +629,9 @@ The M01–M03 test setup and per-case assertions are maintained in [identity-acc
 
 [Feature STS](../features/approval-decisions-audit/sts.md) and [actual evidence](../features/approval-decisions-audit/verification.md) map FT-009/010/011/013, EP-041/046, UT-01/02, API-08, DB-05/08/09, CX-03/08/09/14, SEC-05, UI-09/10 and E2E-02 to decision contracts, the shared guard/transition engine, real PostgreSQL API/rollback/races/restart, and confirmation/history browser journeys. Future stage-two, RETURN/delegation/bulk checks remain with their owning expansions. The one-stage engine must fail closed for those unsupported operations.
 
+### Public landing regression scope
+
+[LAND-01–05](../features/public-landing/spec.md) replace the starter-page assertions with public SSR content, labelled illustrative data, working sign-in/overview links, known-client-session dashboard redirection, responsive hydration, keyboard skip navigation, reduced motion and no-JavaScript navigation. `e2e/smoke.spec.ts` also verifies that a public landing load makes no API requests. Deployment smoke uses the product title and main landmark rather than the obsolete Lab 5 release slogan, preserving compatibility with earlier public pages during rollback. Actual execution is recorded in the [landing verification](../features/public-landing/verification.md); broader theme/localization acceptance remains separately scoped.
 
 ### Request search and shell polish verification
 

@@ -303,6 +303,9 @@ closes historical task-context and permission-state gaps, plus success-stage and
 server-error support-ID gaps. Read-only handled task access requires a persisted
 actor/slot decision; current request/queue permissions remain unchanged.
 
+### Public landing presentation
+
+Owner-requested landing work refines UI §5/§7.1 and public SSR without adding a product capability. [LAND-01–05](../features/public-landing/spec.md) map to homepage component regressions, desktop/mobile browser smoke and the release smoke marker; see [execution evidence](../features/public-landing/verification.md). This does not claim global theme/localization completion or change the existing authentication/authorization criteria.
 
 ### Request search and shell polish slice
 
