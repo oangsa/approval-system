@@ -44,3 +44,10 @@ test("legacy updatedOn remains a Bangkok day and clearing removes both bounds", 
     expect(next.toString()).toBe("sort=title+asc");
     expect(buildRequestQuery(next).query?.search).toEqual([]);
 });
+
+test("filter validation identifies the specific range and related controls", () =>
+{
+    expect(buildRequestQuery(new URLSearchParams("createdFrom=2026-11-10&createdTo=2026-11-01"))).toEqual({ error: "Created date range: start must be on or before its end.", fields: ["createdFrom", "createdTo"] });
+    expect(buildRequestQuery(new URLSearchParams("updatedTo=2026-02-30"))).toEqual({ error: "Updated: enter valid calendar dates.", fields: ["updatedTo"] });
+    expect(buildRequestQuery(new URLSearchParams("submitted=no&submittedFrom=2026-11-01"))).toEqual({ error: "Not submitted cannot be combined with a submitted date range.", fields: ["submitted", "submittedFrom", "submittedTo"] });
+});

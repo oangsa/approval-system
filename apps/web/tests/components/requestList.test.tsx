@@ -243,3 +243,84 @@ test("out-of-range pages recover once from server metadata; sort and page size r
     await waitFor(() => expect(search.mock.calls.at(-1)?.[0].orderBy).toBe("title asc"));
     expect(screen.getByRole("columnheader", { name: "Request" })).toHaveAttribute("aria-sort", "ascending");
 });
+
+test("selected type keeps its label after Apply, reopen and URL restoration", async () =>
+{
+    const type = { id, code: "OPS", name: { en: "Operations" }, versionId: id, versionNumber: 1, isEnabled: true, supportsLineItems: false, monetary: false, fields: [], publishedAt: "2026-11-01T00:00:00Z" };
+    vi.spyOn(requestApi, "search").mockResolvedValue({ items: [item], pagination });
+    vi.spyOn(requestApi, "searchTypes").mockResolvedValue({ items: [type], pagination });
+    const read = vi.spyOn(requestApi, "type").mockResolvedValue(type);
+    const view = render(<MemoryRouter><RequestListPage /></MemoryRouter>);
+    await screen.findAllByText("Private request");
+    fireEvent.click(screen.getByRole("button", { name: /^Filters/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Request type All request types" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Operations (OPS)" }));
+    fireEvent.click(screen.getByRole("button", { name: "Apply filters" }));
+    expect(await screen.findByRole("button", { name: "Remove Request type: Operations (OPS)" })).toBeVisible();
+    expect(read).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: /^Filters/ }));
+    expect(screen.getByRole("button", { name: "Request type Operations (OPS)" })).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Clear request type" }));
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(screen.getByRole("button", { name: "Remove Request type: Operations (OPS)" })).toBeVisible();
+    view.unmount();
+    render(<MemoryRouter initialEntries={[`/requests?typeId=${id}`]}><RequestListPage /></MemoryRouter>);
+    expect(await screen.findByRole("button", { name: "Remove Request type: Operations (OPS)" })).toBeVisible();
+    expect(read).toHaveBeenCalledWith(id, expect.any(AbortSignal), 0);
+});
+
+test("invalid filter ranges identify fields, announce the error and focus its control", async () =>
+{
+    const search = vi.spyOn(requestApi, "search").mockResolvedValue({ items: [item], pagination });
+    render(<MemoryRouter><RequestListPage /></MemoryRouter>);
+    await screen.findAllByText("Private request");
+    fireEvent.click(screen.getByRole("button", { name: /^Filters/ }));
+    const from = screen.getByLabelText("Created from");
+    const through = screen.getByLabelText("Created through");
+    fireEvent.change(from, { target: { value: "2026-11-10" } });
+    fireEvent.change(through, { target: { value: "2026-11-01" } });
+    fireEvent.click(screen.getByRole("button", { name: "Apply filters" }));
+    expect(screen.getByRole("alert")).toHaveTextContent("Created date range");
+    expect(from).toHaveAttribute("aria-invalid", "true");
+    expect(through).toHaveAttribute("aria-invalid", "true");
+    expect(from).toHaveAccessibleDescription("Created date range: start must be on or before its end.");
+    await waitFor(() => expect(from).toHaveFocus());
+    expect(search).toHaveBeenCalledTimes(1);
+    fireEvent.change(through, { target: { value: "2026-11-12" } });
+    expect(from).not.toHaveAttribute("aria-invalid");
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Apply filters" }));
+    await waitFor(() => expect(search.mock.calls.at(-1)?.[0].search).toHaveLength(2));
+});
+
+test("type label resolution aborts and clears metadata on account changes", async () =>
+{
+    const pending: { signal: AbortSignal | undefined; resolve: (value: Awaited<ReturnType<typeof requestApi.type>>) => void }[] = [];
+    vi.spyOn(requestApi, "search").mockResolvedValue({ items: [], pagination });
+    vi.spyOn(requestApi, "type").mockImplementation((_id, signal) => new Promise((resolve) => pending.push({ signal, resolve })));
+    const view = render(<MemoryRouter initialEntries={[`/requests?typeId=${id}`]}><RequestListPage /></MemoryRouter>);
+    await waitFor(() => expect(pending).toHaveLength(1));
+    session.generation = 1;
+    session.user.id = "other";
+    view.rerender(<MemoryRouter initialEntries={[`/requests?typeId=${id}`]}><RequestListPage /></MemoryRouter>);
+    await waitFor(() => expect(pending).toHaveLength(2));
+    expect(pending[0]!.signal?.aborted).toBe(true);
+    const type = { id, code: "OLD", name: { en: "Previous account type" }, versionId: id, versionNumber: 1, isEnabled: true, supportsLineItems: false, monetary: false, fields: [], publishedAt: "2026-11-01T00:00:00Z" };
+    await act(async () => pending[0]!.resolve(type));
+    expect(screen.queryByText(/Previous account type/)).not.toBeInTheDocument();
+    await act(async () => pending[1]!.resolve({ ...type, code: "NEW", name: { en: "Current account type" } }));
+    expect(await screen.findByRole("button", { name: "Remove Request type: Current account type (NEW)" })).toBeVisible();
+});
+
+test("unavailable selected types remain clearable and temporary label failures retry", async () =>
+{
+    vi.spyOn(requestApi, "search").mockResolvedValue({ items: [], pagination });
+    const type = { id, code: "OPS", name: { en: "Operations" }, versionId: id, versionNumber: 1, isEnabled: false, supportsLineItems: false, monetary: false, fields: [], publishedAt: "2026-11-01T00:00:00Z" };
+    const read = vi.spyOn(requestApi, "type").mockRejectedValueOnce(new Error("network")).mockResolvedValueOnce(type);
+    render(<MemoryRouter initialEntries={[`/requests?typeId=${id}`]}><RequestListPage /></MemoryRouter>);
+    fireEvent.click(await screen.findByRole("button", { name: "Retry request type" }));
+    expect(await screen.findByText("This request type is unavailable. Clear it or choose another type.")).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Remove Request type unavailable" }));
+    await waitFor(() => expect(screen.queryByText(/This request type is unavailable/)).not.toBeInTheDocument());
+    expect(read).toHaveBeenCalledTimes(2);
+});

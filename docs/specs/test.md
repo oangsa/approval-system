@@ -636,3 +636,7 @@ The M01–M03 test setup and per-case assertions are maintained in [identity-acc
 ### Request search and shell polish verification
 
 The [bounded specification](../features/request-search-polish/spec.md) defines AC 1–6 and UT-12/SEC-11/UI-16/E2E-13 mappings. Query tests cover operator/date/URL validation; component tests cover dialog drafts, chips, paging, type lookup cancellation and account/query isolation; browser tests cover keyboard/mobile behavior, navigation, history and real API payloads. Actual execution belongs in the feature verification record; this plan does not assert passing results.
+
+### UI refinement regression scope
+
+[POL-01–07](../features/ui-refinement/spec.md) add selected-type label restoration, field-associated filter validation and focus, grouped responsive criteria, tablet rail/account behavior, and shared landing/shell presentation regressions. Preserve existing query/privacy, My Reviews collection and public SSR/no-JavaScript checks. Actual results belong in the feature verification record.

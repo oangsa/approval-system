@@ -310,3 +310,7 @@ Owner-requested landing work refines UI §5/§7.1 and public SSR without adding 
 ### Request search and shell polish slice
 
 [Issue #12](https://github.com/oangsa/approval-system/issues/12) remains responsible for FR-037–039/R12–R14 across requests and reviews; [#17](https://github.com/oangsa/approval-system/issues/17) retains FR-040/R17 and full-product theme/localization/report responsibilities. Owner requested the My Requests and shell subset early on 2026-11-13; [AC 1–6 and design](../features/request-search-polish/spec.md) map FR-005/037–040 to query, component, real-PostgreSQL and browser checks. No frozen behavior, permission or endpoint changes.
+
+### Sidebar, requests and landing refinement
+
+[POL-01–07](../features/ui-refinement/spec.md) refine FR-005/037–040, AC-005/037–040, UI-AC-07/10/17/20 and LAND-01–04 using only the owner's AXONS/Maintenance references. #12/#17 retain broader ownership. This slice adds no wire contract, permissions or workflow capability; actual verification is recorded separately.
