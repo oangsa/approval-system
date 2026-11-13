@@ -9,6 +9,15 @@ for (const path of ["/health", "/", "/auth/login"])
     assert(response.ok, `Smoke failed: ${path}`);
     assert.equal(response.headers.get("x-release-sha"), sha, "Unexpected serving release");
     if (path === "/health") assert.deepEqual(await response.json(), { status: "ok" });
-    else assert.match(await response.text(), path === "/" ? /Lab 5 release/ : /<html/i);
+    else
+    {
+        const html = await response.text();
+        assert.match(html, /<html/i);
+        if (path === "/")
+        {
+            assert.match(html, /<title>Workflow and Approval System<\/title>/);
+            assert.match(html, /<main[\s>]/);
+        }
+    }
 }
 console.info("Read-only health, public SSR marker and sign-in page smoke passed.");
