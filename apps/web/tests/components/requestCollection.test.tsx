@@ -20,3 +20,10 @@ test("collection exposes retry for failures", () =>
     fireEvent.click(screen.getByRole("button", { name: "Retry" }));
     expect(retry).toHaveBeenCalledOnce();
 });
+
+test("collection reports the actual final-page range instead of page capacity", () =>
+{
+    render(<RequestCollection items={[{ id: "last" }]} pagination={{ currentPage: 3, pageSize: 10, totalPages: 3, totalCount: 21, hasPrevious: true, hasNext: false }} loading={false} error="" columns={["Request"]} onPageChange={vi.fn()} renderDesktopRow={() => <td>Last result</td>} renderMobileCard={() => <span>Last result</span>} />);
+    expect(screen.getByText("Showing 21–21")).toBeVisible();
+    expect(screen.getByRole("button", { name: "Next" })).toBeDisabled();
+});

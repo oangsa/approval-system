@@ -4,6 +4,7 @@ import { approvalTaskSearchSchema, type ApprovalTask, type ApprovalTaskSearch, t
 import { requestApi } from "~/api/requests";
 import { isApiFailure } from "~/api/errors";
 import { RequestCollection } from "~/components/collections/RequestCollection";
+import { PageHeader } from "~/components/layout/PageHeader";
 import { Button } from "~/components/ui/button";
 import { useSession } from "~/modules/auth/sessionContext";
 import { requestPriorityLabel } from "~/modules/requests/requestPresentation";
@@ -293,7 +294,7 @@ export function ReviewQueuePage()
     };
     const onRetry = current?.retry === "reset" ? handleReset : current?.retry === "retry" ? retryNow : undefined;
     return <div className="space-y-6">
-        <h1 className="text-2xl font-semibold">My Reviews</h1>
+        <PageHeader title="My Reviews" />
         {!eligible && status !== "loading" && status !== "idle" ? <p role="alert">Review queue is unavailable.</p> : <>
             <form className="flex flex-wrap items-end gap-3" onSubmit={(event) =>
             {
