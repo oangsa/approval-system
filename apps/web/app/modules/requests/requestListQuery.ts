@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { requestSearchSchema, type RequestSearchQuery } from "@workflow/contracts";
+import { prioritySchema, requestSearchSchema, requestStatusSchema, type RequestSearchQuery } from "@workflow/contracts";
 
 export const emptyRequestFilters = {
     status: "", statusCondition: "EQUAL", typeId: "", priority: "",
@@ -10,6 +10,41 @@ export type RequestFilters = typeof emptyRequestFilters;
 export const requestFilterKeys = Object.keys(emptyRequestFilters) as (keyof RequestFilters)[];
 export const requestSorts = requestSearchSchema.shape.orderBy.unwrap().options;
 export const pageSizes = [10, 20, 50, 100] as const;
+export const requestDateRanges = [
+    ["createdAt", "Created", "createdFrom", "createdTo"],
+    ["updatedAt", "Updated", "updatedFrom", "updatedTo"],
+    ["submittedAt", "Submitted", "submittedFrom", "submittedTo"],
+] as const;
+
+export interface IRequestFilterFailure
+{
+    error: string;
+    fields?: (keyof RequestFilters)[];
+}
+
+function validateRequestFilters(filters: RequestFilters): IRequestFilterFailure | undefined
+{
+    if (filters.status && !requestStatusSchema.safeParse(filters.status).success) return { error: "Choose a valid status.", fields: ["status"] };
+    if (filters.status && !["EQUAL", "NOTEQUAL"].includes(filters.statusCondition)) return { error: "Choose a valid status condition.", fields: ["statusCondition"] };
+    if (filters.typeId && !z.uuid().safeParse(filters.typeId).success) return { error: "Choose a valid request type.", fields: ["typeId"] };
+    if (filters.priority && !prioritySchema.safeParse(filters.priority).success) return { error: "Choose a valid priority.", fields: ["priority"] };
+    for (const [, label, from, to] of requestDateRanges)
+    {
+        for (const key of [from, to])
+        {
+            if (filters[key] && !z.iso.date().safeParse(filters[key]).success) return { error: `${label}: enter valid calendar dates.`, fields: [key] };
+        }
+        if (filters[from] && filters[to] && filters[from] > filters[to]) return { error: `${label} date range: start must be on or before its end.`, fields: [from, to] };
+    }
+    if (filters.submitted && !["yes", "no"].includes(filters.submitted)) return { error: "Choose a valid submission filter.", fields: ["submitted"] };
+    if (filters.submitted === "no" && (filters.submittedFrom || filters.submittedTo)) return { error: "Not submitted cannot be combined with a submitted date range.", fields: ["submitted", "submittedFrom", "submittedTo"] };
+    for (const [label, key, condition, max] of [["Request number", "number", "numberCondition", 100], ["Title", "title", "titleCondition", 200]] as const)
+    {
+        if (!filters[key].trim()) continue;
+        if (!["EQUAL", "CONTAINS", "STARTWITH"].includes(filters[condition])) return { error: `${label}: choose a valid condition.`, fields: [condition] };
+        if ([...filters[key].trim()].length > max) return { error: `${label} must be ${max} characters or fewer.`, fields: [key] };
+    }
+}
 
 export function readRequestFilters(params: URLSearchParams): RequestFilters
 {
@@ -39,21 +74,19 @@ export function writeRequestFilters(params: URLSearchParams, filters: RequestFil
     return next;
 }
 
-export function buildRequestQuery(params: URLSearchParams): { query: RequestSearchQuery; error?: never } | { error: string; query?: never }
+export function buildRequestQuery(params: URLSearchParams): { query: RequestSearchQuery; error?: never; fields?: never } | (IRequestFilterFailure & { query?: never })
 {
     const filters = readRequestFilters(params);
+    const failure = validateRequestFilters(filters);
+    if (failure) return failure;
     const search: unknown[] = [];
     if (filters.status) search.push({ name: "status", condition: filters.statusCondition, value: filters.status });
     if (filters.typeId) search.push({ name: "typeId", condition: "EQUAL", value: filters.typeId });
     if (filters.priority) search.push({ name: "priority", condition: "EQUAL", value: filters.priority });
-    for (const [name, from, to] of [
-        ["createdAt", filters.createdFrom, filters.createdTo],
-        ["updatedAt", filters.updatedFrom, filters.updatedTo],
-        ["submittedAt", filters.submittedFrom, filters.submittedTo],
-    ])
+    for (const [name, , fromKey, toKey] of requestDateRanges)
     {
-        if ([from, to].some((value) => value && !z.iso.date().safeParse(value).success)) return { error: "Enter valid calendar dates." };
-        if (from && to && from > to) return { error: "Date range start must be on or before its end." };
+        const from = filters[fromKey];
+        const to = filters[toKey];
         if (from) search.push({ name, condition: "GREATEROREQUAL", value: new Date(`${from}T00:00:00+07:00`).toISOString() });
         if (to)
         {
@@ -61,8 +94,6 @@ export function buildRequestQuery(params: URLSearchParams): { query: RequestSear
             search.push({ name, condition: "LESSER", value: new Date(end).toISOString() });
         }
     }
-    if (filters.submitted && !["yes", "no"].includes(filters.submitted)) return { error: "Choose a valid submission filter." };
-    if (filters.submitted === "no" && (filters.submittedFrom || filters.submittedTo)) return { error: "Not submitted cannot be combined with a submitted date range." };
     if (filters.submitted) search.push({ name: "submittedAt", condition: filters.submitted === "yes" ? "ISNOTNULL" : "ISNULL" });
     if (filters.number.trim()) search.push({ name: "requestNumber", condition: filters.numberCondition, value: filters.number.trim() });
     if (filters.title.trim()) search.push({ name: "title", condition: filters.titleCondition, value: filters.title.trim() });

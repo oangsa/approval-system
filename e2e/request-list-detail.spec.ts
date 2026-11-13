@@ -54,6 +54,13 @@ test("REQ-E2E-01 and REQ-E2E-02: requester list and persisted detail", async ({ 
     await expect(row).toBeVisible();
     await filters.click();
     await expect(filterDialog.getByLabel("Priority", { exact: true })).toHaveValue("");
+    await filterDialog.getByLabel("Created from", { exact: true }).fill("2026-11-10");
+    await filterDialog.getByLabel("Created through", { exact: true }).fill("2026-11-01");
+    await filterDialog.getByRole("button", { name: "Apply filters" }).click();
+    await expect(filterDialog.getByRole("alert")).toContainText("Created date range");
+    await expect(filterDialog.getByLabel("Created from", { exact: true })).toBeFocused();
+    await expect(filterDialog.getByLabel("Created from", { exact: true })).toHaveAttribute("aria-invalid", "true");
+    await expect(filterDialog.getByLabel("Created through", { exact: true })).toHaveAccessibleDescription("Created date range: start must be on or before its end.");
     await filterDialog.getByLabel("Status", { exact: true }).selectOption("PENDING");
     await filterDialog.getByLabel("Created from", { exact: true }).fill("2000-01-01");
     await filterDialog.getByLabel("Created through", { exact: true }).fill("2099-12-31");
@@ -70,8 +77,13 @@ test("REQ-E2E-01 and REQ-E2E-02: requester list and persisted detail", async ({ 
         { name: "createdAt", condition: "LESSER", value: "2099-12-31T17:00:00.000Z" },
     ]);
     await expect(row).toBeVisible();
+    await expect(page.getByRole("button", { name: "Remove Request type: General request (GENERAL)" })).toBeVisible();
+    await filters.click();
+    await expect(filterDialog.getByRole("button", { name: "Request type General request (GENERAL)" })).toBeVisible();
+    await filterDialog.getByRole("button", { name: "Cancel", exact: true }).click();
     await page.reload();
     await expect(row).toBeVisible();
+    await expect(page.getByRole("button", { name: "Remove Request type: General request (GENERAL)" })).toBeVisible();
     await expect(page.getByRole("button", { name: "Remove Status is Pending approval" })).toBeVisible();
     await filters.click();
     await filterDialog.getByRole("button", { name: "Reset filters" }).click();
@@ -153,6 +165,17 @@ test("REQ-E2E-01 and REQ-E2E-02: requester list and persisted detail", async ({ 
         expect(await mobileFilters.evaluate((element) => element.contains(document.activeElement))).toBe(true);
     }
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    await page.setViewportSize({ width: 320, height: 844 });
+    expect(await mobileFilters.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
+    await mobileFilters.getByLabel("Created from", { exact: true }).fill("2026-11-10");
+    await mobileFilters.getByLabel("Created through", { exact: true }).fill("2026-11-01");
+    await mobileFilters.getByRole("button", { name: "Apply filters" }).click();
+    await expect(mobileFilters.getByLabel("Created from", { exact: true })).toBeFocused();
+    const invalidBounds = await mobileFilters.getByLabel("Created from", { exact: true }).boundingBox();
+    const applyBounds = await mobileFilters.getByRole("button", { name: "Apply filters" }).boundingBox();
+    expect(invalidBounds!.y + invalidBounds!.height).toBeLessThan(applyBounds!.y);
+    await page.screenshot({ path: "artifacts/playwright/request-filters-320-validation.png", fullPage: true, animations: "disabled" });
+    await page.setViewportSize({ width: 390, height: 844 });
     await page.screenshot({ path: "artifacts/playwright/request-filters-mobile.png", fullPage: true, animations: "disabled" });
     await page.keyboard.press("Escape");
     await expect(mobileFilters).not.toBeVisible();

@@ -61,3 +61,9 @@ export async function readRequestResult(id: string, signal?: AbortSignal, genera
     const definition = revision ? await requestApi.version(detail.typeId, revision.formDefinitionVersionId, detail.id, signal, generation) : null;
     return { detail, definition };
 }
+
+export async function readRequestTypeSelection(id: string, signal: AbortSignal, generation: number)
+{
+    const type = await requestApi.type(id, signal, generation);
+    return type.isEnabled ? { id: type.id, name: type.name, code: type.code } : null;
+}
