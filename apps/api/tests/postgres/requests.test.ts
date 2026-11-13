@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, expect, test, vi } from "vitest";
 import { and, eq, sql } from "drizzle-orm";
-import { requestDetailSchema, requestSummarySchema, type CreateRequest, type PublishedRequestType, type UserRole } from "@workflow/contracts";
+import { requestDetailSchema, requestSummarySchema, requestTypeSearchSchema, type CreateRequest, type PublishedRequestType, type UserRole } from "@workflow/contracts";
 import { createTestDatabase } from "../helpers/testDatabase";
 import { RequestService } from "../../src/Applications/Requests/RequestService";
 import { ApprovalTaskService } from "../../src/Applications/Approvals/ApprovalTaskService";
@@ -542,8 +542,11 @@ test.each(["missing", "inactive", "self", "department", "form", "budget"] as con
     if (condition === "form")
     {
         const versionId = randomUUID();
-        await db.insert(requestTypeVersions).values({ id: versionId, typeId: item.typeId, versionNumber: 2, definition: { ...seededDefinition, id: item.typeId, versionId, versionNumber: 2 } });
+        const definition = await service.Type(item.actor, item.typeId);
+        await db.insert(requestTypeVersions).values({ id: versionId, typeId: item.typeId, versionNumber: 2, definition: { ...definition, versionId, versionNumber: 2 } });
         await db.update(requestTypes).set({ publishedVersionId: versionId }).where(eq(requestTypes.id, item.typeId));
+        const published = await service.Types(item.actor, requestTypeSearchSchema.parse({ search: [{ name: "code", condition: "EQUAL", value: `T${item.typeId}` }] }));
+        expect(published.items).toEqual([expect.objectContaining({ id: item.typeId, code: `T${item.typeId}`, versionNumber: 2 })]);
     }
     if (condition === "budget") await db.insert(budgetPolicies).values({ id: randomUUID(), typeId: item.typeId, maxAmount: "9.99" });
     await expect(service.Mutate(item.actor, "submit", draft.id, { expectedVersion: 0 }, randomUUID())).rejects.toMatchObject({ code: condition === "form" ? "FORM_DEFINITION_CHANGED" : condition === "budget" ? "BUDGET_LIMIT_EXCEEDED" : "CONFIGURATION_INCOMPLETE" });
