@@ -1,0 +1,152 @@
+{
+  "method": "Independent Node fetch with no Authorization or Cookie headers; no browser profile, no authenticated session. Not a browser InPrivate interaction or guarantee through grading.",
+  "results": [
+    {
+      "url": "https://github.com/oangsa/approval-system",
+      "checkedAt": "2026-11-14T04:18:36.608Z",
+      "status": 200,
+      "finalUrl": "https://github.com/oangsa/approval-system",
+      "releaseSha": null,
+      "contentType": "text/html; charset=utf-8"
+    },
+    {
+      "url": "https://github.com/oangsa/approval-system/issues/27",
+      "checkedAt": "2026-11-14T04:18:37.314Z",
+      "status": 200,
+      "finalUrl": "https://github.com/oangsa/approval-system/issues/27",
+      "releaseSha": null,
+      "contentType": "text/html; charset=utf-8"
+    },
+    {
+      "url": "https://github.com/oangsa/approval-system/issues/35",
+      "checkedAt": "2026-11-14T04:18:37.973Z",
+      "status": 200,
+      "finalUrl": "https://github.com/oangsa/approval-system/issues/35",
+      "releaseSha": null,
+      "contentType": "text/html; charset=utf-8"
+    },
+    {
+      "url": "https://github.com/oangsa/approval-system/pull/34",
+      "checkedAt": "2026-11-14T04:18:38.910Z",
+      "status": 200,
+      "finalUrl": "https://github.com/oangsa/approval-system/pull/34",
+      "releaseSha": null,
+      "contentType": "text/html; charset=utf-8"
+    },
+    {
+      "url": "https://github.com/oangsa/approval-system/pull/37",
+      "checkedAt": "2026-11-14T04:18:39.611Z",
+      "status": 200,
+      "finalUrl": "https://github.com/oangsa/approval-system/pull/37",
+      "releaseSha": null,
+      "contentType": "text/html; charset=utf-8"
+    },
+    {
+      "url": "https://github.com/oangsa/approval-system/pull/56",
+      "checkedAt": "2026-11-14T04:18:40.450Z",
+      "status": 200,
+      "finalUrl": "https://github.com/oangsa/approval-system/pull/56",
+      "releaseSha": null,
+      "contentType": "text/html; charset=utf-8"
+    },
+    {
+      "url": "https://github.com/oangsa/approval-system/pull/57",
+      "checkedAt": "2026-11-14T04:18:41.170Z",
+      "status": 200,
+      "finalUrl": "https://github.com/oangsa/approval-system/pull/57",
+      "releaseSha": null,
+      "contentType": "text/html; charset=utf-8"
+    },
+    {
+      "url": "https://github.com/oangsa/approval-system/pull/58",
+      "checkedAt": "2026-11-14T04:18:41.878Z",
+      "status": 200,
+      "finalUrl": "https://github.com/oangsa/approval-system/pull/58",
+      "releaseSha": null,
+      "contentType": "text/html; charset=utf-8"
+    },
+    {
+      "url": "https://github.com/oangsa/approval-system/pull/59",
+      "checkedAt": "2026-11-14T04:18:42.630Z",
+      "status": 200,
+      "finalUrl": "https://github.com/oangsa/approval-system/pull/59",
+      "releaseSha": null,
+      "contentType": "text/html; charset=utf-8"
+    },
+    {
+      "url": "https://github.com/oangsa/approval-system/actions/runs/43153171069",
+      "checkedAt": "2026-11-14T04:18:43.197Z",
+      "status": 200,
+      "finalUrl": "https://github.com/oangsa/approval-system/actions/runs/43153171069",
+      "releaseSha": null,
+      "contentType": "text/html; charset=utf-8"
+    },
+    {
+      "url": "https://github.com/oangsa/approval-system/actions/runs/43448678495",
+      "checkedAt": "2026-11-14T04:18:43.698Z",
+      "status": 200,
+      "finalUrl": "https://github.com/oangsa/approval-system/actions/runs/43448678495",
+      "releaseSha": null,
+      "contentType": "text/html; charset=utf-8"
+    },
+    {
+      "url": "https://github.com/oangsa/approval-system/actions/runs/43545335057",
+      "checkedAt": "2026-11-14T04:18:44.212Z",
+      "status": 200,
+      "finalUrl": "https://github.com/oangsa/approval-system/actions/runs/43545335057",
+      "releaseSha": null,
+      "contentType": "text/html; charset=utf-8"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/oangsa/approval-system/83f079469c8fedec5afc3609ca97ef7deab5d3ba/docs/labs/lab-05/deployment.md",
+      "checkedAt": "2026-11-14T04:18:44.739Z",
+      "status": 200,
+      "finalUrl": "https://raw.githubusercontent.com/oangsa/approval-system/83f079469c8fedec5afc3609ca97ef7deab5d3ba/docs/labs/lab-05/deployment.md",
+      "releaseSha": null,
+      "contentType": "text/plain; charset=utf-8"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/oangsa/approval-system/83f079469c8fedec5afc3609ca97ef7deab5d3ba/docs/labs/lab-05/evidence/c04/12-reviewer-search-denied.png",
+      "checkedAt": "2026-11-14T04:18:45.183Z",
+      "status": 200,
+      "finalUrl": "https://raw.githubusercontent.com/oangsa/approval-system/83f079469c8fedec5afc3609ca97ef7deab5d3ba/docs/labs/lab-05/evidence/c04/12-reviewer-search-denied.png",
+      "releaseSha": null,
+      "contentType": "image/png"
+    },
+    {
+      "url": "https://approval-system.oangsa.com/",
+      "checkedAt": "2026-11-14T04:18:56.802Z",
+      "status": 200,
+      "finalUrl": "https://approval-system.oangsa.com/",
+      "releaseSha": "e00b2642ccc7e8d7d2e7c0938e77d3177cd27eeb",
+      "contentType": "text/html; charset=utf-8"
+    },
+    {
+      "url": "https://approval-system.oangsa.com/auth/login",
+      "checkedAt": "2026-11-14T04:18:56.986Z",
+      "status": 200,
+      "finalUrl": "https://approval-system.oangsa.com/auth/login",
+      "releaseSha": "e00b2642ccc7e8d7d2e7c0938e77d3177cd27eeb",
+      "contentType": "text/html; charset=utf-8",
+      "signInHtml": true
+    },
+    {
+      "url": "https://approval-system.oangsa.com/health",
+      "checkedAt": "2026-11-14T04:18:57.182Z",
+      "status": 200,
+      "finalUrl": "https://approval-system.oangsa.com/health",
+      "releaseSha": "e00b2642ccc7e8d7d2e7c0938e77d3177cd27eeb",
+      "contentType": "application/json",
+      "healthOk": true
+    },
+    {
+      "url": "https://approval-system.oangsa.com/api/v1/auth/me",
+      "checkedAt": "2026-11-14T04:18:57.337Z",
+      "status": 401,
+      "finalUrl": "https://approval-system.oangsa.com/api/v1/auth/me",
+      "releaseSha": "e00b2642ccc7e8d7d2e7c0938e77d3177cd27eeb",
+      "contentType": "application/json",
+      "unauthenticated": true
+    }
+  ]
+}
