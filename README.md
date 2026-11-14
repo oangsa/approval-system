@@ -48,7 +48,7 @@ npm run start --workspace @workflow/api
 npm run start --workspace @workflow/web
 ```
 
-The built web server defaults to port 3000. Configure `HOST`/`PORT` as needed. The Vite development proxy forwards `/api/*` to the API while preserving the `/api` prefix. In production configure that forwarding in a reverse proxy; separate-origin hosting needs an explicit CORS allowlist when introduced.
+The built web server defaults to port 3000. Configure `HOST`/`PORT` as needed. The Vite development proxy forwards `/api/*` to the API while preserving the `/api` prefix. The Lab 5 production image uses a single same-origin ingress for SSR and API; see the [deployment and release verification guide](docs/labs/lab-05/deployment.md) for configuration, release procedures and current evidence limits.
 
 ## Testing commands
 
