@@ -3,13 +3,7 @@ import { isApiFailure } from "~/api/errors";
 
 export const requestStatusLabels: Record<RequestDetail["status"], string> = { DRAFT: "Draft", PENDING: "Pending approval", RETURNED: "Returned for revision", APPROVED: "Approved", REJECTED: "Rejected", WITHDRAWN: "Withdrawn" };
 export const requestPriorityLabels: Record<RequestSummary["priority"], string> = { LOW: "Low", MEDIUM: "Medium", HIGH: "High", URGENT: "Urgent" };
-export const requestSortLabels: Record<string, string> = {
-    "updatedAt desc": "Last updated (newest first)", "updatedAt asc": "Last updated (oldest first)",
-    "createdAt desc": "Created (newest first)", "createdAt asc": "Created (oldest first)",
-    "submittedAt desc": "Submitted (newest first)", "submittedAt asc": "Submitted (oldest first)",
-    "requestNumber asc": "Request number (A–Z)", "requestNumber desc": "Request number (Z–A)",
-    "title asc": "Title (A–Z)", "title desc": "Title (Z–A)",
-};
+
 export const approverSlotLabels: Record<string, string> = { WAITING: "Waiting", ACTIONABLE: "Action required", APPROVED: "Approved", REJECTED: "Rejected", RETURNED: "Returned", CANCELLED: "Cancelled" };
 
 export function requestStatusLabel(status: RequestDetail["status"]): string

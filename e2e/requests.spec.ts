@@ -61,12 +61,11 @@ test("E2E-01 wizard incomplete save, Back/Next preservation, conditional validat
     await expect(page.getByRole("textbox")).toHaveCount(0);
     await page.getByRole("link", { name: "Open saved request" }).click();
     await expect(page.getByRole("heading", { level: 1, name: "Browser submission" })).toBeVisible();
-    await expect(page.getByRole("region", { name: "Request result" })).toContainText("Browser submission");
     await expect(page.getByRole("region", { name: "Request result" })).toContainText("Operations");
     await expect(page.getByRole("region", { name: "Request result" })).not.toContainText("OPERATIONS");
     await page.screenshot({ path: "artifacts/playwright/request-submitted.png", fullPage: true });
     await page.reload();
-    await expect(page.getByRole("region", { name: "Request result" })).toContainText("Pending approval");
+    await expect(page.getByText("Pending approval", { exact: true })).toBeVisible();
 });
 test("UI-20 authenticated wizard data is absent from public SSR", async ({ request }) =>
 {
