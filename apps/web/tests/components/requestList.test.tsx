@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
 import { http, HttpResponse } from "msw";
 import { afterAll, afterEach, beforeAll, expect, test, vi } from "vitest";
@@ -62,7 +62,10 @@ test("search sends filters and renders metadata, safe links and pagination", asy
     fireEvent.click(screen.getByRole("button", { name: /^Filters/ }));
     expect(screen.getByRole("combobox", { name: "Status" })).toHaveDisplayValue("Pending approval");
     fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
-    expect(screen.getByRole("combobox", { name: "Sort" })).toHaveDisplayValue("Last updated (newest first)");
+    expect(screen.queryByRole("combobox", { name: "Sort" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Refresh requests" })).not.toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Updated" })).toHaveAttribute("aria-sort", "descending");
+    expect(within(screen.getByRole("navigation", { name: "Results pagination" })).getByLabelText("Rows per page")).toHaveValue("20");
     expect(screen.getAllByText("Pending approval")).toHaveLength(2);
     expect(screen.getAllByText("High")).toHaveLength(1);
     expect(screen.getByText("High · Finance")).toBeVisible();
@@ -239,9 +242,11 @@ test("out-of-range pages recover once from server metadata; sort and page size r
     expect(search.mock.calls.map(([query]) => query.pageNumber)).toEqual([99, 2]);
     fireEvent.change(screen.getByLabelText("Rows per page"), { target: { value: "50" } });
     await waitFor(() => expect(search.mock.calls.at(-1)?.[0]).toMatchObject({ pageNumber: 1, pageSize: 50 }));
-    fireEvent.click(screen.getByRole("button", { name: "Request" }));
+    fireEvent.click(within(screen.getByRole("columnheader", { name: "Request" })).getByRole("button"));
     await waitFor(() => expect(search.mock.calls.at(-1)?.[0].orderBy).toBe("title asc"));
     expect(screen.getByRole("columnheader", { name: "Request" })).toHaveAttribute("aria-sort", "ascending");
+    fireEvent.click(within(screen.getByRole("group", { name: "Sort results" })).getByRole("button", { name: "Request" }));
+    await waitFor(() => expect(search.mock.calls.at(-1)?.[0].orderBy).toBe("title desc"));
 });
 
 test("selected type keeps its label after Apply, reopen and URL restoration", async () =>

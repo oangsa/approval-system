@@ -32,7 +32,13 @@ test("wizard can select type 101 and preserves that selection when paging back",
     expect(await screen.findByRole("combobox", { name: "Request type (required)" })).toHaveValue(types[100]!.id);
     expect(pages).toEqual([1, 2, 1]);
     await user.click(screen.getByRole("button", { name: /^Next$/ }));
-    expect(screen.getByRole("textbox", { name: "Title (required)" })).toBeVisible();
+    expect(screen.getByRole("heading", { name: "Basic Information" })).toHaveFocus();
+    const title = screen.getByRole("textbox", { name: "Title (required)" });
+    await user.type(title, "Travel request");
+    await user.click(screen.getByRole("button", { name: "Back" }));
+    expect(screen.getByRole("heading", { name: "Request Type" })).toHaveFocus();
+    await user.click(screen.getByRole("button", { name: /^Next$/ }));
+    expect(screen.getByRole("textbox", { name: "Title (required)" })).toHaveValue("Travel request");
 });
 
 test.each([undefined, "bad-json", "{}"])("request-type API rejects missing/malformed pagination: %s", async (pagination) =>

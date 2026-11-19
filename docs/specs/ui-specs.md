@@ -85,10 +85,10 @@ Use explicit text labels and icon/shape to indicate state. Color is **supplement
 
 ## 3. Motion and accessibility
 
-- **Owner-approved clarification (2026-11-06):** Include subtle interaction animation for hover/focus feedback, sidebar collapse/mobile drawer changes, and dialog/tab transitions. Animation is a presentation enhancement; critical interactions and approval transactions must complete independently of it, including when reduced motion disables it.
-- Prefer Tailwind `transition-*` for ordinary hover, focus, sidebar/collapse, and color transitions.
+- **Owner-approved clarification (2026-11-06):** Include subtle interaction animation for hover/focus feedback, mobile drawer changes, and dialog/tab transitions. Animation is a presentation enhancement; critical interactions and approval transactions must complete independently of it, including when reduced motion disables it.
+- Prefer Tailwind `transition-*` for ordinary hover, focus, mobile drawer, and color transitions.
 - **UI-11 [FROZEN]:** Use Tailwind transitions as the default. Modern **Motion for React** (`motion/react`) is optional for justified component transitions; do **not** use the separate legacy `react-motion` library. Motion must not introduce a second styling system or replace Tailwind CSS.
-- **[IMPLEMENTATION DEFAULT — NOT FROZEN]** Motion durations of ~120–220ms for small opacity/translate transitions, sidebar expansion, tabs and dialog presence. Never animate loading to conceal data changes, delay submit results, or obscure actionable controls.
+- **[IMPLEMENTATION DEFAULT — NOT FROZEN]** Motion durations of ~120–220ms for small opacity/translate transitions, mobile drawer, tabs and dialog presence. Never animate loading to conceal data changes, delay submit results, or obscure actionable controls.
 - Respect `prefers-reduced-motion: reduce`, and disable nonessential transitions/entry animations. Keep keyboard focus and screen-reader announcements stable through transitions.
 - Keyboard, semantic labels, error associations, usable focus rings, dialog focus trap/return and non-color status cues are required. Do not reproduce a reference implementation's CSS rules that suppress accessible focus outlines.
 
@@ -96,7 +96,7 @@ Use explicit text labels and icon/shape to indicate state. Color is **supplement
 
 ### 4.1 App shell
 
-**UI-02 [FROZEN]:** Shared authenticated `AppShell` uses a collapsible left sidebar on desktop, sticky top header, and a focus-managed mobile drawer. Header includes breadcrumb/page title, account menu, **notification bell** (UI-08), and accessible theme/language controls. The sidebar contains only destinations the current user can use. Multiple-role users see relevant combined sections (rather than choosing a pretend client-side role to bypass permissions).
+**UI-02 [FROZEN]:** Shared authenticated `AppShell` uses an expanded left sidebar on desktop, sticky top header, and a focus-managed mobile drawer. Header includes breadcrumb/page title, account menu, **notification bell** (UI-08), and accessible theme/language controls. The sidebar contains only destinations the current user can use. Multiple-role users see relevant combined sections (rather than choosing a pretend client-side role to bypass permissions).
 
 Sections: **Workspace** (Dashboard, My Requests, My Reviews, Delegations, Notifications, Reports where allowed); **Administration** (Users, Departments, Request Types, Approval Policies, Reviewer Assignments, Budget Policies and Escalations as authorized). Do not show empty sections.
 
@@ -104,9 +104,9 @@ The frontend's role checks are for navigation/UX only; server permissions still 
 
 ### 4.2 Responsive layout — IMPLEMENTATION DEFAULT
 
-- Desktop `>=1024px`: sidebar approximately 248px expanded, collapsible to icon rail, content max-width approximately 1440px.
-- Tablet `768–1023px`: compact sidebar or drawer, single/two-column adaptable forms.
-- **UI-07 [FROZEN]:** Mobile `<768px` uses a drawer sidebar, single-column forms/detail and **compact accessible cards for the main Requests and Review Queue collections** instead of squeezed data tables. Each card preserves identity, status, priority/due date where relevant, and actions. Admin/configuration tables may use a constrained horizontally scrollable table where a card layout would lose meaning. A sticky action area must not obstruct content or keyboard; no whole-page horizontal overflow.
+- Desktop `>=1024px`: expanded sidebar approximately 248px, content max-width approximately 1440px.
+- Tablet `768–1023px`: narrower expanded sidebar, single/two-column adaptable forms.
+- **UI-07 [FROZEN]:** Mobile `<768px` uses a drawer sidebar opened by the menu button in the top header, single-column forms/detail and **compact accessible cards for the main Requests and Review Queue collections** instead of squeezed data tables. Each card preserves identity, status, priority/due date where relevant, and actions. Admin/configuration tables may use a constrained horizontally scrollable table where a card layout would lose meaning. A sticky action area must not obstruct content or keyboard; no whole-page horizontal overflow.
 - Use breakpoint utilities (`sm`, `md`, `lg`, `xl`) rather than viewport-specific CSS sheets. Respect touch target sizing.
 
 ## 5. Route and navigation proposal
@@ -199,7 +199,7 @@ All paths below are **frontend React Router paths**, not API routes. Reuse featu
 ### 8.1 My Requests (`/requests`)
 
 - Reuse `DataTable` with request number, title, request type, priority, status, last update, and optional date/department where authorized.
-- Search request number/title; filter status and date; sort and paginate through `/requests/search`.
+- Search request number/title; filter status and date; sort and paginate through `/requests/search`. Sort from column headers on desktop and the results header on mobile. Place Rows per page in the pagination controls.
 - **2026-11-13 bounded implementation:** New request lives on this page, not in sidebar navigation; the creation route is unchanged. Advanced filters use a draft dialog, applied removable chips, supported date ranges and page sizes 10/20/50/100; see [acceptance and design](../features/request-search-polish/spec.md). This delivers part of #12/#17, not their full scope.
 - Primary action **New request**. Row primary action **Open details**; optional contextual **Edit draft/returned**, **Withdraw** when `availableActions` permits.
 - Status labels and timestamps must reflect server state; do not optimistically fabricate terminal approval status.

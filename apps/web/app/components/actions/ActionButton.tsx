@@ -9,6 +9,7 @@ export const actionStyles = cva(
             variant: {
                 primary: "bg-primary text-primary-foreground hover:bg-primary/90",
                 outline: "border bg-background text-foreground hover:bg-accent",
+                danger: "text-destructive hover:bg-destructive/10",
                 ghost: "text-muted-foreground hover:bg-accent hover:text-foreground",
             },
             size: {

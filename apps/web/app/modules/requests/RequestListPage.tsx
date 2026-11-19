@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router";
-import { Filter, Plus, RotateCw, Search, X } from "lucide-react";
+import { Filter, Plus, Search, X } from "lucide-react";
 import type { RequestSummary } from "@workflow/contracts";
 import { searchRequests } from "~/services/requestService";
 import { RequestCollection } from "~/components/collections/RequestCollection";
@@ -11,7 +11,7 @@ import { fieldClassName } from "~/components/forms/FieldRenderer";
 import { Input } from "~/components/ui/input";
 import { useSession } from "~/modules/auth/sessionContext";
 import { RequestStatus } from "./RequestResult";
-import { presentFailure, requestPriorityLabel, requestSortLabels, requestStatusLabel, requestTypeLabel } from "./requestPresentation";
+import { presentFailure, requestPriorityLabel, requestStatusLabel, requestTypeLabel } from "./requestPresentation";
 import { useRequestTypeSelection } from "./useRequestTypeSelection";
 import { RequestFiltersDialog } from "./RequestFiltersDialog";
 import { buildRequestQuery, emptyRequestFilters, pageSizes, readRequestFilters, requestDateRanges, requestSorts, writeRequestFilters, type RequestFilters } from "./requestListQuery";
@@ -42,7 +42,7 @@ function RequesterListContent({ generation, userId }: IRequesterListContentProps
     const [attempt, setAttempt] = useState(0);
     const scope = `${generation}:${userId}:${serialized}`;
     const recoveryScope = useRef("");
-    const [result, setResult] = useState<{ scope: string; attempt: number; items: RequestSummary[]; pagination: NonNullable<IRequestCollectionProps<RequestSummary>["pagination"]> } | null>(null);
+    const [result, setResult] = useState<{ scope: string; items: RequestSummary[]; pagination: NonNullable<IRequestCollectionProps<RequestSummary>["pagination"]> } | null>(null);
     const [error, setError] = useState<{ scope: string; failure: unknown } | null>(null);
     function update(key: string, value: string)
     {
@@ -86,7 +86,7 @@ function RequesterListContent({ generation, userId }: IRequesterListContentProps
                 setParams(next, { replace: true });
                 return;
             }
-            setResult({ scope, attempt, ...data });
+            setResult({ scope, ...data });
         }).catch((failure: unknown) =>
         {
             if (!controller.signal.aborted) setError({ scope, failure });
@@ -123,17 +123,23 @@ function RequesterListContent({ generation, userId }: IRequesterListContentProps
     const filtered = !!term || chips.length > 0;
     function link(item: RequestSummary)
     {
-        return <Link className="inline-block max-w-full rounded-sm font-medium text-foreground underline-offset-4 wrap-anywhere hover:underline focus-visible:outline-2 focus-visible:outline-ring" to={`/requests/${item.id}`}>{item.title || "Untitled draft"}</Link>;
+        return <Link className="inline-block max-w-full rounded-sm font-medium text-foreground underline-offset-4 wrap-anywhere hover:underline focus-visible:outline-2 focus-visible:outline-ring" to={`/requests/${item.id}`} state={{ requestListSearch: serialized }}>{item.title || "Untitled draft"}</Link>;
     }
     const dateLabel = (item: RequestSummary) => new Date(item.updatedAt).toLocaleDateString(undefined, { timeZone: "Asia/Bangkok" });
     return <div className="mx-auto max-w-7xl space-y-6">
         <PageHeader title="My Requests" description="Track your requests and their latest approval status." actions={<Link className={actionStyles({ variant: "primary" })} to="/requests/new"><Plus aria-hidden="true" className="size-4" />New request</Link>} />
         <section aria-label="Request search and filters" className="space-y-4 rounded-lg border bg-card p-4">
-            <div className="grid grid-cols-2 items-end gap-3 sm:grid-cols-3 xl:flex xl:flex-wrap">
-                <div className="order-1 col-span-2 grid min-w-0 flex-1 basis-64 gap-1.5 text-sm font-medium sm:col-span-3 xl:order-none"><label htmlFor="request-list-search">Search</label><div className="flex gap-2"><span className="relative min-w-0 flex-1"><Search aria-hidden="true" className="pointer-events-none absolute left-3 top-3.5 size-4 text-muted-foreground" /><Input id="request-list-search" className="min-h-11 pl-9" value={input} maxLength={100} onChange={(event) => setInput(event.target.value)} placeholder="Request number or title…" /></span><ActionButton type="button" aria-label="Refresh requests" disabled={!visible || visible.attempt !== attempt} size="icon" onClick={() => setAttempt((value) => value + 1)}><RotateCw aria-hidden="true" className="size-4" /></ActionButton></div></div>
-                <ActionButton type="button" aria-haspopup="dialog" aria-expanded={dialogOpen} className="order-3 justify-start sm:justify-center xl:order-none" onClick={() => setDialogOpen(true)}><Filter aria-hidden="true" className="size-4" />Filters{chips.length > 0 && <span className="rounded bg-secondary px-1.5 text-xs">{chips.length}</span>}</ActionButton>
-                <div className="order-2 col-span-2 grid min-w-0 gap-1.5 text-sm sm:col-span-1 xl:order-none xl:w-60"><label htmlFor="request-list-sort">Sort</label><select id="request-list-sort" className={`${fieldClassName} min-h-11 min-w-0 text-foreground`} value={criteria.query?.orderBy ?? "updatedAt desc"} onChange={(event) => update("sort", event.target.value)}>{requestSorts.map((value) => <option key={value} value={value}>{requestSortLabels[value]}</option>)}</select></div>
-                <div className="order-4 grid min-w-0 gap-1.5 text-sm xl:order-none"><label htmlFor="request-list-size">Rows per page</label><select id="request-list-size" className={`${fieldClassName} min-h-11 text-foreground`} value={criteria.query?.pageSize ?? 20} onChange={(event) => update("pageSize", event.target.value)}>{pageSizes.map((value) => <option key={value} value={value}>{value}</option>)}</select></div>
+            <div className="flex flex-wrap items-end gap-3">
+                <div className="grid min-w-0 flex-1 basis-48 gap-1.5 text-sm font-medium">
+                    <label htmlFor="request-list-search">Search</label>
+                    <span className="relative">
+                        <Search aria-hidden="true" className="pointer-events-none absolute left-3 top-3.5 size-4 text-muted-foreground" />
+                        <Input id="request-list-search" className="min-h-11 pl-9" value={input} maxLength={100} onChange={(event) => setInput(event.target.value)} placeholder="Request number or title…" />
+                    </span>
+                </div>
+                <ActionButton type="button" aria-haspopup="dialog" aria-expanded={dialogOpen} onClick={() => setDialogOpen(true)}>
+                    <Filter aria-hidden="true" className="size-4" />Filters{chips.length > 0 && <span className="rounded bg-secondary px-1.5 text-xs">{chips.length}</span>}
+                </ActionButton>
             </div>
             {filtered && <div className="flex flex-wrap items-center gap-2 border-t pt-4">{term && <ActionButton type="button" size="small" className="max-w-full bg-muted/40" aria-label="Remove search" onClick={() =>
             {
@@ -152,6 +158,11 @@ function RequesterListContent({ generation, userId }: IRequesterListContentProps
             setParams(writeRequestFilters(params, draft));
             setDialogOpen(false);
         }} />}
-        {criteria.error ? <div role="alert" className="space-y-3 rounded-lg border p-6"><p>{criteria.error}</p><ActionButton type="button" className="min-h-11 border px-4" onClick={clearFilters}>Clear invalid criteria</ActionButton></div> : <RequestCollection items={visible?.items ?? []} pagination={visible?.pagination ?? null} loading={!visible && !visibleError} refreshing={!!visible && visible.attempt !== attempt && !visibleError} error={visibleError?.message ?? ""} requestId={visibleError?.requestId} onRetry={visibleError?.terminal ? undefined : () => setAttempt((value) => value + 1)} emptyMessage={filtered ? "No requests match your filters." : "No requests yet."} emptyAction={filtered ? <ActionButton type="button" className="min-h-11 border px-4 hover:bg-secondary" onClick={clearFilters}>Clear filters</ActionButton> : <p className="text-sm text-muted-foreground">Use New request to start your first approval.</p>} columns={["Request", "Number", "Type", "Priority", "Department", "Status", "Updated"]} sort={{ orderBy: criteria.query!.orderBy, fields: { Request: "title", Number: "requestNumber", Updated: "updatedAt" }, onChange: (sort) => update("sort", sort) }} onPageChange={(next) => update("page", String(next))} renderDesktopRow={(item) => <><td className="max-w-sm p-3">{link(item)}</td><td className="whitespace-nowrap p-3 text-muted-foreground">{item.requestNumber ?? "Draft"}</td><td className="p-3">{requestTypeLabel(item.typeCode)}</td><td className="p-3">{requestPriorityLabel(item.priority)}</td><td className="p-3">{item.department?.name ?? "No department"}</td><td className="p-3"><RequestStatus status={item.status} /></td><td className="whitespace-nowrap p-3 text-muted-foreground">{dateLabel(item)}</td></>} renderMobileCard={(item) => <div className="space-y-3"><div className="flex flex-wrap items-center justify-between gap-2"><p className="text-xs font-medium text-muted-foreground">{item.requestNumber ?? "Draft"}</p><RequestStatus status={item.status} /></div>{link(item)}<p className="text-sm">{requestTypeLabel(item.typeCode)}</p><p className="text-sm text-muted-foreground">{requestPriorityLabel(item.priority)} · {item.department?.name ?? "No department"}</p><p className="border-t pt-3 text-xs text-muted-foreground">Updated {dateLabel(item)}</p></div>} />}
+        {criteria.error ? <div role="alert" className="space-y-3 rounded-lg border p-6"><p>{criteria.error}</p><ActionButton type="button" className="min-h-11 border px-4" onClick={clearFilters}>Clear invalid criteria</ActionButton></div> : <RequestCollection items={visible?.items ?? []} pagination={visible?.pagination ?? null} loading={!visible && !visibleError} error={visibleError?.message ?? ""} requestId={visibleError?.requestId} onRetry={visibleError?.terminal ? undefined : () => setAttempt((value) => value + 1)} emptyMessage={filtered ? "No requests match your filters." : "No requests yet."} emptyAction={filtered ? <ActionButton type="button" className="min-h-11 border px-4 hover:bg-secondary" onClick={clearFilters}>Clear filters</ActionButton> : <p className="text-sm text-muted-foreground">Use New request to start your first approval.</p>} columns={["Request", "Number", "Type", "Priority", "Department", "Status", "Updated"]} mobileSortHeader sort={{ orderBy: criteria.query!.orderBy, fields: { Request: "title", Number: "requestNumber", Updated: "updatedAt" }, onChange: (sort) => update("sort", sort) }} paginationOptions={<div className="flex flex-wrap items-center gap-2">
+            <label htmlFor="request-list-size" className="text-muted-foreground">Rows per page</label>
+            <select id="request-list-size" className={`${fieldClassName} min-h-11 w-auto`} value={criteria.query!.pageSize} onChange={(event) => update("pageSize", event.target.value)}>
+                {pageSizes.map((value) => <option key={value} value={value}>{value}</option>)}
+            </select>
+        </div>} onPageChange={(next) => update("page", String(next))} renderDesktopRow={(item) => <><td className="max-w-sm p-3">{link(item)}</td><td className="whitespace-nowrap p-3 text-muted-foreground">{item.requestNumber ?? "Draft"}</td><td className="p-3">{requestTypeLabel(item.typeCode)}</td><td className="p-3">{requestPriorityLabel(item.priority)}</td><td className="p-3">{item.department?.name ?? "No department"}</td><td className="p-3"><RequestStatus status={item.status} /></td><td className="whitespace-nowrap p-3 text-muted-foreground">{dateLabel(item)}</td></>} renderMobileCard={(item) => <div className="space-y-3"><div className="flex flex-wrap items-center justify-between gap-2"><p className="text-xs font-medium text-muted-foreground">{item.requestNumber ?? "Draft"}</p><RequestStatus status={item.status} /></div>{link(item)}<p className="text-sm">{requestTypeLabel(item.typeCode)}</p><p className="text-sm text-muted-foreground">{requestPriorityLabel(item.priority)} · {item.department?.name ?? "No department"}</p><p className="border-t pt-3 text-xs text-muted-foreground">Updated {dateLabel(item)}</p></div>} />}
     </div>;
 }

@@ -91,7 +91,7 @@ test("REQ-E2E-01 and REQ-E2E-02: requester list and persisted detail", async ({ 
     await expect(filterDialog).not.toBeVisible();
     await expect(filters).toBeFocused();
     await expect(page.getByRole("button", { name: "Remove Status is Pending approval" })).toBeVisible();
-    await page.getByLabel("Rows per page").selectOption("10");
+    await page.getByRole("navigation", { name: "Results pagination" }).getByLabel("Rows per page").selectOption("10");
     await expect(page).toHaveURL(/pageSize=10/);
     await expect(row).toBeVisible();
     await page.goBack();
@@ -112,11 +112,11 @@ test("REQ-E2E-01 and REQ-E2E-02: requester list and persisted detail", async ({ 
     const detailUrl = page.url();
     expect(new URL(detailUrl).pathname).toMatch(/^\/requests\/[0-9a-f-]{36}$/);
     await expect(page.getByText(number!, { exact: true }).first()).toBeVisible();
-    await expect(page.getByText(/Requester: Requester A/)).toBeVisible();
+    await expect(page.locator("dd").getByText("Requester A", { exact: true })).toBeVisible();
     await page.reload();
     await expect(page.getByRole("heading", { level: 1, name: title })).toBeVisible();
-    await expect(page.getByRole("region", { name: "Request result" })).toContainText(number!);
-    await expect(page.getByRole("region", { name: "Request result" })).toContainText("Pending approval");
+    await expect(page.getByText(number!, { exact: true })).toBeVisible();
+    await expect(page.getByText("Pending approval", { exact: true })).toBeVisible();
     expect(futureCalls).toEqual([]);
 
     const overview = page.getByRole("tab", { name: "Overview" });

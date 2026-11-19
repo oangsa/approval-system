@@ -7,7 +7,7 @@ import { RequestDetailPage } from "../../app/modules/requests/RequestDetailPage"
 import { requestApi } from "../../app/api/requests";
 import { server } from "../helpers/server";
 
-const session = vi.hoisted(() => ({ generation: 0, user: { id: "owner" } }));
+const session = vi.hoisted(() => ({ generation: 0, user: { id: "owner", roles: ["REQUESTER"] } }));
 vi.mock("../../app/modules/auth/sessionContext", () => ({ useSession: () => session }));
 afterEach(() =>
 {
@@ -46,7 +46,10 @@ test("reopened request uses pinned field and option labels without reading the l
         }),
     );
     render(<MemoryRouter initialEntries={[`/requests/${id}`]}><Routes><Route path="/requests/:id" element={<RequestDetailPage />} /></Routes></MemoryRouter>);
+    expect(screen.getByRole("status")).toHaveTextContent("Loading request…");
     expect(await screen.findByText("Expense category")).toBeVisible();
+    expect(screen.getAllByText("Saved request")).toHaveLength(1);
+    expect(screen.getByRole("heading", { name: "Justification" })).toBeVisible();
     expect(screen.getByText("Operational expense")).toBeVisible();
 });
 
@@ -84,10 +87,10 @@ test("approval tab groups current approvers by stage with readable states", asyn
     expect(screen.getByText("Stage 1 active")).toBeVisible();
     expect(screen.getByText("All approvers must approve · 1 of 2 approved")).toBeVisible();
     expect(screen.getByText("All approvers must approve · 0 of 1 approved")).toBeVisible();
-    expect(screen.getByText("Alice · Approved")).toBeVisible();
-    expect(screen.getByText("Bob · Action required")).toBeVisible();
-    expect(screen.getByText("Carol · Waiting")).toBeVisible();
-    expect(screen.getAllByText("Pending approval")).toHaveLength(2);
+    expect(screen.getByText("Alice").closest("li")).toHaveTextContent("Approved");
+    expect(screen.getByText("Bob").closest("li")).toHaveTextContent("Action required");
+    expect(screen.getByText("Carol").closest("li")).toHaveTextContent("Waiting");
+    expect(screen.getByText("Pending approval")).toBeVisible();
 });
 
 test.each([[403, "You do not have access to this content."], [404, "This request is unavailable."]] as const)("terminal detail failures show safe copy without retry", async (status, message) =>
@@ -113,7 +116,7 @@ test("detail tabs support keyboard navigation and keep the header visible", asyn
     const bangkokDate = new Intl.DateTimeFormat(undefined, { ...dateOptions, timeZone: "Asia/Bangkok" }).format(new Date(detail.updatedAt));
     const utcDate = new Intl.DateTimeFormat(undefined, { ...dateOptions, timeZone: "UTC" }).format(new Date(detail.updatedAt));
     expect(bangkokDate).not.toBe(utcDate);
-    expect(screen.getByText((_content, element) => element?.tagName === "P" && element.textContent === `Updated: ${bangkokDate}`)).toBeVisible();
+    expect(screen.getByText(bangkokDate, { selector: "time" })).toBeVisible();
     overview.focus();
     fireEvent.keyDown(overview, { key: "ArrowRight" });
     expect(screen.getByRole("tab", { name: "Approval" })).toHaveFocus();
@@ -134,8 +137,8 @@ test("detail restores URL tabs and falls back to overview", async () =>
     server.use(http.get(`http://localhost/api/v1/requests/${id}`, () => HttpResponse.json(detail)), http.get(`http://localhost/api/v1/request-types/${id}/versions/${versionId}`, () => HttpResponse.json(definition)));
     render(<MemoryRouter initialEntries={[`/requests/${id}?tab=history&other=kept`]}><Location /><Routes><Route path="/requests/:id" element={<RequestDetailPage />} /></Routes></MemoryRouter>);
     expect(await screen.findByRole("tabpanel", { name: "History" })).toHaveTextContent("Formal decision and status history");
-    expect(screen.getByText(/Type: Operations/)).toBeVisible();
-    expect(screen.getByText(/Requester: Owner/)).toBeVisible();
+    expect(screen.getByText("Operations", { selector: "dd" })).toBeVisible();
+    expect(screen.getByText("Owner", { selector: "dd" })).toBeVisible();
     fireEvent.click(screen.getByRole("tab", { name: "Approval" }));
     expect(screen.getByRole("tabpanel", { name: "Approval" })).toBeVisible();
     expect(screen.getByTestId("location")).toHaveTextContent("tab=approval&other=kept");
