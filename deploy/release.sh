@@ -17,8 +17,21 @@ image="$registryRegion-docker.pkg.dev/$PROJECT_ID/$REGISTRY/application"
 digest="$(gcloud artifacts docker images describe "$image:$IMAGE_TAG" --project="$PROJECT_ID" --format='value(image_summary.fully_qualified_digest)')"
 [[ "$digest" == "$image@sha256:"* && "${digest#"$image@sha256:"}" =~ ^[a-f0-9]{64}$ ]] || { echo 'Invalid image digest.' >&2; exit 1; }
 common=(--project="$PROJECT_ID" --region="$REGION" --quiet)
-actualOrigin="$(gcloud run services describe "$SERVICE_NAME" --format='value(status.url)' "${common[@]}")"
-[[ "$actualOrigin" == "$PUBLIC_ORIGIN" ]] || { echo 'Canonical origin differs from reviewed configuration.' >&2; exit 1; }
+# Cloud Run can report a hashed status.url and a deterministic default URL alias.
+# Accept only exact URLs returned for this service in the selected project/region.
+gcloud run services describe "$SERVICE_NAME" --format='json(status.url,metadata.annotations)' "${common[@]}" | node --input-type=module -e '
+let input = "";
+for await (const chunk of process.stdin)
+{
+    input += chunk;
+}
+const service = JSON.parse(input);
+const urls = JSON.parse(service.metadata?.annotations?.["run.googleapis.com/urls"] ?? "[]");
+if (service.status?.url !== process.env.PUBLIC_ORIGIN && !(Array.isArray(urls) && urls.includes(process.env.PUBLIC_ORIGIN)))
+{
+    process.exit(1);
+}
+' || { echo 'Canonical origin differs from reviewed configuration.' >&2; exit 1; }
 
 # The precreated job has its own migration DB identity/secret and reviewed sizing.
 # Override its command explicitly; never depend on a service startup migration.

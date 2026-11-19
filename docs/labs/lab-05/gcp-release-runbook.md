@@ -131,6 +131,17 @@ and ARTIFACT_REGION=asia-southeast3 to reuse the existing registry. Keep
 PUBLIC_ORIGIN as the new default run.app origin; add the custom domain to
 AUTH_ALLOWED_ORIGINS, not to the pipeline canonical-origin variable.
 
+Cloud Run may return a hashed `status.url` while the reviewed `PUBLIC_ORIGIN`
+uses its deterministic `SERVICE_NAME-PROJECT_NUMBER.REGION.run.app` default URL.
+The release preflight accepts an exact match to `status.url` or an entry in the
+selected service's `run.googleapis.com/urls` annotation. It reads that service
+in the configured project and region; a `run.app` suffix alone is insufficient.
+If the alias list is absent, `status.url` must match. Malformed metadata, failed
+reads or nonmatching URLs abort before migration/service updates.
+Keep `PUBLIC_ORIGIN` and the authentication allowlist explicitly reviewed; the
+pipeline does not rewrite either value. See Google's
+[default URL formats](https://docs.cloud.google.com/run/docs/triggering/https-request#url).
+
 Use the ordered, human-executed commands in
 [first deployment](gcp-first-deployment.md) for exact resource creation, secret/CA
 mounts, initializer invocation, resource-scoped deployer permissions and final

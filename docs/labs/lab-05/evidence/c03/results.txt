@@ -1,0 +1,39 @@
+C-03 sanitized excerpts — 2026-11-13 (Asia/Bangkok)
+Baseline: d3fa16789cfde91b6134b10ddde6f380216a4b94. Source filenames below identify local continuation logs, not complete transcripts. Only selected non-secret results are reproduced; environment, credentials, URLs and unrelated output are omitted. Commands and outcomes follow the contemporaneous guide; no extra exit codes are inferred.
+
+issue-27-continuation-npm-ci.log — npm ci (clean archive)
+added 540 packages, and audited 550 packages in 2m
+Outcome: completed with install-script warnings; no policy change.
+
+issue-27-continuation-release-tests.log — npm run test:release (Git Bash)
+Outcome: 11 passed, 0 failed, 0 skipped. Earlier WSL run failed; see guide §13.
+
+issue-27-continuation-migrate.log — npm run db:test:migrate (disposable PostgreSQL)
+[✓] migrations applied successfully!
+
+issue-27-continuation-seed.log — npm run db:test:seed (disposable PostgreSQL)
+Outcome: guarded test seed passed.
+
+issue-27-continuation-integration.log — npm run test:integration
+Test Files  10 passed (10)
+Tests  71 passed | 2 skipped (73)
+Built HTTP smoke was disabled.
+
+issue-27-continuation-docker-api.log — docker build -f apps/api/Dockerfile (clean archive)
+Outcome: standalone API build exited 0.
+
+issue-27-continuation-docker-web.log — docker build -f apps/web/Dockerfile (clean archive)
+Outcome: standalone web build exited 0.
+
+issue-27-continuation-clone-release-retry.log — docker build -f deploy/Dockerfile with baseline RELEASE_SHA (public clone)
+#19 naming to docker.io/library/issue27-release:local 0.0s done
+#19 unpacking to docker.io/library/issue27-release:local 20.6s done
+Outcome: sequential combined build exited 0. An earlier Windows build failed with esbuild spawnSync ETXTBSY; see guide §13.
+
+issue-27-continuation-clone-release-assertions.log — combined container against disposable PostgreSQL, HTTP assertions
+health: status=200 releaseHeaderMatch=True bodyAssertion=True pass=True
+unauthenticated me: status=401 releaseHeaderMatch=True bodyAssertion=True pass=True
+login SSR: status=200 releaseHeaderMatch=True bodyAssertion=True pass=True
+invalid login: status=403 releaseHeaderMatch=True pass=False timestamp=2026-11-13T20:30:35.8231306+07:00
+invalid login with allowed origin: status=401 releaseHeaderMatch=True pass=True timestamp=2026-11-13T20:31:14.9146042+07:00
+The invalid-login retry supplied the configured allowed Origin; this was a setup correction. These local checks do not prove a live business action.

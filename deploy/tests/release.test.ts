@@ -18,7 +18,7 @@ case "$*" in
   *"run services update "*) if [[ "$FAILURE" == deploy ]]; then exit 1; fi; echo approval-00001 ;;
   *"latestReadyRevisionName"*) echo approval-00001 ;;
   *"run revisions describe"*) echo "$PINNED_IMAGE" ;;
-  *"status.url"*) echo https://approval-abc.a.run.app ;;
+  *"json(status.url,metadata.annotations)"*) if [[ "$FAILURE" == describe ]]; then exit 1; fi; echo "$SERVICE_DESCRIPTION" ;;
   *"status.traffic"*) echo '{"status":{"traffic":[{"tag":"candidate","revisionName":"approval-00001","url":"https://candidate---approval-abc.a.run.app"}]}}' ;;
 esac
 `, { mode: 0o755 });
@@ -29,7 +29,7 @@ echo "smoke $*" >> "$CALL_LOG"
 `, { mode: 0o755 });
     try
     {
-        const result = spawnSync("bash", ["deploy/release.sh"], { encoding: "utf8", env: { ...process.env, PATH: `${directory}:${process.env.PATH}`, REAL_NODE: process.execPath, CALL_LOG: log, PINNED_IMAGE: image, FAILURE: failure, PROJECT_ID: "test-project", REGION: "asia-southeast3", REGISTRY: "releases", SERVICE_NAME: "approval", MIGRATE_JOB_NAME: "migrate", PUBLIC_ORIGIN: "https://approval-abc.a.run.app", IMAGE_TAG: "a".repeat(40), GITHUB_REF: "refs/heads/main", GITHUB_STEP_SUMMARY: join(directory, "summary"), ...overrides } });
+        const result = spawnSync("bash", ["deploy/release.sh"], { encoding: "utf8", env: { ...process.env, PATH: `${directory}:${process.env.PATH}`, REAL_NODE: process.execPath, CALL_LOG: log, PINNED_IMAGE: image, SERVICE_DESCRIPTION: JSON.stringify({ status: { url: "https://approval-abc.a.run.app" } }), FAILURE: failure, PROJECT_ID: "test-project", REGION: "asia-southeast3", REGISTRY: "releases", SERVICE_NAME: "approval", MIGRATE_JOB_NAME: "migrate", PUBLIC_ORIGIN: "https://approval-abc.a.run.app", IMAGE_TAG: "a".repeat(40), GITHUB_REF: "refs/heads/main", GITHUB_STEP_SUMMARY: join(directory, "summary"), ...overrides } });
         let calls = "";
         try
         {
@@ -124,5 +124,47 @@ test("Singapore cutover reuses Bangkok registry and rejects unrelated regions", 
         const invalid = release("", override);
         assert.notEqual(invalid.status, 0);
         assert.equal(invalid.calls, "");
+    }
+});
+
+test("reviewed deterministic origin accepts an exact service URL alias", () =>
+{
+    const origin = "https://approval-142175982679.asia-southeast1.run.app";
+    const result = release("", {
+        REGION: "asia-southeast1",
+        REGISTRY_REGION: "asia-southeast3",
+        PUBLIC_ORIGIN: origin,
+        SERVICE_DESCRIPTION: JSON.stringify({
+            status: { url: "https://approval-abc.a.run.app" },
+            metadata: { annotations: { "run.googleapis.com/urls": JSON.stringify([origin, "https://approval-abc.a.run.app"]) } },
+        }),
+    });
+    assert.equal(result.status, 0, result.error);
+    assert.match(result.calls, /--region=asia-southeast1/);
+    assert.match(result.calls, /--image=asia-southeast3-docker.pkg.dev/);
+    assert.match(result.calls, /--to-revisions=approval-00001=100/);
+    assert(result.calls.includes(`smoke --import tsx deploy/smoke.ts ${origin}`));
+});
+
+test("unverified origins and unreadable service metadata stop before mutations", () =>
+{
+    const origin = "https://approval-142175982679.asia-southeast1.run.app";
+    for (const urls of [undefined, "[]", "{}", JSON.stringify(origin), "invalid", JSON.stringify([`${origin}.other.run.app`])])
+    {
+        const result = release("", {
+            PUBLIC_ORIGIN: origin,
+            SERVICE_DESCRIPTION: JSON.stringify({
+                status: { url: "https://approval-abc.a.run.app" },
+                metadata: { annotations: { "run.googleapis.com/urls": urls } },
+            }),
+        });
+        assert.notEqual(result.status, 0);
+        assert.doesNotMatch(result.calls, /run jobs|run services update|smoke/);
+    }
+    for (const failure of ["", "describe"])
+    {
+        const result = release(failure, { SERVICE_DESCRIPTION: "invalid" });
+        assert.notEqual(result.status, 0);
+        assert.doesNotMatch(result.calls, /run jobs|run services update|smoke/);
     }
 });
