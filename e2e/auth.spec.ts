@@ -235,22 +235,18 @@ test("IA-E2E-03: failed logout clears private UI and retry revokes credentials",
     expect((await request.post(`${apiUrl.origin}/api/v1/auth/refresh`, { headers: { origin: webUrl.origin, cookie: `refreshToken=${cookie!.value}` } })).status()).toBe(401);
 });
 
-test("IA-WEB-05: desktop rail and native mobile modal preserve keyboard access", async ({ page }) =>
+test("IA-WEB-05: expanded desktop sidebar and native mobile modal preserve keyboard access", async ({ page }) =>
 {
     await signIn(page, requester);
     const navigation = page.getByRole("navigation", { name: "Primary" });
-    const collapse = page.getByRole("button", { name: "Collapse navigation" });
-    await collapse.focus();
-    await page.keyboard.press("Enter");
-    await expect(page.getByRole("button", { name: "Expand navigation" })).toHaveAttribute("aria-expanded", "false");
+    const trigger = page.getByRole("button", { name: "Open navigation menu" });
+    await expect(trigger).toBeHidden();
+    await expect(page.getByRole("button", { name: /collapse navigation|expand navigation/i })).toHaveCount(0);
     await expect(navigation.getByRole("link", { name: "Dashboard" })).toBeVisible();
-    await page.keyboard.press("Enter");
-    await expect(collapse).toHaveAttribute("aria-expanded", "true");
     await expect(navigation.getByRole("link", { name: "Settings" })).toBeVisible();
     await page.emulateMedia({ reducedMotion: "reduce" });
-    expect(await navigation.evaluate((element) => getComputedStyle(element).transitionProperty)).toBe("none");
     await page.setViewportSize({ width: 390, height: 844 });
-    const trigger = page.getByRole("button", { name: "Open navigation menu" });
+    await expect(navigation).toBeHidden();
     await trigger.click();
     const dialog = page.getByRole("dialog", { name: "Navigation menu" });
     expect(await dialog.evaluate((element) => element.matches(":modal"))).toBe(true);

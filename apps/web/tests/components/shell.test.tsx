@@ -118,17 +118,6 @@ test("the mobile drawer is a focus-managed dialog that closes on Escape", async 
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     expect(trigger).toHaveFocus();
 });
-test("desktop navigation collapses to named links", async () =>
-{
-    currentUser = identity();
-    const user = userEvent.setup();
-    renderShell();
-    const toggle = screen.getByRole("button", { name: "Collapse navigation" });
-    await user.click(toggle);
-    expect(screen.getByRole("button", { name: "Expand navigation" })).toHaveAttribute("aria-expanded", "false");
-    expect(screen.getByRole("link", { name: "Dashboard" })).toBeInTheDocument();
-});
-
 test.each<[UserSummary["roles"]]>([
     [["REQUESTER"]],
     [["REVIEWER"]],
@@ -142,23 +131,14 @@ test.each<[UserSummary["roles"]]>([
     expect(screen.getByRole("link", { name: "Settings" })).toHaveAttribute("href", "/settings");
 });
 
-test("desktop collapse preserves navigation semantics", async () =>
+test("desktop sidebar exposes labeled links without a collapse control", () =>
 {
     currentUser = identity();
-    const user = userEvent.setup();
     renderShell();
     const nav = screen.getByRole("navigation", { name: "Primary" });
-    const toggle = screen.getByRole("button", { name: "Collapse navigation" });
-    expect(toggle).toHaveAttribute("aria-expanded", "true");
-    expect(document.getElementById(toggle.getAttribute("aria-controls")!)).toBe(nav);
-    for (let i = 0; i < 2; i += 1)
-    {
-        expect(within(nav).getByRole("link", { name: "Dashboard" })).toHaveAttribute("href", "/dashboard");
-        expect(within(nav).getByRole("link", { name: "Dashboard" })).toHaveAttribute("aria-current", "page");
-        expect(within(nav).getByRole("link", { name: "Settings" })).toHaveAttribute("href", "/settings");
-        await user.click(screen.getByRole("button", { name: i === 0 ? "Collapse navigation" : "Expand navigation" }));
-    }
-    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    expect(screen.queryByRole("button", { name: /collapse navigation|expand navigation/i })).not.toBeInTheDocument();
+    expect(within(nav).getByRole("link", { name: "Dashboard" })).toHaveAttribute("aria-current", "page");
+    expect(within(nav).getByRole("link", { name: "Settings" })).toHaveAttribute("href", "/settings");
 });
 
 test("disclosure closes on Escape and outside pointer, but not inside", async () =>
@@ -270,23 +250,4 @@ test("drawer closes at desktop breakpoint and unmounts safely", async () =>
     {
         Object.defineProperty(window, "innerWidth", { configurable: true, value: original });
     }
-});
-
-test("tablet defaults to an icon rail and desktop breakpoint restores expanded navigation", () =>
-{
-    currentUser = identity();
-    const listeners: ((event: MediaQueryListEvent) => void)[] = [];
-    const remove = vi.fn();
-    vi.stubGlobal("matchMedia", vi.fn().mockReturnValue({
-        matches: false,
-        addEventListener: (_type: string, listener: (event: MediaQueryListEvent) => void) => listeners.push(listener),
-        removeEventListener: remove,
-    }));
-    const view = render(<MemoryRouter><AppShell>Page content</AppShell></MemoryRouter>);
-    expect(screen.getByRole("button", { name: "Expand navigation" })).toHaveAttribute("aria-expanded", "false");
-    expect(screen.getByRole("link", { name: "My Requests" })).toBeInTheDocument();
-    act(() => listeners[0]!({ matches: true } as MediaQueryListEvent));
-    expect(screen.getByRole("button", { name: "Collapse navigation" })).toHaveAttribute("aria-expanded", "true");
-    view.unmount();
-    expect(remove).toHaveBeenCalledWith("change", listeners[0]);
 });
