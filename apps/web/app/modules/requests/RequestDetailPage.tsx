@@ -1,3 +1,4 @@
+import { LoaderCircle } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router";
 import type { PublishedRequestType, RequestDetail } from "@workflow/contracts";
@@ -31,5 +32,8 @@ export function RequestDetailPage()
         return () => controller.abort();
     }, [id, attempt, generation, user?.id, scope]);
     const viewError: IViewError | null = error?.scope === scope ? presentFailure(error.failure, "Could not load request.") : null;
-    return <div className="mx-auto max-w-3xl space-y-6">{viewError ? <div role="alert" className="space-y-3 rounded-lg border bg-card p-6"><p>{viewError.message}</p>{viewError.requestId && <p className="text-sm text-muted-foreground">Request ID: <span className="select-all">{viewError.requestId}</span></p>}{viewError.status === 403 && <Link className="inline-block rounded-md bg-primary px-4 py-2 text-primary-foreground" to="/dashboard">Go to Dashboard</Link>}{!viewError.terminal && <Button onClick={() => setAttempt((value) => value + 1)}>Retry</Button>}</div> : result?.scope === scope ? <RequestDetailTabs key={scope} detail={result.detail} definition={result.definition} /> : <p role="status">Loading request…</p>}</div>;
+    return <div className="mx-auto max-w-5xl space-y-6">{viewError ? <div role="alert" className="space-y-3 rounded-lg border bg-card p-6"><p>{viewError.message}</p>{viewError.requestId && <p className="text-sm text-muted-foreground">Request ID: <span className="select-all">{viewError.requestId}</span></p>}{viewError.status === 403 && <Link className="inline-block rounded-md bg-primary px-4 py-2 text-primary-foreground" to="/dashboard">Go to Dashboard</Link>}{!viewError.terminal && <Button onClick={() => setAttempt((value) => value + 1)}>Retry</Button>}</div> : result?.scope === scope ? <RequestDetailTabs key={scope} detail={result.detail} definition={result.definition} /> : <div role="status" className="grid min-h-[calc(100svh-7rem)] place-content-center justify-items-center gap-3 text-sm text-muted-foreground lg:min-h-[calc(100svh-8rem)]">
+        <LoaderCircle aria-hidden="true" className="size-7 text-primary motion-safe:animate-spin" />
+        <span>Loading request…</span>
+    </div>}</div>;
 }

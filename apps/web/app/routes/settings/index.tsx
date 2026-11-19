@@ -1,3 +1,5 @@
+import { LogOut } from "lucide-react";
+import { ActionButton } from "~/components/actions/ActionButton";
 import { useSession } from "~/modules/auth/sessionContext";
 
 export function meta()
@@ -37,13 +39,13 @@ export default function SettingsRoute()
                     <dd className="font-medium">{user.isActive ? "Active" : "Disabled"}</dd>
                 </div>
             </dl>
-            <button
+            <ActionButton variant="danger"
                 type="button"
                 onClick={() => void signOut()}
-                className="rounded-md border px-4 py-2 text-sm font-medium hover:bg-secondary"
+                className="border border-destructive/30"
             >
-                Sign out
-            </button>
+                <LogOut aria-hidden="true" className="size-4" />Sign out
+            </ActionButton>
         </div>
     );
 }
