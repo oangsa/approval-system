@@ -332,3 +332,15 @@ regression passed after starting, migrating, and seeding isolated test PostgreSQ
 (initial attempts were blocked by sandbox networking and unavailable test data).
 Production deployment and UAT-team
 acceptance remain pending; local verification does not close UAT acceptance.
+
+B1 follow-up (AC-004.3): Save Draft previously replaced local Zod issues with
+“Check the supplied values before saving.” The wizard now routes those issues
+through the same step/field mapping used by Next and server errors. Two component
+regressions reproduced missing Title focus/feedback before the fix and pass after
+it, including Save Draft from the Request Type step with an over-limit title
+preserved in memory. They also verify no create API call and no submit-only
+required-field errors for incomplete drafts. The browser BUG-B02 case now covers
+Save Draft routing too. Verification on 2026-11-20: all 390 Vitest tests,
+typecheck, lint, build, and all three request-wizard Chromium tests passed.
+The first browser run was interrupted after overlapping builds removed client
+assets; the sequential rerun passed.

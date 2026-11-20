@@ -89,6 +89,12 @@ test("BUG-B02 over-limit title explains the limit and allows correction", async 
     await expect(title).toHaveValue("W".repeat(201));
     await expect(title).toHaveAccessibleDescription(/201 \/ 200 characters.*Title must be 200 characters or fewer\./);
     await expect(page.getByRole("alert")).toContainText("Title must be 200 characters or fewer.");
+    await page.getByRole("button", { name: "Back", exact: true }).click();
+    await page.getByRole("button", { name: "Save Draft", exact: true }).click();
+    await expect(title).toBeFocused();
+    await expect(title).toHaveValue("W".repeat(201));
+    await expect(title).toHaveAccessibleDescription(/Title must be 200 characters or fewer\./);
+    await expect(page.getByRole("alert")).toContainText("Title must be 200 characters or fewer.");
     await title.fill("W".repeat(200));
     await expect(title).toHaveAccessibleDescription(/200 \/ 200 characters/);
     await page.getByRole("button", { name: "Next", exact: true }).click();

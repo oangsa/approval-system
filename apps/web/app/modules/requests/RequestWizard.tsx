@@ -1,3 +1,4 @@
+import { ZodError } from "zod";
 import { useEffect, useRef, useState } from "react";
 import { Link, useBeforeUnload, useBlocker } from "react-router";
 import { AlertCircle, CheckCircle2, ChevronLeft, ChevronRight, LoaderCircle, Plus, Trash2 } from "lucide-react";
@@ -172,7 +173,10 @@ export function RequestWizard()
                 setStaleForm(failure.code === "FORM_DEFINITION_CHANGED");
                 if (failure.details?.length) showIssues(failure.details);
             }
-            else if (failure instanceof Error && "issues" in failure) setError("Check the supplied values before saving.");
+            else if (failure instanceof ZodError)
+            {
+                showIssues(failure.issues.map((issue) => ({ field: issue.path.join("."), code: "VALIDATION_ERROR", message: issue.message })));
+            }
             else setError("The request could not be completed. Retry with your inputs preserved.");
             setConfirming(false);
         }
