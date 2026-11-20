@@ -45,3 +45,7 @@ Codex assisted with hosted C-01 inspection and the isolated C-02 failing-check d
 OpenAI Codex assisted with planning, course and repository inspection, drafting the deployment guide, and reconciling the configuration inventory and evidence. It inspected hosted workflow records and read-only HTTPS and anonymous-access results. The user supplied workflow screenshots and reported completing the restart and redeploy; the guide distinguishes those reports from independently observed release and history evidence and records their limits. AI inspection does not substitute for independent teammate review. No cloud configuration or production data was changed by the agent for this documentation work. This disclosure does not attest acceptance or authorize publication.
 
 The issue #27 documentation received independent approval on [PR #59](https://github.com/oangsa/approval-system/pull/59). That approval does not establish review of historical promotion PRs #57 and #58; see the [deployment guide](docs/labs/lab-05/deployment.md#13-evidence-index-and-known-limitations).
+
+## Issue #71 assistance
+
+OpenAI Codex assisted with the BUG-B01 fix, tests, local review and [regression evidence](docs/labs/lab-06/bug-b01-regression-evidence.md). Agent review does not constitute independent human review; the evidence record distinguishes executed checks, reported results and outstanding verification.

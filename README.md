@@ -87,6 +87,8 @@ If PostgreSQL is unavailable, the suite fails with setup instructions rather tha
 
 ### Browser tests
 
+Historical BUG-B01 login regression results and limits are in the [Lab 6 evidence record](docs/labs/lab-06/bug-b01-regression-evidence.md).
+
 ```sh
 npm run db:test:up
 npm run db:test:migrate

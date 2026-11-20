@@ -4,7 +4,7 @@
 
 **Document state:** Versioned test design with a separate record of partial foundation evidence.
 
-**Execution status:** Executed on 2026-11-06 across the PR18 packet commits ending at `5ed9696` with suite-level results recorded in section 7 and in [testing-verification.md](../../../testing-verification.md). Cases without recorded per-case evidence below remain PLANNED / NOT RUN.
+**Execution status:** Executed on 2026-11-06 across the PR18 packet commits ending at `5ed9696` with suite-level results recorded in section 7 and in [testing-verification.md](../../testing-verification.md). Cases without recorded per-case evidence below remain PLANNED / NOT RUN.
 
 ## 1. Test rules and fixtures
 
@@ -14,7 +14,7 @@ Use synthetic actors aligned with test.md: U-OWNER and U-OTHER for owner isolati
 
 Protected API checks must use credentials obtained through the real login flow, except malformed/forged/expired-token cases that explicitly test token validation. Use independent PostgreSQL connections plus a synchronization barrier for concurrency cases. Assert database final state, not only response timing or status counts. The owner/foreign/missing private resource is a generic test fixture and route registered only for tests; it is not a business API.
 
-Cases are executed only when their evidence appears in section 7 or in [testing-verification.md](../../../testing-verification.md); all other cases remain PLANNED / NOT RUN, and the partial foundation checks do not complete them. Capture command, environment, fixture IDs, tested SHA and dirty state, expected and actual outcome, status, and redacted evidence when a case runs. Never store raw passwords, cookies, JWTs, or refresh values in evidence.
+Cases are executed only when their evidence appears in section 7 or in [testing-verification.md](../../testing-verification.md); all other cases remain PLANNED / NOT RUN, and the partial foundation checks do not complete them. Capture command, environment, fixture IDs, tested SHA and dirty state, expected and actual outcome, status, and redacted evidence when a case runs. Never store raw passwords, cookies, JWTs, or refresh values in evidence.
 
 ## 2. Contract tests
 
@@ -87,7 +87,7 @@ This evidence does not prove empty-database setup, the full HTTP lifecycle, race
 
 ### 7b. Feature execution record — 2026-11-06 (PR18 packets)
 
-All commands ran in `C:/Users/kitti/approval-system` on `feature/1-identity-auth-access` at `5ed96961...` (the four PR18 packet commits) plus the documentation edits described in [testing-verification.md](../../../testing-verification.md). Runtime Node v24.22.1, npm 11.19.1, disposable `workflow_test` on `127.0.0.1:55432` (PostgreSQL 17, tmpfs), Chromium 148. Fixtures: the deterministic identity seed (U-OWNER, U-OTHER, U-MULTI, U-ADMIN, U-DISABLED, two departments).
+All commands ran in `C:/Users/kitti/approval-system` on `feature/1-identity-auth-access` at `5ed96961...` (the four PR18 packet commits) plus the documentation edits described in [testing-verification.md](../../testing-verification.md). Runtime Node v24.22.1, npm 11.19.1, disposable `workflow_test` on `127.0.0.1:55432` (PostgreSQL 17, tmpfs), Chromium 148. Fixtures: the deterministic identity seed (U-OWNER, U-OTHER, U-MULTI, U-ADMIN, U-DISABLED, two departments).
 
 | Group                     | Command                                                                                                     | Result                                                              | Status |
 | ------------------------- | ----------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- | ------ |
@@ -102,6 +102,10 @@ All commands ran in `C:/Users/kitti/approval-system` on `feature/1-identity-auth
 Browser cases proven end to end: IA-E2E-01 (login to protected shell with correct identity), IA-E2E-02 (refresh-cookie bootstrap, HttpOnly cookie, no account data in public SSR), IA-E2E-03 (logout revocation, redirect with return path, account switch without stale identity, delayed bootstrap identity rejected, failed-logout retry revoking both credentials), IA-E2E-04 (generic credential failure, equivalent denials, injected 429, and network abort/recovery), IA-E2E-05 (public HTML free of tokens and identity). The throttling half of IA-E2E-04 (429 with `Retry-After`, no account enumeration) is additionally proven at API level against the validated socket peer. IA-WEB-05 is proven in component tests and in the browser by the native mobile modal and the desktop collapse rail.
 
 Per-case database final-state assertions for IA-DB-02–05 are covered by the suites above but are not individually itemized here; treat those cases as evidenced at suite level only. GitHub Actions passed the full pipeline (including browser E2E) for PR #18 on 2026-11-06 at the earlier revision; teammate-reviewed PR acceptance remains pending, and a fresh CI run is expected for the PR18 packet commits.
+
+### 7c. Historical BUG-B01 regression — 2026-11-20
+
+The focused SSR login regression and web-only browser replay for [Issue #71](https://github.com/oangsa/approval-system/issues/71), including tested snapshots and limitations, are recorded in the [Lab 6 evidence](../../labs/lab-06/bug-b01-regression-evidence.md). This record does not claim a new full IA-E2E execution.
 
 ## 8. Coverage boundary
 
