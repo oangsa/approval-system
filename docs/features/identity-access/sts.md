@@ -4,7 +4,7 @@
 
 **Document state:** Versioned test design with a separate record of partial foundation evidence.
 
-**Execution status:** Executed on 2026-11-06 across the PR18 packet commits ending at `5ed9696` with suite-level results recorded in section 7 and in [testing-verification.md](../../../testing-verification.md). Cases without recorded per-case evidence below remain PLANNED / NOT RUN.
+**Execution status:** Executed on 2026-11-06 across the PR18 packet commits ending at `5ed9696` with suite-level results recorded in section 7 and in [testing-verification.md](../../testing-verification.md). Cases without recorded per-case evidence below remain PLANNED / NOT RUN.
 
 ## 1. Test rules and fixtures
 
@@ -14,7 +14,7 @@ Use synthetic actors aligned with test.md: U-OWNER and U-OTHER for owner isolati
 
 Protected API checks must use credentials obtained through the real login flow, except malformed/forged/expired-token cases that explicitly test token validation. Use independent PostgreSQL connections plus a synchronization barrier for concurrency cases. Assert database final state, not only response timing or status counts. The owner/foreign/missing private resource is a generic test fixture and route registered only for tests; it is not a business API.
 
-Cases are executed only when their evidence appears in section 7 or in [testing-verification.md](../../../testing-verification.md); all other cases remain PLANNED / NOT RUN, and the partial foundation checks do not complete them. Capture command, environment, fixture IDs, tested SHA and dirty state, expected and actual outcome, status, and redacted evidence when a case runs. Never store raw passwords, cookies, JWTs, or refresh values in evidence.
+Cases are executed only when their evidence appears in section 7 or in [testing-verification.md](../../testing-verification.md); all other cases remain PLANNED / NOT RUN, and the partial foundation checks do not complete them. Capture command, environment, fixture IDs, tested SHA and dirty state, expected and actual outcome, status, and redacted evidence when a case runs. Never store raw passwords, cookies, JWTs, or refresh values in evidence.
 
 ## 2. Contract tests
 
@@ -87,7 +87,7 @@ This evidence does not prove empty-database setup, the full HTTP lifecycle, race
 
 ### 7b. Feature execution record — 2026-11-06 (PR18 packets)
 
-All commands ran in `C:/Users/kitti/approval-system` on `feature/1-identity-auth-access` at `5ed96961...` (the four PR18 packet commits) plus the documentation edits described in [testing-verification.md](../../../testing-verification.md). Runtime Node v24.22.1, npm 11.19.1, disposable `workflow_test` on `127.0.0.1:55432` (PostgreSQL 17, tmpfs), Chromium 148. Fixtures: the deterministic identity seed (U-OWNER, U-OTHER, U-MULTI, U-ADMIN, U-DISABLED, two departments).
+All commands ran in `C:/Users/kitti/approval-system` on `feature/1-identity-auth-access` at `5ed96961...` (the four PR18 packet commits) plus the documentation edits described in [testing-verification.md](../../testing-verification.md). Runtime Node v24.22.1, npm 11.19.1, disposable `workflow_test` on `127.0.0.1:55432` (PostgreSQL 17, tmpfs), Chromium 148. Fixtures: the deterministic identity seed (U-OWNER, U-OTHER, U-MULTI, U-ADMIN, U-DISABLED, two departments).
 
 | Group                     | Command                                                                                                     | Result                                                              | Status |
 | ------------------------- | ----------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- | ------ |

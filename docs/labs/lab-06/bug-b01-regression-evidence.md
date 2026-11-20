@@ -1,6 +1,6 @@
 # BUG-B01 regression evidence
 
-[Issue #71](https://github.com/oangsa/approval-system/issues/71) reports a Major login defect (B-UAT-NEW-002, UAT-01 / AC-001 / M01); [PR #73](https://github.com/oangsa/approval-system/pull/73) targets `sprint-1-staging`. The Lab 6 D2 report is in the [course document](https://docs.google.com/document/d/153VexiNdr7oeo6dMk11-8VGSfwvydtJERyIH7Bbo7AM/edit?tab=t.43f1pp5obo6l). The SSR form previously defaulted to GET before hydration. The fix declares POST and disables sign-in until hydration; the hydrated path continues to use the existing JSON API.
+[Issue #71](https://github.com/oangsa/approval-system/issues/71) reports a Major login defect (C-UAT-NEW-002 (partner reference B-UAT-NEW-002), UAT-01 / FR-001 / AC-001 / M01); [PR #73](https://github.com/oangsa/approval-system/pull/73) targets `sprint-1-staging`. The Lab 6 D2 report is in the [course document](https://docs.google.com/document/d/153VexiNdr7oeo6dMk11-8VGSfwvydtJERyIH7Bbo7AM/edit?tab=t.43f1pp5obo6l). The SSR form previously defaulted to GET before hydration. The fix declares POST and disables sign-in until hydration; the hydrated path continues to use the existing JSON API.
 
 ## Tested snapshots and focused replay
 
@@ -68,6 +68,10 @@ The implementation session reported `npm run typecheck` and `npm run lint` passi
 
 Early failures were not RED: Vitest initially ran zero tests due to a sandbox temporary-directory rename error; an old contracts junction caused unrelated missing-export type errors; the initial build hit EPERM writing `build/client`; and the first browser startup found port 14173 occupied. Workspace TEMP/TMP, a worktree-local contracts junction, filesystem access, and port 18171 respectively allowed the later runs.
 
+## Hosted CI verification
+
+[Verification run 44733588108](https://github.com/oangsa/approval-system/actions/runs/44733588108) completed successfully on 20 November 2026, from 19:10:35 to 19:15:15 ICT. The verified job `136279242125` passed all steps, including typecheck, lint, web, API and contracts tests, build, release checks, image builds, database migration, initialization and seed, integration tests, and browser tests. The run head SHA was `ec0590d4280cff77cb910447f5f466dbd6196a7d`; checkout logs show that it fetched and tested PR merge SHA `784b7115fb01722cefeadfeea60ddaea3851693b` (merging that head into `803d786`). This pass applies to that historical merge snapshot, not a later documentation commit or future CI run.
+
 ## Limits
 
-The full database-backed authentication browser suite was not run for this fix. No CI verification, deployment, teammate approval, independent partner retest, or password rotation is asserted by this record. Local agent review is not independent human review. The reported exposed test-account password still requires owner rotation; acceptance remains pending deployment and independent retest.
+The full database-backed authentication browser suite was not run locally for this fix; hosted CI passed at the revision above. No deployment, teammate approval, independent partner retest, or password rotation is asserted by this record. Local agent review is not independent human review. The reported exposed test-account password still requires owner rotation; acceptance remains pending deployment and independent retest.
