@@ -47,3 +47,57 @@ test.each([undefined, "bad-json", "{}"])("request-type API rejects missing/malfo
     server.use(http.post("http://localhost/api/v1/request-types/search", () => HttpResponse.json([], { headers: pagination ? { "X-Pagination": pagination } : {} })));
     await expect(requestApi.types()).rejects.toBeDefined();
 });
+
+test("BUG-B02 title limit feedback, counter, correction and required validation", async () =>
+{
+    vi.stubEnv("VITE_API_BASE_URL", "http://localhost/api");
+    server.use(http.post("http://localhost/api/v1/request-types/search", () => HttpResponse.json([types[0]], { headers: { "X-Pagination": JSON.stringify({ currentPage: 1, pageSize: 100, totalPages: 1, totalCount: 1, hasPrevious: false, hasNext: false }) } })));
+    const user = userEvent.setup();
+    render(<RouterProvider router={createMemoryRouter([{ path: "/", Component: RequestWizard }])} />);
+    await user.selectOptions(await screen.findByRole("combobox", { name: "Request type (required)" }), types[0]!.id);
+    await user.click(screen.getByRole("button", { name: /^Next$/ }));
+    const title = screen.getByRole("textbox", { name: "Title (required)" });
+    await user.type(screen.getByRole("textbox", { name: "Justification (required)" }), "Valid justification");
+    await user.click(title);
+    await user.paste("W".repeat(201));
+    await user.click(screen.getByRole("button", { name: /^Next$/ }));
+    expect(title).toHaveFocus();
+    expect(title).toHaveValue("W".repeat(201));
+    expect(title).toHaveAttribute("aria-invalid", "true");
+    expect(title).toHaveAccessibleDescription(/Title must be 200 characters or fewer\./);
+    expect(screen.getByRole("alert")).toHaveTextContent("Title must be 200 characters or fewer.");
+    expect(title).toHaveAccessibleDescription(/201 \/ 200 characters/);
+    expect(screen.getByRole("heading", { name: "Basic Information" })).toBeVisible();
+    await user.clear(title);
+    await user.click(screen.getByRole("button", { name: /^Next$/ }));
+    expect(title).toHaveAccessibleDescription(/Title is required\./);
+    await user.click(title);
+    await user.paste(`  ${"W".repeat(200)}  `);
+    expect(title).toHaveAccessibleDescription(/200 \/ 200 characters/);
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /^Next$/ }));
+    expect(screen.getByRole("heading", { name: "Request Details" })).toHaveFocus();
+});
+
+test.each([false, true])("BUG-B02 Save Draft maps local title errors and focuses owning step (from type step: %s)", async (fromTypeStep) =>
+{
+    vi.stubEnv("VITE_API_BASE_URL", "http://localhost/api");
+    server.use(http.post("http://localhost/api/v1/request-types/search", () => HttpResponse.json([types[0]], { headers: { "X-Pagination": JSON.stringify({ currentPage: 1, pageSize: 100, totalPages: 1, totalCount: 1, hasPrevious: false, hasNext: false }) } })));
+    const create = vi.spyOn(requestApi, "create");
+    const user = userEvent.setup();
+    render(<RouterProvider router={createMemoryRouter([{ path: "/", Component: RequestWizard }])} />);
+    await user.selectOptions(await screen.findByRole("combobox", { name: "Request type (required)" }), types[0]!.id);
+    await user.click(screen.getByRole("button", { name: /^Next$/ }));
+    await user.click(screen.getByRole("textbox", { name: "Title (required)" }));
+    await user.paste("W".repeat(201));
+    if (fromTypeStep) await user.click(screen.getByRole("button", { name: "Back" }));
+    await user.click(screen.getByRole("button", { name: "Save Draft" }));
+    const title = await screen.findByRole("textbox", { name: "Title (required)" });
+    expect(title).toHaveFocus();
+    expect(title).toHaveValue("W".repeat(201));
+    expect(title).toHaveAttribute("aria-invalid", "true");
+    expect(title).toHaveAccessibleDescription(/Title must be 200 characters or fewer\./);
+    expect(screen.getByRole("alert")).toHaveTextContent("Title must be 200 characters or fewer.");
+    expect(screen.getByRole("alert")).not.toHaveTextContent("required");
+    expect(create).not.toHaveBeenCalled();
+});

@@ -1,0 +1,12 @@
+
+> test:web
+> vitest run --project web -t BUG-B02 title limit feedback
+
+
+ RUN  v4.1.10 /home/oangsa/code/repos/approval-system
+
+
+ Test Files  1 passed | 17 skipped (18)
+      Tests  1 passed | 167 skipped (168)
+   Start at  20:36:34
+   Duration  3.70s (transform 3.19s, setup 5.34s, import 9.19s, tests 1.01s, environment 14.65s)
