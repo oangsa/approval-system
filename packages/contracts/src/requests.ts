@@ -23,7 +23,7 @@ export const publishedRequestTypeSchema = z.strictObject({
 });
 export const editableLineItemSchema = z.strictObject({ description: z.string().trim().max(1000), quantity: decimalSchema.refine((value) => compareDecimals(value, "0") > 0 && value.split(".")[0]!.length <= 18), unitAmount: moneySchema });
 const editable = {
-    title: z.string().trim().max(200).optional(), justification: z.string().trim().max(10000).optional(), priority: prioritySchema.optional(),
+    title: z.string().trim().max(200, "Title must be 200 characters or fewer.").optional(), justification: z.string().trim().max(10000).optional(), priority: prioritySchema.optional(),
     fields: z.record(z.string().max(64), z.unknown()).refine((fields) => Object.keys(fields).length <= 50).optional(), lineItems: z.array(editableLineItemSchema).max(100).optional(), monetaryAmount: moneySchema.nullable().optional(),
 };
 export const createRequestSchema = z.strictObject({ typeId: z.uuid(), formDefinitionVersionId: z.uuid(), ...editable });

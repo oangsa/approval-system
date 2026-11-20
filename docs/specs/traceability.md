@@ -314,3 +314,33 @@ Owner-requested landing work refines UI §5/§7.1 and public SSR without adding 
 ### Sidebar, requests and landing refinement
 
 [POL-01–07](../features/ui-refinement/spec.md) refine FR-005/037–040, AC-005/037–040, UI-AC-07/10/17/20 and LAND-01–04 using only the owner's AXONS/Maintenance references. #12/#17 retain broader ownership. This slice adds no wire contract, permissions or workflow capability; actual verification is recorded separately.
+
+### Lab 6 BUG-B02 — request title length feedback
+
+B-UAT-NEW-003 (reported against UAT-12, AC-004 / AC-015) is covered by the
+`BUG-B02` cases in `packages/contracts/tests/requests.test.ts`,
+`apps/web/tests/components/requestTypes.test.tsx`, and `e2e/requests.spec.ts`.
+Create and draft-update contracts preserve the trimmed 200-character boundary
+and now return “Title must be 200 characters or fewer.” The wizard displays
+that message inline and in its validation alert, focuses Title, preserves the
+input, and provides an accessible counter using the same trimmed string length.
+Empty-title feedback and incomplete draft support remain unchanged.
+
+Local verification on 2026-11-20: 183 contract/web tests and 204 API tests passed;
+workspace typecheck, lint, and build passed. The targeted Chromium BUG-B02
+regression passed after starting, migrating, and seeding isolated test PostgreSQL
+(initial attempts were blocked by sandbox networking and unavailable test data).
+Production deployment and UAT-team
+acceptance remain pending; local verification does not close UAT acceptance.
+
+B1 follow-up (AC-004.3): Save Draft previously replaced local Zod issues with
+“Check the supplied values before saving.” The wizard now routes those issues
+through the same step/field mapping used by Next and server errors. Two component
+regressions reproduced missing Title focus/feedback before the fix and pass after
+it, including Save Draft from the Request Type step with an over-limit title
+preserved in memory. They also verify no create API call and no submit-only
+required-field errors for incomplete drafts. The browser BUG-B02 case now covers
+Save Draft routing too. Verification on 2026-11-20: all 390 Vitest tests,
+typecheck, lint, build, and all three request-wizard Chromium tests passed.
+The first browser run was interrupted after overlapping builds removed client
+assets; the sequential rerun passed.

@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { applicableFields, compareDecimals, createRequestSchema, itemTotal, sumAmounts, validateFields, type PublishedRequestType } from "../src/requests";
+import { applicableFields, compareDecimals, createRequestSchema, itemTotal, patchDraftSchema, sumAmounts, validateFields, type PublishedRequestType } from "../src/requests";
 
 const definition: PublishedRequestType = {
     id: "30000000-0000-4000-8000-000000000001", versionId: "30000000-0000-4000-8000-000000000002", code: "TEST", name: { en: "Test" }, versionNumber: 1, isEnabled: true, monetary: false, supportsLineItems: false, publishedAt: "2026-11-06T00:00:00Z",
@@ -39,4 +39,28 @@ test("FT-015 exact decimal quantities and money have no binary floating-point lo
     expect(itemTotal("1.5", "0.01")).toBe("0.02");
     expect(sumAmounts(["90071992547409.91", "0.01"])).toBe("90071992547409.92");
     expect(compareDecimals("1.0", "1.000000")).toBe(0);
+});
+
+test("BUG-B02 title limits give specific feedback for create and draft updates", () =>
+{
+    const boundaries = [
+        { schema: createRequestSchema, base: { typeId: definition.id, formDefinitionVersionId: definition.versionId } },
+        { schema: patchDraftSchema, base: { expectedVersion: 0 } },
+    ];
+    for (const { schema, base } of boundaries)
+    {
+        for (const title of [undefined, "", "W".repeat(200), `  ${"W".repeat(200)}  `])
+        {
+            expect(schema.safeParse({ ...base, title }).success).toBe(true);
+        }
+        for (const length of [201, 255, 256, 300, 367])
+        {
+            const result = schema.safeParse({ ...base, title: "W".repeat(length) });
+            expect(result.success).toBe(false);
+            if (!result.success)
+            {
+                expect(result.error.issues).toEqual([expect.objectContaining({ path: ["title"], message: "Title must be 200 characters or fewer." })]);
+            }
+        }
+    }
 });
