@@ -4,6 +4,26 @@ import { apiUrl, webUrl } from "./helpers/environment";
 const requester = { email: "requester-a@example.test", password: "Test-password-42!" };
 const administrator = { email: "admin@example.test", password: "Test-password-42!" };
 
+test("login cannot submit credentials before JavaScript is available", async ({ browser }) =>
+{
+    const context = await browser.newContext({ javaScriptEnabled: false });
+    try
+    {
+        const page = await context.newPage();
+        await page.goto(`${webUrl.origin}/auth/login`);
+        await page.getByLabel("Email", { exact: true }).fill(requester.email);
+        await page.getByLabel("Password", { exact: true }).fill(requester.password);
+        await expect(page.getByRole("button", { name: "Sign in" })).toBeDisabled();
+        await page.getByLabel("Password", { exact: true }).press("Enter");
+        await expect(page).toHaveURL(`${webUrl.origin}/auth/login`);
+        await expect(page.getByLabel("Password", { exact: true })).toHaveValue(requester.password);
+    }
+    finally
+    {
+        await context.close();
+    }
+});
+
 async function signIn(page: Page, credentials: { email: string; password: string }): Promise<void>
 {
     await page.goto("/auth/login");
