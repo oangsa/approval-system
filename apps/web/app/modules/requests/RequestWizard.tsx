@@ -1,3 +1,4 @@
+import { ZodError } from "zod";
 import { useEffect, useRef, useState } from "react";
 import { Link, useBeforeUnload, useBlocker } from "react-router";
 import { AlertCircle, CheckCircle2, ChevronLeft, ChevronRight, LoaderCircle, Plus, Trash2 } from "lucide-react";
@@ -172,7 +173,10 @@ export function RequestWizard()
                 setStaleForm(failure.code === "FORM_DEFINITION_CHANGED");
                 if (failure.details?.length) showIssues(failure.details);
             }
-            else if (failure instanceof Error && "issues" in failure) setError("Check the supplied values before saving.");
+            else if (failure instanceof ZodError)
+            {
+                showIssues(failure.issues.map((issue) => ({ field: issue.path.join("."), code: "VALIDATION_ERROR", message: issue.message })));
+            }
             else setError("The request could not be completed. Retry with your inputs preserved.");
             setConfirming(false);
         }
@@ -220,7 +224,7 @@ export function RequestWizard()
     if (result) return <div className="mx-auto max-w-3xl space-y-6"><h1 className="flex items-center gap-2 text-2xl font-semibold"><CheckCircle2 aria-hidden="true" />Request submitted</h1><RequestResult detail={result} definition={type} /><Link className="underline" to={`/requests/${result.id}`}>Open saved request</Link></div>;
     function basicField(name: "title" | "justification", label: string)
     {
-        return <div className="space-y-2"><label htmlFor={name} className="block text-sm font-medium">{label} (required)</label>{name === "title" ? <Input id={name} value={content[name]} onChange={(event) => update({ [name]: event.target.value })} aria-invalid={!!errorFor(name)} aria-describedby={`${name}.error`} /> : <textarea id={name} className={fieldClassName} rows={4} value={content[name]} onChange={(event) => update({ [name]: event.target.value })} aria-invalid={!!errorFor(name)} aria-describedby={`${name}.error`} />}<p id={`${name}.error`} className="text-sm text-destructive">{errorFor(name)}</p></div>;
+        return <div className="space-y-2"><label htmlFor={name} className="block text-sm font-medium">{label} (required)</label>{name === "title" ? <Input id={name} value={content[name]} onChange={(event) => update({ [name]: event.target.value })} aria-invalid={!!errorFor(name)} aria-describedby={`${name}.counter ${name}.error`} /> : <textarea id={name} className={fieldClassName} rows={4} value={content[name]} onChange={(event) => update({ [name]: event.target.value })} aria-invalid={!!errorFor(name)} aria-describedby={`${name}.error`} />}{name === "title" && <p id={`${name}.counter`} className="text-sm text-muted-foreground">{(content.title ?? "").trim().length} / 200 characters (excluding leading and trailing spaces)</p>}<p id={`${name}.error`} className="text-sm text-destructive">{errorFor(name)}</p></div>;
     }
     return <div className="mx-auto max-w-5xl space-y-6 sm:space-y-8">
         <header><h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">New request</h1><p className="mt-2 text-sm leading-relaxed text-muted-foreground">Prepare your request, review the details, then submit for approval.</p></header>
