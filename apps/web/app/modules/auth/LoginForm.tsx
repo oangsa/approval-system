@@ -1,4 +1,4 @@
-import { useRef, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Eye, EyeOff, Loader2 } from "lucide-react";
 import { loginRequestSchema } from "@workflow/contracts";
 import { ZodError } from "zod";
@@ -37,10 +37,16 @@ export function LoginForm({ onSubmit }: ILoginFormProps)
     const [password, setPassword] = useState("");
     const [revealed, setRevealed] = useState(false);
     const [busy, setBusy] = useState(false);
+    const [hydrated, setHydrated] = useState(false);
     const [error, setError] = useState<ErrorKind | null>(null);
     const [fields, setFields] = useState<FieldErrors>({});
     const emailRef = useRef<HTMLInputElement>(null);
     const passwordRef = useRef<HTMLInputElement>(null);
+
+    useEffect(() =>
+    {
+        setHydrated(true);
+    }, []);
 
     async function handleSubmit(event: FormEvent<HTMLFormElement>): Promise<void>
     {
@@ -76,7 +82,7 @@ export function LoginForm({ onSubmit }: ILoginFormProps)
         }
     }
     return (
-        <form onSubmit={(event) => void handleSubmit(event)} noValidate className="space-y-4">
+        <form method="post" onSubmit={(event) => void handleSubmit(event)} noValidate className="space-y-4">
             <div className="space-y-1.5">
                 <label htmlFor="login-email" className="text-sm font-medium">Email</label>
                 <Input ref={emailRef} id="login-email" name="email" type="email" autoComplete="email" required value={email}
@@ -105,7 +111,7 @@ export function LoginForm({ onSubmit }: ILoginFormProps)
                 {fields.password && <p id="login-password-error" className="text-sm text-destructive">{fields.password}</p>}
             </div>
             {error && <p id="login-error" role="alert" className={cn("text-sm", error === "network" ? "text-muted-foreground" : "text-destructive")}>{errorMessages[error]}</p>}
-            <Button type="submit" disabled={busy} aria-busy={busy} className="flex w-full items-center justify-center gap-2 bg-primary px-4 py-2 text-primary-foreground hover:opacity-90">
+            <Button type="submit" disabled={!hydrated || busy} aria-busy={busy} className="flex w-full items-center justify-center gap-2 bg-primary px-4 py-2 text-primary-foreground hover:opacity-90">
                 {busy && <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" />}{busy ? "Signing in…" : "Sign in"}
             </Button>
         </form>
