@@ -103,6 +103,10 @@ Browser cases proven end to end: IA-E2E-01 (login to protected shell with correc
 
 Per-case database final-state assertions for IA-DB-02–05 are covered by the suites above but are not individually itemized here; treat those cases as evidenced at suite level only. GitHub Actions passed the full pipeline (including browser E2E) for PR #18 on 2026-11-06 at the earlier revision; teammate-reviewed PR acceptance remains pending, and a fresh CI run is expected for the PR18 packet commits.
 
+### 7c. Historical BUG-B01 regression — 2026-11-20
+
+The focused SSR login regression and web-only browser replay for [Issue #71](https://github.com/oangsa/approval-system/issues/71), including tested snapshots and limitations, are recorded in the [Lab 6 evidence](../../labs/lab-06/bug-b01-regression-evidence.md). This record does not claim a new full IA-E2E execution.
+
 ## 8. Coverage boundary
 
 IA-E2E-01 covers only authentication and protected-shell entry from global E2E-01. IA-E2E-03 covers only logout/account-switch isolation from global E2E-15. Generic test fixtures prove guard behavior but do not satisfy full FT-003 business-resource coverage. Request submission, approval, dashboard metrics, registration, recovery, and other downstream journeys remain deferred to their owning features.
