@@ -1,0 +1,34 @@
+
+> test:web
+> vitest run --project web -t BUG-B02 title limit feedback
+
+
+ RUN  v4.1.10 /tmp/bug-b02-original-red
+
+ ❯ |web| tests/components/requestTypes.test.tsx (7 tests | 1 failed | 6 skipped) 628ms
+   × BUG-B02 title limit feedback, counter, correction and required validation 616ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  |web| tests/components/requestTypes.test.tsx > BUG-B02 title limit feedback, counter, correction and required validation
+Error: expect(element).toHaveAccessibleDescription()
+
+Expected element to have accessible description:
+  /Title must be 200 characters or fewer\./
+Received:
+  Too big: expected string to have <=200 characters
+ ❯ tests/components/requestTypes.test.tsx:67:19
+     65|     expect(title).toHaveValue("W".repeat(201));
+     66|     expect(title).toHaveAttribute("aria-invalid", "true");
+     67|     expect(title).toHaveAccessibleDescription(/Title must be 200 chara…
+       |                   ^
+     68|     expect(screen.getByRole("alert")).toHaveTextContent("Title must be…
+     69|     expect(title).toHaveAccessibleDescription(/201 \/ 200 characters/);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed | 17 skipped (18)
+      Tests  1 failed | 166 skipped (167)
+   Start at  20:37:24
+   Duration  2.41s (transform 2.11s, setup 3.88s, import 5.95s, tests 628ms, environment 9.59s)

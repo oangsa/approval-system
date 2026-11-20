@@ -60,13 +60,13 @@ test("BUG-B02 title limit feedback, counter, correction and required validation"
     await user.type(screen.getByRole("textbox", { name: "Justification (required)" }), "Valid justification");
     await user.click(title);
     await user.paste("W".repeat(201));
-    expect(title).toHaveAccessibleDescription(/201 \/ 200 characters/);
     await user.click(screen.getByRole("button", { name: /^Next$/ }));
     expect(title).toHaveFocus();
     expect(title).toHaveValue("W".repeat(201));
     expect(title).toHaveAttribute("aria-invalid", "true");
     expect(title).toHaveAccessibleDescription(/Title must be 200 characters or fewer\./);
     expect(screen.getByRole("alert")).toHaveTextContent("Title must be 200 characters or fewer.");
+    expect(title).toHaveAccessibleDescription(/201 \/ 200 characters/);
     expect(screen.getByRole("heading", { name: "Basic Information" })).toBeVisible();
     await user.clear(title);
     await user.click(screen.getByRole("button", { name: /^Next$/ }));
