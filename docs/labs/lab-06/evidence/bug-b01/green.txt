@@ -1,0 +1,12 @@
+
+> test:web
+> vitest run --project web apps/web/tests/components/login.test.tsx
+
+
+ RUN  v4.1.10 C:/Users/kitti/approval-system/artifacts/issue-71-login
+
+
+ Test Files  1 passed (1)
+      Tests  12 passed (12)
+   Start at  18:52:56
+   Duration  15.97s (transform 608ms, setup 2.21s, import 1.86s, tests 8.07s, environment 3.15s)

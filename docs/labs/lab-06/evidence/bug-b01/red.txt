@@ -1,0 +1,33 @@
+
+> test:web
+> vitest run --project web apps/web/tests/components/login.test.tsx
+
+
+ RUN  v4.1.10 C:/Users/kitti/approval-system/artifacts/issue-71-login
+
+ ❯ |web| tests/components/login.test.tsx (12 tests | 1 failed) 7922ms
+   × server-rendered login form never sends credentials in a URL 86ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  |web| tests/components/login.test.tsx > server-rendered login form never sends credentials in a URL
+AssertionError: expected 'get' to be 'post' // Object.is equality
+
+Expected: "post"
+Received: "get"
+
+ ❯ tests/components/login.test.tsx:18:25
+     16|     const document = new DOMParser().parseFromString(markup, "text/htm…
+     17|     const form = document.querySelector("form")!;
+     18|     expect(form.method).toBe("post");
+       |                         ^
+     19|     expect(form.querySelector<HTMLButtonElement>('button[type="submit"…
+     20| });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 11 passed (12)
+   Start at  18:52:34
+   Duration  17.76s (transform 561ms, setup 3.01s, import 1.92s, tests 7.92s, environment 4.09s)

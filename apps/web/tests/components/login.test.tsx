@@ -2,12 +2,22 @@ import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event";
 import { expect, test, vi } from "vitest";
 import { MemoryRouter } from "react-router";
+import { renderToString } from "react-dom/server";
 import { loginRequestSchema } from "@workflow/contracts";
 import { LoginForm } from "../../app/modules/auth/LoginForm";
 import { ApiFailure } from "../../app/api/errors";
 
 const failure = (status: number, code: string, message: string) =>
     new ApiFailure({ kind: "http", status, code, message, requestId: "3f1a2b3c-4d5e-4f70-8192-a3b4c5d6e7f8" });
+
+test("server-rendered login form never sends credentials in a URL", () =>
+{
+    const markup = renderToString(<MemoryRouter><LoginForm onSubmit={vi.fn()} /></MemoryRouter>);
+    const document = new DOMParser().parseFromString(markup, "text/html");
+    const form = document.querySelector("form")!;
+    expect(form.method).toBe("post");
+    expect(form.querySelector<HTMLButtonElement>('button[type="submit"]')?.disabled).toBe(true);
+});
 
 test("login form exposes labeled fields with autocomplete and a password visibility toggle", async () =>
 {
