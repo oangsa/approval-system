@@ -1,6 +1,15 @@
 import { expect, test } from "vitest";
 import { decisionRequestSchema, decisionResultSchema, auditTimelineItemSchema, timelineQuerySchema } from "../src";
 const id = "00000000-0000-4000-8000-000000000001";
+
+test.each([
+    ["123456789", false],
+    ["1234567890", true],
+])("Lab 7 NEW rejection boundary %s is accepted=%s", (reason, accepted) =>
+{
+    expect(decisionRequestSchema.safeParse({ decision: "REJECT", reason, expectedVersion: 0 }).success).toBe(accepted);
+});
+
 test("decision schema validates semantic reason, version and exact writable fields", () =>
 {
     expect(decisionRequestSchema.parse({ decision: "REJECT", reason: "  Incomplete  ", expectedVersion: 0 }).reason).toBe("Incomplete");
