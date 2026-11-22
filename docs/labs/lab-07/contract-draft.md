@@ -1,9 +1,16 @@
 # Lab 7 rejection-reason maintenance contract — draft v0.1
 
 Prepared 22 November 2026 (Asia/Bangkok), Issue [#78](https://github.com/oangsa/approval-system/issues/78).
-**PROPOSED, NOT APPROVED. No behavior change is authorized by this document.**
-Instructor/TA decision, confirmed business motivation and substantive independent
-teammate contract review are not recorded. Do not implement until those gates pass.
+**Current TA decision: APPROVED — TA P’Tik, 22 November 2026 at 10:47 ICT.**
+See [TA Approval Evidence](approval-record.md#ta-approval-evidence) for the
+approved scope, source attribution and original-image locator.
+
+This file retains the historical v0.1 contract reviewed in PR #79; its original
+proposal status is preserved in Git history. The later TA approval supersedes
+that status for the specified rule. The proposed business rationale remains
+unconfirmed. Required substantive pre-implementation teammate review evidence
+is separately **UNVERIFIED / B-01 OPEN**; see [review disposition](blocking-findings.md).
+Recording TA evidence does not retrospectively satisfy that separate gate.
 
 ## Authority and versions
 

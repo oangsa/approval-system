@@ -1,7 +1,11 @@
 # Lab 7 STS — draft v0.1, 22 November 2026 ICT
 
-Issue #78. PROPOSED / NOT RUN. Requires TA decision and substantive teammate
-contract review. Existing FT-010, DEC criteria and STS IDs are not renumbered.
+Issue #78. **TA-approved scope:** see [TA Approval Evidence](approval-record.md#ta-approval-evidence).
+This historical v0.1 specification retains the reviewed case definitions;
+original proposal/not-run status is preserved in Git history. Current execution
+evidence and the separate open substantive-review gate are in
+[the review disposition and coverage map](blocking-findings.md).
+Existing FT-010, DEC criteria and STS IDs are not renumbered.
 AC numbers below mean AC-L7-nn in contract-draft.md.
 
 ## Shared setup and data oracle
