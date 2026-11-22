@@ -673,3 +673,9 @@ A selected capability is **accepted** only when:
 **Document audit:** Exactly 54 features; no duplicate feature or acceptance IDs; 15 frozen decisions; eight logical domains; three sprints; no scope-lowering changes.
 
 **Status:** Normative specification drafted from frozen product baseline. No actual implementation or test execution is asserted.
+
+## Lab 7 approved maintenance amendment — Issue #78
+
+M10 / FR-010 / AC-010 now require a NEW rejection reason of 10–4000 UTF-16 code units after ECMAScript String.trim(), without normalization. Preserve existing permissions, cycle termination and atomic history. Historical short reasons remain readable and immutable; accepted same-key/body historical replays keep their stored results. APPROVE without reason and current RETURN behavior are unchanged.
+
+Approval evidence: [record](../labs/lab-07/approval-record.md). Original sections remain historical baseline wording where superseded above; no unrelated behavior is changed.

@@ -1,11 +1,35 @@
 import { expect, test } from "vitest";
-import { decisionRequestSchema, decisionResultSchema, auditTimelineItemSchema, timelineQuerySchema } from "../src";
+import { decisionReplayRequestSchema, decisionRequestSchema, decisionResultSchema, auditTimelineItemSchema, timelineQuerySchema } from "../src";
 const id = "00000000-0000-4000-8000-000000000001";
+
+test.each([
+    ["123456789", false],
+    ["1234567890", true],
+])("Lab 7 NEW rejection boundary %s is accepted=%s", (reason, accepted) =>
+{
+    expect(decisionRequestSchema.safeParse({ decision: "REJECT", reason, expectedVersion: 0 }).success).toBe(accepted);
+});
+
 test("decision schema validates semantic reason, version and exact writable fields", () =>
 {
     expect(decisionRequestSchema.parse({ decision: "REJECT", reason: "  Incomplete  ", expectedVersion: 0 }).reason).toBe("Incomplete");
     for (const body of [{ decision: "REJECT", expectedVersion: 0 }, { decision: "REJECT", reason: " \n ", expectedVersion: 0 }, { decision: "INVALID", reason: "later", expectedVersion: 0 }, { decision: "APPROVE", expectedVersion: -1 }, { decision: "APPROVE", expectedVersion: 0, actorId: id }]) expect(decisionRequestSchema.safeParse(body).success).toBe(false);
     expect(decisionRequestSchema.parse({ decision: "APPROVE", expectedVersion: 0 })).toEqual({ decision: "APPROVE", expectedVersion: 0 });
+});
+
+test("Lab 7 reason semantics preserve trimming, Unicode units, maximum and other decisions", () =>
+{
+    for (const reason of [undefined, "", " \n ", "123456789", "😀😀😀😀x", "x".repeat(4001)])
+    {
+        expect(decisionRequestSchema.safeParse({ decision: "REJECT", reason, expectedVersion: 0 }).success).toBe(false);
+    }
+    for (const reason of ["1234567890", "12345678901", " 1234567890 ", "😀😀😀😀😀", "e\u0301".repeat(5), "x".repeat(4000), ` ${"x".repeat(4000)} `])
+    {
+        expect(decisionRequestSchema.parse({ decision: "REJECT", reason, expectedVersion: 0 }).reason).toBe(reason.trim());
+    }
+    expect(decisionRequestSchema.parse({ decision: "APPROVE", expectedVersion: 0 }).reason).toBeUndefined();
+    expect(decisionRequestSchema.parse({ decision: "RETURN", reason: "No", expectedVersion: 0 }).reason).toBe("No");
+    expect(decisionReplayRequestSchema.parse({ decision: "REJECT", reason: " No ", expectedVersion: 0 }).reason).toBe("No");
 });
 test("exact decision and UTC timeline DTOs and bounded paging", () =>
 {
