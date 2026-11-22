@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { writeFile } from "node:fs/promises";
+import { createHash, randomUUID } from "node:crypto";
 import { requestDetailSchema } from "@workflow/contracts";
 async function login(page: Page, email: string)
 {
@@ -142,6 +143,64 @@ test("Lab 7 preserves approval without a reason on a separate request", async ({
     await expect(page.getByRole("tabpanel", { name: "History" })).toContainText("DECISION APPROVE");
     await page.reload();
     await expect(page.getByRole("tabpanel", { name: "History" })).toContainText("DECISION APPROVE");
+});
+
+test("Lab 7 historical short rejection is readable through real HTTP and requester browser reload", async ({ page }, testInfo) =>
+{
+    const { createTestDatabase } = await import("../apps/api/tests/helpers/testDatabase");
+    const { DecisionUnitOfWork } = await import("../apps/api/src/Infrastructures/Database/Repositories/DecisionRepository");
+    const { IdentityRepository } = await import("../apps/api/src/Infrastructures/Database/Repositories/IdentityRepository");
+    const { approvalDecisions, requests, sessionFamilies, users } = await import("../apps/api/src/Infrastructures/Database/schema");
+    const { eq } = await import("drizzle-orm");
+    const database = createTestDatabase(), observer = createTestDatabase();
+    try
+    {
+        const item = await submittedTask(page), db = database.connection;
+        const reviewer = (await db.select().from(users).where(eq(users.email, "reviewer@example.test")))[0]!;
+        const familyId = randomUUID(), taskId = new URL(item.taskUrl).pathname.split("/").at(-1)!;
+        await db.insert(sessionFamilies).values({ id: familyId, userId: reviewer.id, authVersion: reviewer.authVersion, createdAt: new Date(), expiresAt: new Date(Date.now() + 3600000) });
+        const actor = (await new IdentityRepository(db).ReadCurrentIdentity(reviewer.id, familyId))!;
+        const key = randomUUID();
+        // Synthetic pre-upgrade-format fixture through unchanged persistence only.
+        // NEW-decision validation is deliberately bypassed in setup, never in the browser/API under test.
+        const oldResult = await new DecisionUnitOfWork(db).Run(async (repository) =>
+        {
+            const current = await repository.CurrentActor(actor), state = await repository.Lock(current, taskId);
+            const result = await repository.Save(current.account.id, taskId, { decision: "REJECT", reason: "No", expectedVersion: 0 }, state, { stageId: state.stages[0]!.id, stageComplete: true, requestStatus: "REJECTED", currentStageNumber: null });
+            await repository.Complete(current.account.id, `POST /api/v1/approval-tasks/${taskId}/decisions`, key, createHash("sha256").update(JSON.stringify(["REJECT", "No", 0])).digest("hex"), result);
+            return result;
+        });
+        async function stored()
+        {
+            return {
+                decision: await observer.connection.select().from(approvalDecisions).where(eq(approvalDecisions.id, oldResult.decisionId)),
+                request: await observer.connection.select().from(requests).where(eq(requests.id, item.requestId)),
+            };
+        }
+        const before = await stored();
+        const timelineUrl = `${new URL(item.taskUrl).origin}/api/v1/requests/${item.requestId}/timeline?pageSize=100`;
+        const response = await page.request.get(timelineUrl, { headers: { authorization: item.token } });
+        expect(response.status()).toBe(200);
+        expect(await response.json()).toEqual(expect.arrayContaining([expect.objectContaining({ eventType: "DECISION_REJECT", note: "No" })]));
+        await logout(page, "Reviewer");
+        await login(page, "requester-a@example.test");
+        await page.setViewportSize({ width: 768, height: 900 });
+        await page.goto(`/requests/${item.requestId}?tab=history`);
+        const history = page.getByRole("tabpanel", { name: "History" });
+        await expect(history.getByText("No", { exact: true })).toBeVisible();
+        await page.reload();
+        await expect(history.getByText("No", { exact: true })).toBeVisible();
+        await expect(history).toContainText("DECISION REJECT");
+        await history.getByText("No", { exact: true }).scrollIntoViewIfNeeded();
+        await page.screenshot({ path: testInfo.outputPath("B-L7-06-historical-short-history.png") });
+        expect(await stored()).toEqual(before);
+        await writeFile(testInfo.outputPath("B-L7-historical-observations.json"), JSON.stringify({ observedUtc: new Date().toISOString(), method: "real HTTP/frontend/API/guarded PostgreSQL; synthetic legacy-format persistence fixture", requestId: item.requestId, timelineHttpStatus: 200, persistedShortReason: "No", requesterHistoryAfterReload: true, storedRequestAndDecisionUnchanged: true }, null, 2));
+    }
+    finally
+    {
+        await database.Close();
+        await observer.Close();
+    }
 });
 for (const decision of ["Approve", "Reject"])
 {

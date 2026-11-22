@@ -26,7 +26,7 @@ test("Lab 7 domain enforces the trimmed rejection minimum and maximum", () =>
     {
         expect(() => decideTransition(state(), "slot", { decision: "REJECT", reason, expectedVersion: 0 })).toThrow("VALIDATION_ERROR");
     }
-    for (const reason of ["1234567890", " 1234567890 ", "😀😀😀😀😀", "x".repeat(4000)])
+    for (const reason of ["1234567890", "12345678901", " 1234567890 ", "😀😀😀😀😀", "e\u0301".repeat(5), "x".repeat(4000), ` ${"x".repeat(4000)} `])
     {
         expect(decideTransition(state(), "slot", { decision: "REJECT", reason, expectedVersion: 0 }).requestStatus).toBe("REJECTED");
     }
@@ -38,6 +38,7 @@ test.each([
     const item = state();
     Object.assign(item.context, change);
     expect(() => decideTransition(item, "slot", { decision: "APPROVE", expectedVersion: 0 })).toThrow();
+    expect(() => decideTransition(item, "slot", { decision: "REJECT", reason: "1234567890", expectedVersion: 0 })).toThrow();
 });
 test("missing required snapshot slots cannot approve", () =>
 {

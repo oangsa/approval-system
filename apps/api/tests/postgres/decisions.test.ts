@@ -9,6 +9,7 @@ import { RequestUnitOfWork } from "../../src/Infrastructures/Database/Repositori
 import { DecisionRepository, DecisionUnitOfWork } from "../../src/Infrastructures/Database/Repositories/DecisionRepository";
 import { IdentityRepository } from "../../src/Infrastructures/Database/Repositories/IdentityRepository";
 import { seededDefinition } from "../../src/Infrastructures/Database/seedRequests";
+import type { IActor } from "../../src/Domains/Identity/Identity";
 import type { IStageDefinition } from "../../src/Domains/Requests/RequestRules";
 import { approvalCycles, approvalDecisions, approvalPolicyVersions, approvalSlots, approvalStages, departmentMemberships, departments, decisionIdempotencyRecords, requestAuditEvents, requestOutboxEvents, requests, requestTypes, requestTypeVersions, reviewerAssignmentRules, sessionFamilies, userRoles, users } from "../../src/Infrastructures/Database/schema";
 const database = createTestDatabase(), observer = createTestDatabase();
@@ -61,13 +62,38 @@ async function pending(parallel = false, future = false)
 const approve: DecisionRequest = { decision: "APPROVE", expectedVersion: 0 };
 async function evidence(requestId: string)
 {
-    const cycles = await db.select().from(approvalCycles).where(eq(approvalCycles.requestId, requestId));
-    const stages = await db.select().from(approvalStages).where(inArray(approvalStages.cycleId, cycles.map((item) => item.id))).orderBy(approvalStages.id);
-    const slots = stages.length ? await db.select().from(approvalSlots).where(inArray(approvalSlots.stageId, stages.map((item) => item.id))).orderBy(approvalSlots.id) : [];
-    return { cycles, stages, slots, request: (await db.select().from(requests).where(eq(requests.id, requestId)))[0],
-        audit: await db.select().from(requestAuditEvents).where(eq(requestAuditEvents.requestId, requestId)),
-        outbox: await db.select().from(requestOutboxEvents).where(sql`${requestOutboxEvents.payload}->>'requestId' = ${requestId}`),
-        votes: await db.select({ decision: approvalDecisions }).from(approvalDecisions).innerJoin(approvalSlots, eq(approvalDecisions.slotId, approvalSlots.id)).innerJoin(approvalStages, eq(approvalSlots.stageId, approvalStages.id)).innerJoin(approvalCycles, eq(approvalStages.cycleId, approvalCycles.id)).where(eq(approvalCycles.requestId, requestId)) };
+    const read = observer.connection;
+    const cycles = await read.select().from(approvalCycles).where(eq(approvalCycles.requestId, requestId)).orderBy(approvalCycles.id);
+    const stages = await read.select().from(approvalStages).where(inArray(approvalStages.cycleId, cycles.map((item) => item.id))).orderBy(approvalStages.id);
+    const slots = stages.length ? await read.select().from(approvalSlots).where(inArray(approvalSlots.stageId, stages.map((item) => item.id))).orderBy(approvalSlots.id) : [];
+    return { cycles, stages, slots, request: (await read.select().from(requests).where(eq(requests.id, requestId)))[0],
+        audit: await read.select().from(requestAuditEvents).where(eq(requestAuditEvents.requestId, requestId)).orderBy(requestAuditEvents.id),
+        outbox: await read.select().from(requestOutboxEvents).where(sql`${requestOutboxEvents.payload}->>'requestId' = ${requestId}`).orderBy(requestOutboxEvents.id),
+        keys: slots.length ? await read.select().from(decisionIdempotencyRecords).where(inArray(decisionIdempotencyRecords.scope, slots.map((slot) => `POST /api/v1/approval-tasks/${slot.id}/decisions`))).orderBy(decisionIdempotencyRecords.actorId, decisionIdempotencyRecords.scope, decisionIdempotencyRecords.key) : [],
+        votes: await read.select({ decision: approvalDecisions }).from(approvalDecisions).innerJoin(approvalSlots, eq(approvalDecisions.slotId, approvalSlots.id)).innerJoin(approvalStages, eq(approvalSlots.stageId, approvalStages.id)).innerJoin(approvalCycles, eq(approvalStages.cycleId, approvalCycles.id)).where(eq(approvalCycles.requestId, requestId)).orderBy(approvalDecisions.id) };
+}
+
+async function decisionHttp()
+{
+    const { createIdentityComposition } = await import("../../src/Presentations/composition");
+    const { readEnvironment } = await import("../../src/Infrastructures/Configuration/environment");
+    const { createApplication } = await import("../../src/Presentations/createApplication");
+    const { TokenProvider } = await import("../../src/Infrastructures/Security/TokenProvider");
+    const { ApprovalTaskService } = await import("../../src/Applications/Approvals/ApprovalTaskService");
+    const { ApprovalTaskUnitOfWork } = await import("../../src/Infrastructures/Database/Repositories/ApprovalTaskRepository");
+    const env = readEnvironment({ NODE_ENV: "test", DATABASE_URL: process.env.TEST_DATABASE_URL, AUTH_JWT_SECRET: "lab7-local-http-test-only-secret-32-bytes", AUTH_JWT_ISSUER: "lab7-tests", AUTH_JWT_AUDIENCE: "lab7-api", AUTH_ALLOWED_ORIGINS: "http://localhost:3000", AUTH_COOKIE_SECURE: "false" });
+    const identity = await createIdentityComposition(env, database);
+    const app = createApplication(undefined, identity, service, new ApprovalTaskService(new ApprovalTaskUnitOfWork(db)), decisions);
+    const tokens = new TokenProvider(env.AUTH_JWT_SECRET, { Now: () => new Date() }, env.AUTH_JWT_ISSUER, env.AUTH_JWT_AUDIENCE);
+    async function send(method: "GET" | "POST", path: string, actor: IActor | null, body?: DecisionRequest, key = randomUUID())
+    {
+        const token = actor ? await tokens.Sign(actor.account.id, actor.family.id, actor.account.authVersion) : null;
+        return app.handle(new Request(`http://localhost/api/v1${path}`, { method, headers: { ...(token ? { authorization: `Bearer ${token}` } : {}), "Idempotency-Key": key, "content-type": "application/json" }, ...(method === "POST" ? { body: JSON.stringify(body) } : {}) }));
+    }
+    return {
+        post: (item: Awaited<ReturnType<typeof pending>>, body: DecisionRequest, key = randomUUID(), actor: IActor | null = item.reviewer, taskId = item.slot) => send("POST", `/approval-tasks/${taskId}/decisions`, actor, body, key),
+        timeline: (item: Awaited<ReturnType<typeof pending>>, actor: IActor = item.actor) => send("GET", `/requests/${item.submitted.id}/timeline?pageSize=100`, actor),
+    };
 }
 test("durable replay after service restart, stale duplicate, semantic conflict and immutable history", async () =>
 {
@@ -118,9 +144,10 @@ test.each([false, true])("two-stage completion fails closed without writes (para
     // A failed approval does not claim the key or prevent a recoverable rejection.
     expect((await decisions.Decide(item.reviewer, item.slot, { ...approve, decision: "REJECT", reason: "Cannot proceed" }, key)).requestStatus).toBe("REJECTED");
 });
-test("fault immediately before audit rolls decision, state, outbox and key back", async () =>
+test.each(["APPROVE", "REJECT"] as const)("fault immediately before audit rolls decision, state, outbox and key back (%s)", async (decision) =>
 {
     const item = await pending();
+    const body: DecisionRequest = { decision, expectedVersion: 0, ...(decision === "REJECT" ? { reason: "1234567890" } : {}) };
     const before = await evidence(item.submitted.id), key = randomUUID();
     const original = DecisionRepository.prototype.Save;
     const fault = vi.spyOn(DecisionRepository.prototype, "Save").mockImplementationOnce(async function(this: DecisionRepository, ...args)
@@ -132,7 +159,7 @@ test("fault immediately before audit rolls decision, state, outbox and key back"
     });
     try
 {
- await expect(decisions.Decide(item.reviewer, item.slot, approve, key)).rejects.toThrow();
+ await expect(decisions.Decide(item.reviewer, item.slot, body, key)).rejects.toThrow();
 }
     finally
     {
@@ -142,7 +169,13 @@ test("fault immediately before audit rolls decision, state, outbox and key back"
     }
     expect(await evidence(item.submitted.id)).toEqual(before);
     expect(await db.select().from(decisionIdempotencyRecords).where(eq(decisionIdempotencyRecords.key, key))).toHaveLength(0);
-    expect((await decisions.Decide(item.reviewer, item.slot, approve, key)).requestStatus).toBe("APPROVED");
+    expect((await decisions.Decide(item.reviewer, item.slot, body, key)).requestStatus).toBe(decision === "REJECT" ? "REJECTED" : "APPROVED");
+    const saved = await evidence(item.submitted.id);
+    expect(saved.votes).toHaveLength(1);
+    expect(saved.votes[0]!.decision).toMatchObject({ decision, reason: body.reason ?? null });
+    expect(saved.audit.filter((event) => event.decisionId)).toHaveLength(1);
+    expect(saved.outbox.filter((event) => event.eventType === `DECISION_${decision}`)).toHaveLength(1);
+    expect(saved.keys).toHaveLength(1);
 });
 test("independent connection approve/reject races commit exactly one coherent terminal result", async () =>
 {
@@ -244,24 +277,10 @@ test("real HTTP validates decision, authorization, stale replay, timeline and CO
 
 test("Lab 7 HTTP validates new rejections while historical short decisions remain readable and replayable", async () =>
 {
-    const { createIdentityComposition } = await import("../../src/Presentations/composition");
-    const { readEnvironment } = await import("../../src/Infrastructures/Configuration/environment");
-    const { createApplication } = await import("../../src/Presentations/createApplication");
-    const { TokenProvider } = await import("../../src/Infrastructures/Security/TokenProvider");
-    const { ApprovalTaskService } = await import("../../src/Applications/Approvals/ApprovalTaskService");
-    const { ApprovalTaskUnitOfWork } = await import("../../src/Infrastructures/Database/Repositories/ApprovalTaskRepository");
-    const env = readEnvironment({ NODE_ENV: "test", DATABASE_URL: process.env.TEST_DATABASE_URL, AUTH_JWT_SECRET: "lab7-local-http-test-only-secret-32-bytes", AUTH_JWT_ISSUER: "lab7-tests", AUTH_JWT_AUDIENCE: "lab7-api", AUTH_ALLOWED_ORIGINS: "http://localhost:3000", AUTH_COOKIE_SECURE: "false" });
-    const identity = await createIdentityComposition(env, database);
-    const app = createApplication(undefined, identity, service, new ApprovalTaskService(new ApprovalTaskUnitOfWork(db)), decisions);
-    const tokens = new TokenProvider(env.AUTH_JWT_SECRET, { Now: () => new Date() }, env.AUTH_JWT_ISSUER, env.AUTH_JWT_AUDIENCE);
-    async function send(item: Awaited<ReturnType<typeof pending>>, body: DecisionRequest, key: string)
-    {
-        const token = await tokens.Sign(item.reviewerId, item.reviewer.family.id, 0);
-        return app.handle(new Request(`http://localhost/api/v1/approval-tasks/${item.slot}/decisions`, { method: "POST", headers: { authorization: `Bearer ${token}`, "Idempotency-Key": key, "content-type": "application/json" }, body: JSON.stringify(body) }));
-    }
+    const http = await decisionHttp(), send = http.post;
     const item = await pending();
     const before = await evidence(item.submitted.id);
-    for (const reason of [undefined, "", " \n ", "123456789", "x".repeat(4001)])
+    for (const reason of [undefined, "", " \n ", "123456789", "😀😀😀😀x", "x".repeat(4001)])
     {
         const response = await send(item, { decision: "REJECT", reason, expectedVersion: 0 }, randomUUID());
         expect(response.status).toBe(422);
@@ -294,15 +313,113 @@ test("Lab 7 HTTP validates new rejections while historical short decisions remai
     expect((await send(historical, oldBody, randomUUID())).status).toBe(422);
     expect((await send(historical, { ...oldBody, reason: "Changed reason" }, key)).status).toBe(409);
     expect((await decisions.Timeline(historical.actor, historical.submitted.id, { pageNumber: 1, pageSize: 100 })).items.find((event) => event.metadata.decision === "REJECT")?.note).toBe("No");
+    for (const actor of [historical.actor, historical.reviewer])
+    {
+        const response = await http.timeline(historical, actor);
+        expect(response.status).toBe(200);
+        const timeline: { note: string | null; metadata: { decision?: string } }[] = await response.json();
+        expect(timeline.find((event) => event.metadata.decision === "REJECT")?.note).toBe("No");
+    }
+    for (const rewrite of [() => db.update(approvalDecisions).set({ reason: "rewritten history" }).where(eq(approvalDecisions.id, oldResult.decisionId)), () => db.delete(approvalDecisions).where(eq(approvalDecisions.id, oldResult.decisionId))])
+    {
+        await expect(rewrite()).rejects.toThrow();
+    }
     expect(await evidence(historical.submitted.id)).toEqual(historicalBefore);
     expect(await db.select().from(decisionIdempotencyRecords).where(eq(decisionIdempotencyRecords.scope, `POST /api/v1/approval-tasks/${historical.slot}/decisions`))).toHaveLength(1);
 });
 
-test.each([["eleven", "12345678901"], ["maximum", "x".repeat(4000)], ["padded maximum", ` ${"x".repeat(4000)} `], ["UTF-16 minimum", "😀😀😀😀😀"]])("Lab 7 persists valid boundary reason: %s", async (_label, reason) =>
+test.each([["minimum", "1234567890"], ["padded minimum", " 1234567890 "], ["eleven", "12345678901"], ["maximum", "x".repeat(4000)], ["padded maximum", ` ${"x".repeat(4000)} `], ["UTF-16 minimum", "😀😀😀😀😀"], ["combining minimum", "e\u0301".repeat(5)]])("Lab 7 raw HTTP rejection commits every effect: %s", async (_label, reason) =>
 {
-    const item = await pending();
-    expect((await decisions.Decide(item.reviewer, item.slot, { decision: "REJECT", reason: reason.trim(), expectedVersion: 0 }, randomUUID())).requestStatus).toBe("REJECTED");
-    expect((await decisions.Timeline(item.actor, item.submitted.id, { pageNumber: 1, pageSize: 100 })).items.find((event) => event.metadata.decision === "REJECT")?.note).toBe(reason.trim());
+    const item = await pending(true, true), http = await decisionHttp(), key = randomUUID();
+    const before = await evidence(item.submitted.id);
+    // Send the original raw value: preprocessing here would bypass route trimming.
+    const body: DecisionRequest = { decision: "REJECT", reason, expectedVersion: 0 };
+    const response = await http.post(item, body, key);
+    expect(response.status).toBe(201);
+    const result: unknown = await response.json();
+    expect(result).toMatchObject({ requestStatus: "REJECTED", requestVersion: 2, taskVersion: 1, currentStageNumber: null });
+    const saved = await evidence(item.submitted.id);
+    expect(saved.request).toMatchObject({ status: "REJECTED", version: before.request!.version + 1 });
+    expect(saved.cycles.find((cycle) => cycle.id === item.submitted.currentCycleId)?.isActive).toBe(false);
+    expect(saved.stages.find((stage) => stage.stageNumber === 1)?.status).toBe("REJECTED");
+    expect(saved.stages.find((stage) => stage.stageNumber === 2)?.status).toBe("CANCELLED");
+    for (const slot of saved.slots)
+    {
+        expect(slot).toMatchObject({ status: slot.id === item.slot ? "REJECTED" : "CANCELLED", version: before.slots.find((old) => old.id === slot.id)!.version + 1 });
+    }
+    expect(saved.votes).toHaveLength(1);
+    const decision = saved.votes[0]!.decision;
+    expect(decision).toMatchObject({ slotId: item.slot, decision: "REJECT", reason: reason.trim(), actorId: item.reviewerId });
+    const auditDelta = saved.audit.filter((event) => !before.audit.some((old) => old.id === event.id));
+    expect(auditDelta.map((event) => event.eventType).sort()).toEqual(["DECISION_REJECT", "REQUEST_REJECTED"]);
+    expect(auditDelta.find((event) => event.eventType === "DECISION_REJECT")).toMatchObject({ decisionId: decision.id, revisionId: item.submitted.submittedRevision!.id, cycleId: item.submitted.currentCycleId });
+    const outboxDelta = saved.outbox.filter((event) => !before.outbox.some((old) => old.id === event.id));
+    expect(outboxDelta).toHaveLength(1);
+    expect(outboxDelta[0]).toMatchObject({ eventType: "DECISION_REJECT", eventKey: `decision:${decision.id}`, payload: { requestId: item.submitted.id, cycleId: item.submitted.currentCycleId } });
+    expect(saved.keys).toHaveLength(1);
+    expect(saved.keys[0]).toMatchObject({ key, actorId: item.reviewerId, response: result });
+    const history = await http.timeline(item);
+    expect(history.status).toBe(200);
+    expect(await history.json()).toEqual(expect.arrayContaining([expect.objectContaining({ eventType: "DECISION_REJECT", note: reason.trim() })]));
+    const replay = await http.post(item, body, key);
+    expect(replay.status).toBe(201);
+    expect(await replay.json()).toEqual(result);
+    expect((await http.post(item, { ...body, reason: "Changed reason" }, key)).status).toBe(409);
+    expect((await http.post(item, body)).status).toBe(409);
+    expect(await evidence(item.submitted.id)).toEqual(saved);
+});
+
+test.each(["anonymous", "self", "foreign", "missing", "wrong role", "inactive"])("Lab 7 valid REJECT HTTP authorization has no writes: %s", async (scenario) =>
+{
+    const item = await pending(), http = await decisionHttp();
+    if (scenario === "wrong role")
+    {
+        await db.delete(userRoles).where(eq(userRoles.userId, item.reviewerId));
+        await db.insert(userRoles).values({ userId: item.reviewerId, roleCode: "REQUESTER" });
+    }
+    if (scenario === "inactive")
+    {
+        await db.update(users).set({ isActive: false }).where(eq(users.id, item.reviewerId));
+    }
+    const before = await evidence(item.submitted.id);
+    const actor = scenario === "anonymous" ? null : scenario === "self" ? item.actor : scenario === "foreign" ? item.other : item.reviewer;
+    const response = await http.post(item, { decision: "REJECT", reason: "1234567890", expectedVersion: 0 }, randomUUID(), actor, scenario === "missing" ? randomUUID() : item.slot);
+    const status = scenario === "anonymous" || scenario === "inactive" ? 401 : scenario === "foreign" || scenario === "missing" ? 404 : 403;
+    const code = status === 401 ? "UNAUTHENTICATED" : status === 404 ? "NOT_FOUND" : scenario === "self" ? "SELF_APPROVAL_FORBIDDEN" : "FORBIDDEN";
+    expect(response.status).toBe(status);
+    expect(await response.json()).toMatchObject({ code });
+    expect(await evidence(item.submitted.id)).toEqual(before);
+});
+
+test.each(["version", "revision", "cycle", "slot"])("Lab 7 valid REJECT HTTP stale %s leaves state and keys unchanged", async (scenario) =>
+{
+    const item = await pending(), http = await decisionHttp();
+    if (scenario === "revision")
+    {
+        await db.update(requests).set({ submittedRevisionId: null }).where(eq(requests.id, item.submitted.id));
+    }
+    if (scenario === "cycle")
+    {
+        await db.update(approvalCycles).set({ isActive: false }).where(eq(approvalCycles.id, item.submitted.currentCycleId!));
+    }
+    if (scenario === "slot")
+    {
+        await db.update(approvalSlots).set({ status: "WAITING" }).where(eq(approvalSlots.id, item.slot));
+    }
+    const before = await evidence(item.submitted.id);
+    const response = await http.post(item, { decision: "REJECT", reason: "1234567890", expectedVersion: scenario === "version" ? 4 : 0 });
+    expect(response.status).toBe(409);
+    expect(await response.json()).toMatchObject({ code: "APPROVAL_TASK_STALE" });
+    expect(await evidence(item.submitted.id)).toEqual(before);
+});
+
+test.each([["No", 409, "INVALID_REQUEST_TRANSITION"], [undefined, 422, "VALIDATION_ERROR"], [" ", 422, "VALIDATION_ERROR"]] as const)("Lab 7 RETURN transport %s retains existing behavior", async (reason, status, code) =>
+{
+    const item = await pending(), http = await decisionHttp(), before = await evidence(item.submitted.id);
+    const response = await http.post(item, { decision: "RETURN", reason, expectedVersion: 0 });
+    expect(response.status).toBe(status);
+    expect(await response.json()).toMatchObject({ code });
+    expect(await evidence(item.submitted.id)).toEqual(before);
 });
 test.skipIf(process.env.RUN_BUILT_HTTP_SMOKE !== "1")("API process restart preserves accepted replay and timeline", async () =>
 {
