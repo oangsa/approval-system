@@ -1,4 +1,8 @@
 # Lab 7 evidence and resume index
+> Historical preparation snapshot. The [22 November implementation record](verification-record.md)
+> supersedes the approval, implementation and local-test statuses below; historical
+> timestamps and original failures remain preserved.
+
 Prepared 22 November 2026, Asia/Bangkok. Issue #78; draft PR #79.
 Status: **BLOCKED / NOT READY**. Product behavior and existing tests are unchanged.
 
@@ -105,3 +109,4 @@ count as merges, not independent features. CI runs latest attempt once.
 AI assistance: Codex source/evidence research, unchanged checks, proposal/draft,
 public-browser capture and report preparation; no subagents and no substitute
 for either student's real independent participation/review.
+
