@@ -1187,3 +1187,9 @@ Feature-level FR/AC mapping is authoritative in `specifications.md`. This crossw
 ## 13. Identity & Access feature records (additive)
 
 The feature implementation details and supporting evidence plan for M01–M03 are maintained in [identity-access/sds.md](../features/identity-access/sds.md), [acceptance-criteria.md](../features/identity-access/acceptance-criteria.md), [sts.md](../features/identity-access/sts.md), and [dod.md](../features/identity-access/dod.md). Those records implement only the existing login, refresh, logout, logout-all, and current-user routes with the DTOs already defined in §§3.2, 5.1, and 6.1. They add no route, change no frozen method or DTO, and do not revise this document's version or status. All feature checks remain PLANNED / NOT RUN.
+
+## Lab 7 approved maintenance amendment — Issue #78
+
+For NEW REJECT requests on POST /api/v1/approval-tasks/:id/decisions, require 10–4000 UTF-16 code units after ECMAScript String.trim(). Invalid new reasons return 422 VALIDATION_ERROR without durable writes. Retain the old transport shape/cap to recognize authenticated accepted historical short-reason replay; enforce the new-write minimum after replay lookup and before new mutation. Keep the existing semantic hash, key scope, stale/conflict/auth responses, DTOs and APPROVE/RETURN rules. Read projections do not apply new-write reason validation.
+
+Approval evidence: [record](../labs/lab-07/approval-record.md). Original sections remain historical baseline wording where superseded above; no unrelated behavior is changed.

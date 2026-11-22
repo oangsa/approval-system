@@ -17,7 +17,19 @@ test("ALL votes, future stages and rejection never prematurely finalize", () =>
     item.stages.push({ id: "future", stageNumber: 2, status: "WAITING", requiredKeys: ["future"] });
     item.slots.push({ id: "future", stageId: "future", assignmentKey: "future", status: "WAITING", version: 0 });
     expect(() => decideTransition(item, "slot", { decision: "APPROVE", expectedVersion: 0 })).toThrow("INVALID_REQUEST_TRANSITION");
-    expect(decideTransition(item, "slot", { decision: "REJECT", reason: "No", expectedVersion: 0 })).toMatchObject({ requestStatus: "REJECTED", currentStageNumber: null });
+    expect(decideTransition(item, "slot", { decision: "REJECT", reason: "Missing information", expectedVersion: 0 })).toMatchObject({ requestStatus: "REJECTED", currentStageNumber: null });
+});
+
+test("Lab 7 domain enforces the trimmed rejection minimum and maximum", () =>
+{
+    for (const reason of [undefined, "", " \n ", "123456789", "😀😀😀😀x", "x".repeat(4001)])
+    {
+        expect(() => decideTransition(state(), "slot", { decision: "REJECT", reason, expectedVersion: 0 })).toThrow("VALIDATION_ERROR");
+    }
+    for (const reason of ["1234567890", "12345678901", " 1234567890 ", "😀😀😀😀😀", "e\u0301".repeat(5), "x".repeat(4000), ` ${"x".repeat(4000)} `])
+    {
+        expect(decideTransition(state(), "slot", { decision: "REJECT", reason, expectedVersion: 0 }).requestStatus).toBe("REJECTED");
+    }
 });
 test.each([
     { requesterId: "reviewer" }, { assignedReviewerId: "other" }, { roles: [] }, { isActive: false }, { requestStatus: "APPROVED" }, { currentCycleId: "old" }, { submittedRevisionId: "old" }, { cycleIsActive: false }, { stageStatus: "WAITING" }, { slotStatus: "APPROVED" }, { slotVersion: 1 },
@@ -26,6 +38,7 @@ test.each([
     const item = state();
     Object.assign(item.context, change);
     expect(() => decideTransition(item, "slot", { decision: "APPROVE", expectedVersion: 0 })).toThrow();
+    expect(() => decideTransition(item, "slot", { decision: "REJECT", reason: "1234567890", expectedVersion: 0 })).toThrow();
 });
 test("missing required snapshot slots cannot approve", () =>
 {

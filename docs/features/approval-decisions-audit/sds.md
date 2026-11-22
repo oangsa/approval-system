@@ -62,3 +62,9 @@ it must not fetch the broad current request DTO. Existing nonparticipants remain
 indistinguishable 404, including administrator-only actors without a handling record.
 History tab is separate from discussion. Abort and scope reads on account changes;
 private content remains absent from public SSR.
+
+## Lab 7 approved maintenance amendment — Issue #78
+
+For Issue #78, NEW rejection reasons require 10–4000 trimmed UTF-16 code units. Transport validation admits only the previous shape/cap for authenticated historical replay; stricter shared-schema validation runs after accepted replay and before NEW work. Domain enforcement and reviewer shared-schema feedback agree. Preserve historical short notes, accepted replay, authorization, ALL/stale/RETURN guards, immutable records and transaction atomicity. No migration or data rewrite is introduced.
+
+Approval evidence: [record](../../labs/lab-07/approval-record.md). Original sections remain historical baseline wording where superseded above; no unrelated behavior is changed.
