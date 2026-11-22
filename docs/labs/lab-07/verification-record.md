@@ -2,7 +2,10 @@
 
 Updated 22 November 2026, Asia/Bangkok (UTC+07:00). Issue #78;
 contract PR #79; implementation draft PR #80, targeting sprint-1-staging.
-Status: **IMPLEMENTED / LOCAL VERIFIED / NOT READY FOR RELEASE**.
+Status: **IMPLEMENTED / PREVIOUS SUITES PASSED / CHANGES REQUESTED**.
+The counts below are the historical verification snapshot for `7fd8302`.
+They do not establish complete STS coverage or satisfaction of the pre-code
+substantive review gate. See [blocking-findings.md](blocking-findings.md).
 
 ## Approval and chronology
 
@@ -16,6 +19,9 @@ Status: **IMPLEMENTED / LOCAL VERIFIED / NOT READY FOR RELEASE**.
   Review body is empty. Issue comment 7075546240 at 13:49 ICT says:
   “OK, I have reviewed it. We can change this spec and work on it.”
   No detailed findings or inline comments were supplied; none are invented.
+  **Correction:** this verifies approval identity/time, but does not satisfy the
+  contract's required substantive findings/resolution before implementation.
+  That historical evidence remains UNVERIFIED; later review cannot be backdated.
 - Contract/STS: `332a2b3f00a4dacec50eeb7f25abd2d3457100b1`.
 - Test-only RED: `d1856a836e01ce96df535200f6c25419b38f7f2f`.
 - Canonical approved specification amendment, before code:
