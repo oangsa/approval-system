@@ -1,4 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
+import { writeFile } from "node:fs/promises";
+import { requestDetailSchema } from "@workflow/contracts";
 async function login(page: Page, email: string)
 {
     await page.goto("/auth/login");
@@ -42,6 +44,105 @@ async function submittedTask(page: Page)
     await expect(page.getByRole("button", { name: "Approve", exact: true })).toBeVisible();
     return { title, requestId: submitted.id as string, taskUrl: request.url(), token: request.headers().authorization! };
 }
+
+test("Lab 7 separate requester and reviewer sessions reject exactly ten and preserve denied state", async ({ browser }, testInfo) =>
+{
+    const requesterContext = await browser.newContext({ viewport: { width: 768, height: 900 } });
+    const reviewerContext = await browser.newContext({ viewport: { width: 768, height: 900 } });
+    try
+    {
+        const requester = await requesterContext.newPage(), reviewer = await reviewerContext.newPage();
+        const title = `Lab 7 synthetic ${Date.now()}`;
+        await login(requester, "requester-a@example.test");
+        await requester.goto("/requests/new");
+        await requester.getByLabel("Request type (required)").selectOption({ label: "General request" });
+        await requester.getByRole("button", { name: "Next", exact: true }).click();
+        await requester.getByLabel("Title", { exact: false }).fill(title);
+        await requester.getByLabel("Justification", { exact: false }).fill("Synthetic Lab 7 boundary verification");
+        await requester.getByRole("button", { name: "Next", exact: true }).click();
+        await requester.getByLabel("Category", { exact: false }).selectOption("OPERATIONS");
+        await requester.getByRole("button", { name: "Next", exact: true }).click();
+        await requester.getByRole("button", { name: "Submit request", exact: true }).click();
+        const submittedResponse = requester.waitForResponse((response) => response.url().endsWith("/submit") && response.request().method() === "POST");
+        await requester.getByRole("button", { name: "Confirm submission" }).click();
+        const response = await submittedResponse;
+        expect(response.status()).toBe(200);
+        const submitted = requestDetailSchema.parse(await response.json());
+        const requesterToken = response.request().headers().authorization!;
+        await expect(requester.getByRole("heading", { name: "Request submitted" })).toBeVisible();
+        await requester.screenshot({ path: testInfo.outputPath("B-L7-01-submitted.png"), fullPage: true });
+
+        await login(reviewer, "reviewer@example.test");
+        await reviewer.goto("/reviews");
+        await reviewer.getByLabel("Search requests").fill(title);
+        await reviewer.getByRole("button", { name: "Search", exact: true }).click();
+        const taskRead = reviewer.waitForRequest((request) => /\/approval-tasks\/[^/]+$/.test(request.url()) && request.method() === "GET");
+        await reviewer.getByRole("row").filter({ hasText: title }).getByRole("link").click();
+        const taskRequest = await taskRead, taskUrl = taskRequest.url(), reviewerToken = taskRequest.headers().authorization!;
+        const apiRoot = new URL(taskUrl).origin;
+        async function snapshot()
+        {
+            const detail: unknown = await (await requester.request.get(`${apiRoot}/api/v1/requests/${submitted.id}`, { headers: { authorization: requesterToken } })).json();
+            const history: unknown = await (await requester.request.get(`${apiRoot}/api/v1/requests/${submitted.id}/timeline`, { headers: { authorization: requesterToken } })).json();
+            const task: unknown = await (await reviewer.request.get(taskUrl, { headers: { authorization: reviewerToken } })).json();
+            return { detail, history, task };
+        }
+        const before = await snapshot();
+        await reviewer.getByRole("button", { name: "Reject", exact: true }).click();
+        const dialog = reviewer.getByRole("dialog"), reason = dialog.getByLabel(/Reason/);
+        await reason.fill("123456789");
+        await expect(reason).toHaveValue("123456789");
+        await expect(reason).toHaveAccessibleDescription(/at least 10 characters/);
+        await expect(dialog.getByRole("button", { name: "Confirm rejection" })).toBeDisabled();
+        await reviewer.screenshot({ path: testInfo.outputPath("B-L7-02-invalid-nine.png"), fullPage: true });
+        const invalid = await reviewer.request.post(`${taskUrl}/decisions`, { headers: { authorization: reviewerToken, "Idempotency-Key": crypto.randomUUID() }, data: { decision: "REJECT", reason: "123456789", expectedVersion: 0 } });
+        expect(invalid.status()).toBe(422);
+        const invalidBody: unknown = await invalid.json();
+        const denied = await requester.request.post(`${taskUrl}/decisions`, { headers: { authorization: requesterToken, "Idempotency-Key": crypto.randomUUID() }, data: { decision: "APPROVE", expectedVersion: 0 } });
+        expect(denied.status()).toBe(403);
+        const deniedBody: unknown = await denied.json();
+        expect(deniedBody).toMatchObject({ code: "SELF_APPROVAL_FORBIDDEN" });
+        expect(await snapshot()).toEqual(before);
+        await reason.fill("1234567890");
+        await expect(dialog.getByRole("button", { name: "Confirm rejection" })).toBeEnabled();
+        const decisionResponse = reviewer.waitForResponse((value) => value.url().endsWith("/decisions") && value.request().method() === "POST");
+        await dialog.getByRole("button", { name: "Confirm rejection" }).click();
+        expect((await decisionResponse).status()).toBe(201);
+        await expect(reviewer.getByRole("status").filter({ hasText: "Decision recorded" })).toContainText("REJECTED");
+        await reviewer.screenshot({ path: testInfo.outputPath("B-L7-03-rejected.png"), fullPage: true });
+        await requester.goto(`/requests/${submitted.id}?tab=history`);
+        await expect(requester.getByRole("tabpanel", { name: "History" })).toContainText("1234567890");
+        await requester.reload();
+        await expect(requester.getByRole("tabpanel", { name: "History" })).toContainText("1234567890");
+        await expect(requester.getByRole("tabpanel", { name: "History" })).toContainText("DECISION REJECT");
+        await requester.screenshot({ path: testInfo.outputPath("B-L7-04-requester-history.png"), fullPage: true });
+        await writeFile(testInfo.outputPath("B-L7-browser-observations.json"), JSON.stringify({ observedUtc: new Date().toISOString(), method: "automated Playwright; real frontend/API/disposable PostgreSQL; separate browser contexts", title, requestId: submitted.id, invalidStatus: 422, invalidBody, selfApprovalStatus: 403, deniedBody, invalidAndDeniedStateUnchanged: true, validReason: "1234567890", acceptedStatus: 201, requesterHistoryAfterRefresh: "DECISION REJECT and 1234567890 verified" }, null, 2));
+    }
+    finally
+    {
+        await requesterContext.close();
+        await reviewerContext.close();
+    }
+});
+
+test("Lab 7 preserves approval without a reason on a separate request", async ({ page }, testInfo) =>
+{
+    const item = await submittedTask(page);
+    await page.getByRole("button", { name: "Approve", exact: true }).click();
+    const dialog = page.getByRole("dialog");
+    await expect(dialog.getByLabel(/Reason/)).toHaveValue("");
+    const accepted = page.waitForResponse((response) => response.url().endsWith("/decisions") && response.request().method() === "POST");
+    await dialog.getByRole("button", { name: "Confirm approval" }).click();
+    expect((await accepted).status()).toBe(201);
+    await expect(page.getByRole("status").filter({ hasText: "Decision recorded" })).toContainText("APPROVED");
+    await page.screenshot({ path: testInfo.outputPath("B-L7-05-approval-without-reason.png"), fullPage: true });
+    await logout(page, "Reviewer");
+    await login(page, "requester-a@example.test");
+    await page.goto(`/requests/${item.requestId}?tab=history`);
+    await expect(page.getByRole("tabpanel", { name: "History" })).toContainText("DECISION APPROVE");
+    await page.reload();
+    await expect(page.getByRole("tabpanel", { name: "History" })).toContainText("DECISION APPROVE");
+});
 for (const decision of ["Approve", "Reject"])
 {
     test(`${decision} requires keyboard confirmation and persists immutable history`, async ({ page, request }) =>

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { auditTimelineItemSchema, decisionRequestSchema, decisionResultSchema, errorResponseSchema, timelineQuerySchema } from "@workflow/contracts";
+import { auditTimelineItemSchema, decisionReplayRequestSchema, decisionRequestSchema, decisionResultSchema, errorResponseSchema, timelineQuerySchema } from "@workflow/contracts";
 import type { DecisionService } from "../../Applications/Approvals/DecisionService";
 import type { IIdentityHttpDependencies } from "../composition";
 import { requireAuthentication } from "../Guards/authentication";
@@ -34,7 +34,8 @@ export function registerDecisionRoutes(app: {
 {
  throw new HttpError("BAD_REQUEST");
 }
-        const parsed = decisionRequestSchema.safeParse(body);
+        // New-write semantics are enforced after authenticated historical replay.
+        const parsed = decisionReplayRequestSchema.safeParse(body);
         if (!parsed.success) throw new HttpError("VALIDATION_ERROR");
         return Response.json(decisionResultSchema.parse(await service.Decide(actor, params.id!.toLowerCase(), parsed.data, key.data.toLowerCase())), { status: 201 });
     }, { parse: "none" });

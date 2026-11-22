@@ -2,11 +2,21 @@ import { z } from "zod";
 import { requestStatusSchema } from "./requests";
 
 export const decisionTypeSchema = z.enum(["APPROVE", "REJECT", "RETURN"]);
-export const decisionRequestSchema = z.strictObject({
-    decision: decisionTypeSchema, reason: z.string().trim().max(4000).optional(), expectedVersion: z.number().int().nonnegative(),
+export const rejectionReasonMinimumLength = 10;
+export const decisionReasonMaximumLength = 4000;
+// Transport compatibility for replay of decisions accepted before Lab 7.
+export const decisionReplayRequestSchema = z.strictObject({
+    decision: decisionTypeSchema, reason: z.string().trim().max(decisionReasonMaximumLength).optional(), expectedVersion: z.number().int().nonnegative(),
 }).superRefine((body, context) =>
 {
     if (body.decision !== "APPROVE" && !body.reason) context.addIssue({ code: "custom", path: ["reason"], message: "A reason is required" });
+});
+export const decisionRequestSchema = decisionReplayRequestSchema.superRefine((body, context) =>
+{
+    if (body.decision === "REJECT" && body.reason && body.reason.length < rejectionReasonMinimumLength)
+    {
+        context.addIssue({ code: "custom", path: ["reason"], message: "Rejection reason must contain at least 10 characters after trimming surrounding whitespace." });
+    }
 });
 export const decisionResultSchema = z.strictObject({
     taskId: z.uuid(), slotId: z.uuid(), decisionId: z.uuid(), decision: decisionTypeSchema,

@@ -1,4 +1,5 @@
 import type { DecisionRequest, DecisionResult } from "@workflow/contracts";
+import { rejectionReasonMinimumLength, decisionReasonMaximumLength } from "@workflow/contracts";
 import { ApprovalTaskError, AssertReviewerCanDecide, type IReviewerDecisionContext } from "./ApprovalTaskRules";
 
 export interface IDecisionState
@@ -15,7 +16,8 @@ export interface IDecisionTransition
 export function decideTransition(state: IDecisionState, taskId: string, body: DecisionRequest): IDecisionTransition
 {
     if (body.decision === "RETURN") throw new ApprovalTaskError("INVALID_REQUEST_TRANSITION");
-    if (body.decision === "REJECT" && !body.reason?.trim()) throw new ApprovalTaskError("VALIDATION_ERROR");
+    const reasonLength = body.reason?.trim().length ?? 0;
+    if (body.decision === "REJECT" && (reasonLength < rejectionReasonMinimumLength || reasonLength > decisionReasonMaximumLength)) throw new ApprovalTaskError("VALIDATION_ERROR");
     AssertReviewerCanDecide({ ...state.context, expectedVersion: body.expectedVersion });
     const slot = state.slots.find((item) => item.id === taskId);
     const stage = state.stages.find((item) => item.id === slot?.stageId);

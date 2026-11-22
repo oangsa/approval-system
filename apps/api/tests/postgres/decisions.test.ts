@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { afterAll, expect, test, vi } from "vitest";
 import { and, eq, inArray, sql } from "drizzle-orm";
 import type { PublishedRequestType, CreateRequest, DecisionRequest } from "@workflow/contracts";
@@ -96,7 +96,7 @@ test("partial ALL approval stays pending and rejection cancels unfinished slots"
     expect((await independent.Decide(item.other, item.peerSlot!, { ...approve, decision: "REJECT", reason: "Missing justification" }, randomUUID())).requestStatus).toBe("REJECTED");
     expect((await evidence(item.submitted.id)).votes).toHaveLength(2);
     const rejection = await pending(true, true);
-    await decisions.Decide(rejection.reviewer, rejection.slot, { ...approve, decision: "REJECT", reason: "No" }, randomUUID());
+    await decisions.Decide(rejection.reviewer, rejection.slot, { ...approve, decision: "REJECT", reason: "Missing information" }, randomUUID());
     const rows = await db.select({ slot: approvalSlots }).from(approvalSlots).innerJoin(approvalStages, eq(approvalSlots.stageId, approvalStages.id)).where(eq(approvalStages.cycleId, rejection.submitted.currentCycleId!));
     expect(rows.map((row) => row.slot.status).sort()).toEqual(["CANCELLED", "CANCELLED", "REJECTED"]);
 });
@@ -149,7 +149,7 @@ test("independent connection approve/reject races commit exactly one coherent te
     for (let index = 0; index < 4; index++)
     {
         const item = await pending();
-        const outcomes = await Promise.allSettled([decisions.Decide(item.reviewer, item.slot, approve, randomUUID()), independent.Decide(item.reviewer, item.slot, { ...approve, decision: "REJECT", reason: "No" }, randomUUID())]);
+        const outcomes = await Promise.allSettled([decisions.Decide(item.reviewer, item.slot, approve, randomUUID()), independent.Decide(item.reviewer, item.slot, { ...approve, decision: "REJECT", reason: "Missing information" }, randomUUID())]);
         expect(outcomes.filter((result) => result.status === "fulfilled")).toHaveLength(1);
         expect(outcomes.find((result) => result.status === "rejected")).toMatchObject({ reason: { code: "APPROVAL_TASK_STALE" } });
         const saved = await evidence(item.submitted.id);
@@ -212,6 +212,7 @@ test("real HTTP validates decision, authorization, stale replay, timeline and CO
     await failure(await send(path, approve, foreignToken), 404, "NOT_FOUND");
     await failure(await send(path, approve, ownerToken), 403, "SELF_APPROVAL_FORBIDDEN");
     await failure(await send(path, { ...approve, decision: "REJECT", reason: "  " }), 422, "VALIDATION_ERROR");
+    await failure(await send(path, { ...approve, decision: "REJECT", reason: "123456789" }), 422, "VALIDATION_ERROR");
     await failure(await send(path, approve, reviewerToken, null), 422, "VALIDATION_ERROR");
     await failure(await send(path, "{"), 400, "BAD_REQUEST");
     await failure(await send(path, { ...approve, actorId: item.ownerId }), 422, "VALIDATION_ERROR");
@@ -239,6 +240,69 @@ test("real HTTP validates decision, authorization, stale replay, timeline and CO
     const cors = await app.handle(new Request(`http://localhost/api/v1${path}`, { method: "OPTIONS", headers: { origin: "http://localhost:3000", "access-control-request-method": "POST", "access-control-request-headers": "authorization,content-type,idempotency-key" } }));
     expect(cors.status).toBe(204);
     expect(cors.headers.get("access-control-allow-headers")?.toLowerCase()).toContain("idempotency-key");
+});
+
+test("Lab 7 HTTP validates new rejections while historical short decisions remain readable and replayable", async () =>
+{
+    const { createIdentityComposition } = await import("../../src/Presentations/composition");
+    const { readEnvironment } = await import("../../src/Infrastructures/Configuration/environment");
+    const { createApplication } = await import("../../src/Presentations/createApplication");
+    const { TokenProvider } = await import("../../src/Infrastructures/Security/TokenProvider");
+    const { ApprovalTaskService } = await import("../../src/Applications/Approvals/ApprovalTaskService");
+    const { ApprovalTaskUnitOfWork } = await import("../../src/Infrastructures/Database/Repositories/ApprovalTaskRepository");
+    const env = readEnvironment({ NODE_ENV: "test", DATABASE_URL: process.env.TEST_DATABASE_URL, AUTH_JWT_SECRET: "lab7-local-http-test-only-secret-32-bytes", AUTH_JWT_ISSUER: "lab7-tests", AUTH_JWT_AUDIENCE: "lab7-api", AUTH_ALLOWED_ORIGINS: "http://localhost:3000", AUTH_COOKIE_SECURE: "false" });
+    const identity = await createIdentityComposition(env, database);
+    const app = createApplication(undefined, identity, service, new ApprovalTaskService(new ApprovalTaskUnitOfWork(db)), decisions);
+    const tokens = new TokenProvider(env.AUTH_JWT_SECRET, { Now: () => new Date() }, env.AUTH_JWT_ISSUER, env.AUTH_JWT_AUDIENCE);
+    async function send(item: Awaited<ReturnType<typeof pending>>, body: DecisionRequest, key: string)
+    {
+        const token = await tokens.Sign(item.reviewerId, item.reviewer.family.id, 0);
+        return app.handle(new Request(`http://localhost/api/v1/approval-tasks/${item.slot}/decisions`, { method: "POST", headers: { authorization: `Bearer ${token}`, "Idempotency-Key": key, "content-type": "application/json" }, body: JSON.stringify(body) }));
+    }
+    const item = await pending();
+    const before = await evidence(item.submitted.id);
+    for (const reason of [undefined, "", " \n ", "123456789", "x".repeat(4001)])
+    {
+        const response = await send(item, { decision: "REJECT", reason, expectedVersion: 0 }, randomUUID());
+        expect(response.status).toBe(422);
+        expect(await response.json()).toMatchObject({ code: "VALIDATION_ERROR" });
+        expect(await evidence(item.submitted.id)).toEqual(before);
+    }
+    expect(await db.select().from(decisionIdempotencyRecords).where(eq(decisionIdempotencyRecords.scope, `POST /api/v1/approval-tasks/${item.slot}/decisions`))).toEqual([]);
+    const accepted = await send(item, { decision: "REJECT", reason: " 1234567890 ", expectedVersion: 0 }, randomUUID());
+    expect(accepted.status).toBe(201);
+    expect(await accepted.json()).toMatchObject({ requestStatus: "REJECTED" });
+    expect((await decisions.Timeline(item.actor, item.submitted.id, { pageNumber: 1, pageSize: 100 })).items.find((event) => event.metadata.decision === "REJECT")?.note).toBe("1234567890");
+
+    // Seed a pre-upgrade accepted row through the existing persistence boundary.
+    // This deliberately bypasses NEW-decision validation only in this test fixture.
+    const historical = await pending(), key = randomUUID();
+    const oldBody: DecisionRequest = { decision: "REJECT", reason: "No", expectedVersion: 0 };
+    const oldResult = await new DecisionUnitOfWork(db).Run(async (repository) =>
+    {
+        const actor = await repository.CurrentActor(historical.reviewer);
+        const state = await repository.Lock(actor, historical.slot);
+        const result = await repository.Save(actor.account.id, historical.slot, oldBody, state, { stageId: state.stages[0]!.id, stageComplete: true, requestStatus: "REJECTED", currentStageNumber: null });
+        const hash = createHash("sha256").update(JSON.stringify(["REJECT", "No", 0])).digest("hex");
+        await repository.Complete(actor.account.id, `POST /api/v1/approval-tasks/${historical.slot}/decisions`, key, hash, result);
+        return result;
+    });
+    const historicalBefore = await evidence(historical.submitted.id);
+    const replay = await send(historical, oldBody, key);
+    expect(replay.status).toBe(201);
+    expect(await replay.json()).toEqual(oldResult);
+    expect((await send(historical, oldBody, randomUUID())).status).toBe(422);
+    expect((await send(historical, { ...oldBody, reason: "Changed reason" }, key)).status).toBe(409);
+    expect((await decisions.Timeline(historical.actor, historical.submitted.id, { pageNumber: 1, pageSize: 100 })).items.find((event) => event.metadata.decision === "REJECT")?.note).toBe("No");
+    expect(await evidence(historical.submitted.id)).toEqual(historicalBefore);
+    expect(await db.select().from(decisionIdempotencyRecords).where(eq(decisionIdempotencyRecords.scope, `POST /api/v1/approval-tasks/${historical.slot}/decisions`))).toHaveLength(1);
+});
+
+test.each([["eleven", "12345678901"], ["maximum", "x".repeat(4000)], ["padded maximum", ` ${"x".repeat(4000)} `], ["UTF-16 minimum", "😀😀😀😀😀"]])("Lab 7 persists valid boundary reason: %s", async (_label, reason) =>
+{
+    const item = await pending();
+    expect((await decisions.Decide(item.reviewer, item.slot, { decision: "REJECT", reason: reason.trim(), expectedVersion: 0 }, randomUUID())).requestStatus).toBe("REJECTED");
+    expect((await decisions.Timeline(item.actor, item.submitted.id, { pageNumber: 1, pageSize: 100 })).items.find((event) => event.metadata.decision === "REJECT")?.note).toBe(reason.trim());
 });
 test.skipIf(process.env.RUN_BUILT_HTTP_SMOKE !== "1")("API process restart preserves accepted replay and timeline", async () =>
 {
