@@ -35,10 +35,29 @@ The unchanged screenshot is embedded under **A1 / A-01b** in the specified
 The original remains private, as previously instructed; this repository contains
 the authorized public approval summary and its evidence locator.
 
-### Separate teammate-review gate
+## Teammate Review Evidence
+
+The teammate review acknowledgement is recorded in
+[Issue #78, comment 7075546240](https://github.com/oangsa/approval-system/issues/78#issuecomment-7075546240).
+
+| Field | Recorded evidence |
+| --- | --- |
+| Reviewer | Kittipich, GitHub `kittipichcha` |
+| Review acknowledgement | 22 November 2026 at 13:49 ICT (Asia/Bangkok, UTC+07:00) |
+| Exact comment | “OK, I have reviewed it. We can change this spec and work on it.” |
+| Companion contract PR approval | [PR #79 review 6010822681](https://github.com/oangsa/approval-system/pull/79#pullrequestreview-6010822681), APPROVED at 13:44:18 ICT on the same date |
+| PR-reviewed revision | `5d2e8d8784a65e9d3fb7b856b5568e8c8c46a4b5` |
+
+The issue acknowledgement and companion PR approval predate the original RED
+and product implementation. The issue comment does not itself name a SHA; the
+reviewed revision above comes from the companion PR review.
+
+### Separate substantive-review evidence finding
 
 Recording the TA evidence establishes the **TA-approved change**. It does not
 establish missing substantive pre-implementation teammate findings/resolution.
-That separate review-evidence finding remains **B-01 OPEN**, as documented in
+The issue acknowledgement is real pre-implementation review evidence. B-01
+concerns the missing detailed findings/resolution, not absence of teammate
+approval. That separate finding remains **B-01 OPEN**, as documented in
 [the review disposition](blocking-findings.md#b-01--open-substantive-pre-implementation-review-evidence).
 No release authorization is inferred from academic approval.

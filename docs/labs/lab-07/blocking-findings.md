@@ -9,8 +9,12 @@ PR #80 review 6012368544 by kittipichcha, **CHANGES REQUESTED**, submitted
 The contract at `contract-draft.md`, Required review and chronological next steps,
 requires substantive findings, resolution and timing before implementation.
 PR #79 review 6010822681 establishes approval of `5d2e8d8` at 13:44:18 ICT;
-the issue attestation is at 13:49 ICT. Its review body, inline comments and PR
-discussion are empty. Rechecked after the reviewer raised this finding.
+the [Issue #78 acknowledgement](https://github.com/oangsa/approval-system/issues/78#issuecomment-7075546240)
+is at 13:49 ICT: “OK, I have reviewed it. We can change this spec and work on it.”
+This is recorded pre-implementation teammate review evidence. The companion
+PR's review body, inline comments and discussion are empty. B-01 concerns missing
+detailed findings/resolution, not absence of approval. Rechecked after the
+reviewer raised this finding; see [Teammate Review Evidence](approval-record.md#teammate-review-evidence).
 
 Earlier report/verification wording treated the missing content as merely an
 evidence-detail limitation. That conclusion was too strong: the full required
