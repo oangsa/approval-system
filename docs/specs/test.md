@@ -640,3 +640,9 @@ The [bounded specification](../features/request-search-polish/spec.md) defines A
 ### UI refinement regression scope
 
 [POL-01–07](../features/ui-refinement/spec.md) add selected-type label restoration, field-associated filter validation and focus, grouped responsive criteria, tablet rail/account behavior, and shared landing/shell presentation regressions. Preserve existing query/privacy, My Reviews collection and public SSR/no-JavaScript checks. Actual results belong in the feature verification record.
+
+## Lab 7 approved maintenance amendment — Issue #78
+
+Retain FT-010 and existing DEC-AC identifiers. Add AC-L7-01–07 and STS-L7-01–13 as specified in docs/labs/lab-07/contract-draft.md and sts-draft.md: 9/10, missing/blank, 11/4000/4001, trim/UTF-16, unchanged APPROVE/RETURN, permissions/state/rollback/races, readable short history and accepted short-body replay, real browser feedback and persisted rejection. Record actual RED/GREEN and distinct full-suite outcomes; filtered skips are not regression passes.
+
+Approval evidence: [record](../labs/lab-07/approval-record.md). Original sections remain historical baseline wording where superseded above; no unrelated behavior is changed.

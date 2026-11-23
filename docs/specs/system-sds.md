@@ -563,3 +563,9 @@ The feature-level implementation design, criteria, tests, and DoD for M01–M03 
 ### Implemented request collection boundary — 2026-11-13
 
 [Bounded request search polish](../features/request-search-polish/spec.md) keeps URL/UI state and filter mapping in the requests feature, shared presentation in collections, orchestration in services, transport/header validation in API clients, and resource-scoped SQL in Infrastructure. No global query framework, new endpoint or schema migration is introduced. Sidebar creation navigation is removed; My Requests retains the creation action. This records a partial #12/#17 implementation, not final product completion.
+
+## Lab 7 approved maintenance amendment — Issue #78
+
+Decision processing retains CurrentActor and accepted idempotency replay before stricter NEW-rejection semantic validation; the domain also enforces the 10–4000 trimmed UTF-16-unit invariant. Preserve Lock/Save/Complete ordering, request/cycle/slot guards and atomic decision/status/audit/outbox/key effects. No schema/backfill is required: the existing text column/nonblank constraint accepts the stricter subset and preserves historical rows. Do not introduce a PostgreSQL length() minimum that counts differently. Historical read and accepted replay remain compatible.
+
+Approval evidence: [record](../labs/lab-07/approval-record.md). Original sections remain historical baseline wording where superseded above; no unrelated behavior is changed.

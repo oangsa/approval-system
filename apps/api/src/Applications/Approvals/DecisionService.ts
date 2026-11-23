@@ -1,5 +1,7 @@
 import { createHash } from "node:crypto";
 import type { DecisionRequest, TimelineQuery } from "@workflow/contracts";
+import { decisionRequestSchema } from "@workflow/contracts";
+import { ApprovalTaskError } from "../../Domains/Approvals/ApprovalTaskRules";
 import type { IActor } from "../../Domains/Identity/Identity";
 import type { IDecisionUnitOfWork } from "../../Domains/Approvals/DecisionPorts";
 import { decideTransition } from "../../Domains/Approvals/DecisionRules";
@@ -16,6 +18,7 @@ export class DecisionService
             const hash = createHash("sha256").update(JSON.stringify([body.decision, body.reason ?? null, body.expectedVersion])).digest("hex");
             const replay = await repository.Replay(actor.account.id, scope, key, hash);
             if (replay) return replay;
+            if (!decisionRequestSchema.safeParse(body).success) throw new ApprovalTaskError("VALIDATION_ERROR");
             const state = await repository.Lock(actor, taskId);
             const transition = decideTransition(state, taskId, body);
             const result = await repository.Save(actor.account.id, taskId, body, state, transition);

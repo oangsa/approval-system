@@ -344,3 +344,9 @@ Save Draft routing too. Verification on 2026-11-20: all 390 Vitest tests,
 typecheck, lint, build, and all three request-wizard Chromium tests passed.
 The first browser run was interrupted after overlapping builds removed client
 assets; the sequential rerun passed.
+
+## Lab 7 approved maintenance amendment — Issue #78
+
+M10 → FR-010 → AC-010 / DEC-AC-03,07 → additive AC-L7-01–07 → STS-L7-01–13 → shared decisions schemas, DecisionRules/DecisionService/DecisionRoutes, DecisionDialog and existing persistence. Supporting M03/M09/M12/M13/M14/M17 guards and history remain unchanged. The original reviewed contract/STS revision is 332a2b3; PR #79 approved head 5d2e8d8. See docs/labs/lab-07 for approval and actual execution records.
+
+Approval evidence: [record](../labs/lab-07/approval-record.md). Original sections remain historical baseline wording where superseded above; no unrelated behavior is changed.
