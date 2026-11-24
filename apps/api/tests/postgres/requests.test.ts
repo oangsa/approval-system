@@ -868,3 +868,45 @@ test("review: malformed line-item quantity is a field-level HTTP 422 with no per
     expect(await db.select().from(requests).where(eq(requests.requesterId, item.ownerId))).toEqual([]);
     expect((await send(item.content)).status).toBe(201);
 });
+
+test("B01 direct amount migration retains omissions and requires explicit clearing for item authority", async () =>
+{
+    const item = await fixture(true);
+    const draft = await service.Mutate(item.actor, "create", null, { ...item.content, monetaryAmount: "5000.00" }, randomUUID());
+    const definition = await service.Type(item.actor, item.typeId);
+    const nextId = randomUUID();
+    await db.insert(requestTypeVersions).values({ id: nextId, typeId: item.typeId, versionNumber: 2, definition: { ...definition, versionId: nextId, versionNumber: 2, supportsLineItems: true } });
+    await db.update(requestTypes).set({ publishedVersionId: nextId }).where(eq(requestTypes.id, item.typeId));
+    const before = await counts(draft.id);
+    await expect(service.Mutate(item.actor, "patch", draft.id, { expectedVersion: 0, formDefinitionVersionId: nextId })).rejects.toMatchObject({ code: "VALIDATION_ERROR", details: expect.arrayContaining([expect.objectContaining({ field: "monetaryAmount" })]) });
+    expect(await service.Read(item.actor, draft.id)).toEqual(draft);
+    expect(await counts(draft.id)).toEqual(before);
+    const ordinary = await service.Mutate(item.actor, "patch", draft.id, { expectedVersion: 0, title: "Preserve amount" });
+    expect(ordinary.workingRevision).toMatchObject({ formDefinitionVersionId: item.versionId, amount: "5000.00" });
+    const migrated = await service.Mutate(item.actor, "patch", draft.id, { expectedVersion: 1, formDefinitionVersionId: nextId, monetaryAmount: null, lineItems: [{ description: "Replacement", quantity: "2", unitAmount: "2500.00" }] });
+    expect(migrated.workingRevision).toMatchObject({ formDefinitionVersionId: nextId, amount: "5000.00", lineItems: [expect.objectContaining({ description: "Replacement" })] });
+    const another = await item.draft();
+    const cleared = await service.Mutate(item.actor, "patch", another.id, { expectedVersion: 0, formDefinitionVersionId: nextId, monetaryAmount: null });
+    expect(cleared.workingRevision).toMatchObject({ amount: "0.00", lineItems: [] });
+});
+
+test("B01 item migration never reinterprets computed total as direct amount", async () =>
+{
+    const item = await fixture(true, true);
+    const draft = await item.draft();
+    const definition = await service.Type(item.actor, item.typeId);
+    const nextId = randomUUID();
+    await db.insert(requestTypeVersions).values({ id: nextId, typeId: item.typeId, versionNumber: 2, definition: { ...definition, versionId: nextId, versionNumber: 2, supportsLineItems: false } });
+    await db.update(requestTypes).set({ publishedVersionId: nextId }).where(eq(requestTypes.id, item.typeId));
+    const before = await counts(draft.id);
+    await expect(service.Mutate(item.actor, "patch", draft.id, { expectedVersion: 0, formDefinitionVersionId: nextId })).rejects.toMatchObject({ code: "VALIDATION_ERROR" });
+    expect(await service.Read(item.actor, draft.id)).toEqual(draft);
+    expect(await counts(draft.id)).toEqual(before);
+    const cleared = await service.Mutate(item.actor, "patch", draft.id, { expectedVersion: 0, formDefinitionVersionId: nextId, lineItems: [] });
+    expect(cleared.workingRevision).toMatchObject({ formDefinitionVersionId: nextId, amount: null, lineItems: [] });
+    const replaced = await service.Mutate(item.actor, "patch", draft.id, { expectedVersion: 1, monetaryAmount: "5000.00" });
+    expect(replaced.workingRevision).toMatchObject({ amount: "5000.00", lineItems: [] });
+    const another = await item.draft();
+    const migrated = await service.Mutate(item.actor, "patch", another.id, { expectedVersion: 0, formDefinitionVersionId: nextId, lineItems: [], monetaryAmount: "5000.00" });
+    expect(migrated.workingRevision).toMatchObject({ amount: "5000.00", lineItems: [] });
+});

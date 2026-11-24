@@ -63,7 +63,9 @@ export class RequestService
                 if (!("expectedVersion" in body) || detail.version !== body.expectedVersion) throw new RequestError("REQUEST_STALE");
                 const selectedVersionId = operation === "patch" ? (body as PatchDraft).formDefinitionVersionId ?? detail.workingRevision.formDefinitionVersionId : detail.workingRevision.formDefinitionVersionId;
                 const config = await repository.Configuration(detail.typeId, selectedVersionId, actor.account.id);
-                let content = editableContent(detail, config.definition);
+                const originalDefinition = selectedVersionId === detail.workingRevision.formDefinitionVersionId ? config.definition : await repository.TypeVersion(detail.typeId, detail.workingRevision.formDefinitionVersionId);
+                if (!originalDefinition) throw new RequestError("NOT_FOUND");
+                let content = editableContent(detail, originalDefinition);
                 if (operation === "patch")
                 {
                     const { expectedVersion: ignored, ...changes } = body as PatchDraft;
