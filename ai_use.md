@@ -729,3 +729,38 @@ reflection/output: Traced the duplicate picker buttons to the published-version 
 @oangsa
 prompt: commit and push
 reflection/output: Reviewed the fixture correction, regression assertion, verification evidence and assistance records. Fetched the existing feature branch and confirmed local HEAD matches its remote head. Prepared one scoped test(requests) commit for this cohesive fixture correction and its evidence, followed by the authorized normal push to feature/6-draft-withdraw-lifecycle. Prior verification remains 439 workspace tests, 109 PostgreSQL tests and 40 browser tests, plus typecheck/lint/build; no code changed during packaging and runtime suites were not repeated. The six whitespace flags in ai_use.md preserve the previous exact prompt. No force push, merge, release or external comment.
+
+## Issue #6 assistance
+
+@oangsa
+prompt: So, we can do like this, right
+
+oangsa #6 -> #8 -> #9 (ทำได้ยาว ๆ เลย)
+kittipicha #7 (Wait for #6) -> #11 -> #10 (Have to wait for #9)
+reflection/output: Checked the live dependency lists and scope for issues #6–#11. Confirmed the proposed order is valid, with #7 depending on #6 and #10 on #9 for integration. Recommended starting #11 while #6 is pending because #11 depends only on #3 and #5, then integrating #7 after #6 and #10 after #9. Clarified that the issues explicitly permit parallel implementation against frozen contracts before dependencies merge. No GitHub issue, product code, commit or push changes.
+
+## Issue #6 assistance
+
+@oangsa
+prompt: fix 
+
+PR #87 — Blocking findings
+| ID | Finding | Requirement | What to change |
+|---|---|---|---|
+| B05 | Saving an unchanged draft can send a PATCH when the same fields arrive in a different key order. This increments the version and adds an audit entry. | DW-AC-02/04: PATCH sends only changed fields. Unchanged Save verifies server state without writing. | In requestService.ts, compare field maps independent of key order. Test that reordered keys trigger a GET with no PATCH or new audit entry. |
+| B06 | The API returns lineItems.0.quantity, while the frozen contract requires lineItems[0].quantity. | API spec §7 and DW-AC-04: Use canonical error paths and focus the invalid field. | In RequestRoutes.ts, emit bracket-form paths. In RequestWizard.tsx, map them to the existing input IDs. Test that the API returns the exact path and the wizard focuses the affected input. |
+| B07 | Closing the withdrawal dialog can lose keyboard focus when the Withdraw button disappears. | UI spec and DW-AC-08: Accessible confirmation with focus restored when the dialog closes. | In RequestOwnerActions.tsx and its parent views, return focus to the trigger when it survives. Otherwise, focus the updated detail status or the list search input. Verify both paths in Playwright. |
+| B08 | Issue #6 is missing its required verification record. | Issue #6 and DW-AC-09: Record actual verification results on the issue. | After final CI, post the tested SHA, PR and CI links, results, and any failures or skips directly on Issue #6. |
+reflection/output: Repaired PR #87 blocking findings B05–B07 and prepared B08 without committing, pushing, or posting to GitHub yet. Updated apps/web/app/services/requestService.ts to compare and serialize request content and idempotency bodies using recursive key-sorted canonical JSON so reordered dynamic field keys still trigger GET revalidation with zero PATCH writes or audit events. Updated apps/api/src/Presentations/Routes/RequestRoutes.ts and apps/api/src/Domains/Requests/RequestRules.ts to emit canonical bracket-form validation paths (such as lineItems[0].quantity and lineItems[0].description) and evaluate per-item total bounds before aggregate lineItems bounds, and updated apps/web/app/modules/requests/RequestWizard.tsx to map bracket paths to input IDs for step routing, aria-invalid, and focus. Updated apps/web/app/modules/requests/RequestOwnerActions.tsx, RequestResult.tsx, RequestDetailPage.tsx, RequestDetailTabs.tsx, and RequestListPage.tsx so closing the withdrawal dialog restores focus to the Withdraw trigger when it survives and moves focus to the RequestStatus badge on detail or the list search input on My Requests when Withdraw disappears. Added unit, component, PostgreSQL HTTP, and Playwright browser regressions; updated SDS, AC, STS, DoD, verification.md, and issue-comment.md. Verified npm run check (typecheck, lint, 448 tests across 46 files, builds), 109 PostgreSQL integration tests, and 43 Playwright browser tests all passed with zero skips.
+
+## Issue #6 assistance
+
+@oangsa
+prompt: do it
+reflection/output: Packaged the verified B05–B07 repairs, regressions, feature docs, and assistance records into scoped atomic commits on feature/6-draft-withdraw-lifecycle, pushed normally to PR #87, awaited the final GitHub Actions Verification CI run, and posted the final verification record (tested SHA, PR/CI links, actual results, and failures/skips disclosure) directly on Issue #6 for B08. No force push, merge, or release performed.
+
+## Issue #6 assistance
+
+@oangsa
+prompt: do it
+reflection/output: Packaged the verified B05–B07 repairs, regressions, feature docs, and assistance records into scoped atomic commits on feature/6-draft-withdraw-lifecycle, pushed normally to PR #87, awaited the final GitHub Actions Verification CI run, and prepared/posted the final verification record (tested SHA, PR/CI links, actual results, and failures/skips disclosure) directly on Issue #6 for B08. No force push, merge, or release performed.
