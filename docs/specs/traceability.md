@@ -350,3 +350,7 @@ assets; the sequential rerun passed.
 M10 → FR-010 → AC-010 / DEC-AC-03,07 → additive AC-L7-01–07 → STS-L7-01–13 → shared decisions schemas, DecisionRules/DecisionService/DecisionRoutes, DecisionDialog and existing persistence. Supporting M03/M09/M12/M13/M14/M17 guards and history remain unchanged. The original reviewed contract/STS revision is 332a2b3; PR #79 approved head 5d2e8d8. See docs/labs/lab-07 for approval and actual execution records.
 
 Approval evidence: [record](../labs/lab-07/approval-record.md). Original sections remain historical baseline wording where superseded above; no unrelated behavior is changed.
+
+## Issue #6 — draft and withdrawal implementation slice
+
+R01/R05, FR-019/023, AC-019/023 and BR-026/028/029/033/034/044 map to [versioned design](../features/draft-withdraw-lifecycle/sds.md), [DW-AC-01–09](../features/draft-withdraw-lifecycle/acceptance-criteria.md), [test specification](../features/draft-withdraw-lifecycle/sts.md) and [verification](../features/draft-withdraw-lifecycle/verification.md). Supporting draft creation/decision infrastructure remains owned by earlier feature slices; no second request engine or expansion into returned/resubmit ownership. Actual execution and independent review status belong in verification, not the frozen acceptance baseline.
