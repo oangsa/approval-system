@@ -228,12 +228,32 @@ test("review: Escape after withdrawal conflict reload refreshes terminal owner d
 
 test("B02 type change creates a new edit resource, preserves original, and resumes new draft after reload", async ({ page }) =>
 {
+    const { createTestDatabase } = await import("../apps/api/tests/helpers/testDatabase");
+    const { requestTypes, requestTypeVersions } = await import("../apps/api/src/Infrastructures/Database/schema");
+    const { seededDefinition } = await import("../apps/api/src/Infrastructures/Database/seedRequests");
+    const { eq } = await import("drizzle-orm");
+    const database = createTestDatabase();
+    const otherTypeId = crypto.randomUUID(), otherVersionId = crypto.randomUUID();
+    try
+    {
+        await database.connection.transaction(async (tx) =>
+        {
+            const definition = { ...seededDefinition, id: otherTypeId, versionId: otherVersionId, code: `B02-${otherTypeId}`, name: { en: "B02 alternate type" } };
+            await tx.insert(requestTypes).values({ id: otherTypeId, code: definition.code });
+            await tx.insert(requestTypeVersions).values({ id: otherVersionId, typeId: otherTypeId, versionNumber: 1, definition });
+            await tx.update(requestTypes).set({ publishedVersionId: otherVersionId }).where(eq(requestTypes.id, otherTypeId));
+        });
+    }
+    finally
+    {
+        await database.Close();
+    }
     const token = await login(page);
     const headers = { authorization: `Bearer ${token}` };
     const typeResponse = await page.request.post(`${apiUrl.origin}/api/v1/request-types/search`, { headers, data: {} });
     const types = await typeResponse.json() as { id: string; versionId: string; code: string }[];
     const original = types.find((item) => item.code === "GENERAL")!;
-    const other = types.find((item) => item.id !== original.id)!;
+    const other = types.find((item) => item.id === otherTypeId)!;
     expect(other).toBeDefined();
     const response = await page.request.post(`${apiUrl.origin}/api/v1/requests`, { headers: { ...headers, "Idempotency-Key": crypto.randomUUID() }, data: { typeId: original.id, formDefinitionVersionId: original.versionId, title: "Original draft retained" } });
     const draftA = requestDetailSchema.parse(await response.json());
