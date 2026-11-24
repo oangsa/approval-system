@@ -107,3 +107,9 @@ export function businessDueAt(start: Date, minutes: number): Date
     }
     return new Date(date.getTime() - 7 * 3600000);
 }
+
+export function assertWithdrawal(detail: RequestDetail, expectedVersion: number): void
+{
+    if (detail.status !== "PENDING" || !detail.currentCycleId || !detail.submittedRevision) throw new RequestError("INVALID_REQUEST_TRANSITION");
+    if (detail.version !== expectedVersion) throw new RequestError("REQUEST_STALE");
+}

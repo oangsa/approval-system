@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import type { CreateRequest, PatchDraft, RequestDetail, RequestTypeSearch, RequestSearchQuery } from "@workflow/contracts";
 import type { IActor } from "../../Domains/Identity/Identity";
 import type { IRequestRepository, IRequestUnitOfWork, RequestMutation } from "../../Domains/Requests/Ports";
-import { assertContent, editableContent, RequestError, resolvePlan } from "../../Domains/Requests/RequestRules";
+import { assertContent, assertWithdrawal, editableContent, RequestError, resolvePlan } from "../../Domains/Requests/RequestRules";
 
 function canonical(value: unknown): string
 {
@@ -26,13 +26,14 @@ export class RequestService
     {
         if (!actor.roles.includes("REQUESTER")) throw new RequestError("FORBIDDEN");
     }
-    public async Mutate(actor: IActor, operation: "create" | "patch" | "submit", id: string | null, body: RequestMutation, key?: string): Promise<RequestDetail>
+    public async Mutate(actor: IActor, operation: "create" | "patch" | "submit" | "withdraw", id: string | null, body: RequestMutation, key?: string): Promise<RequestDetail>
     {
+        id = id?.toLowerCase() ?? null;
         return this.unit.Run(async (repository) =>
         {
             actor = await repository.CurrentActor(actor);
             this.RequireRequester(actor);
-            const scope = operation === "create" ? "POST /api/v1/requests" : `${operation === "patch" ? "PATCH" : "POST"} /api/v1/requests/${id}/${operation === "patch" ? "draft" : "submit"}`;
+            const scope = operation === "create" ? "POST /api/v1/requests" : `${operation === "patch" ? "PATCH" : "POST"} /api/v1/requests/${id}/${operation === "patch" ? "draft" : operation}`;
             const bodyHash = createHash("sha256").update(canonical(body)).digest("hex");
             if (key)
             {
@@ -46,6 +47,14 @@ export class RequestService
                 const config = await repository.Configuration(content.typeId, content.formDefinitionVersionId, actor.account.id);
                 if (!config.isEnabled) throw new RequestError("CONFIGURATION_INCOMPLETE");
                 resultId = await repository.Create(actor, content, assertContent(config.definition, content, false));
+            }
+            else if (operation === "withdraw")
+            {
+                const detail = await this.Owner(repository, actor, id!, true);
+                const withdrawal = body as import("@workflow/contracts").WithdrawRequest;
+                assertWithdrawal(detail, withdrawal.expectedVersion);
+                await repository.Withdraw(detail, actor.account.id, withdrawal.reason);
+                resultId = id!;
             }
             else
             {
@@ -63,7 +72,7 @@ export class RequestService
                 }
                 if (operation === "submit" && content.formDefinitionVersionId !== config.activeVersionId) throw new RequestError("FORM_DEFINITION_CHANGED");
                 const amount = assertContent(config.definition, content, operation === "submit");
-                if (operation === "patch") await repository.Patch(id!, actor.account.id, content, amount);
+                if (operation === "patch") await repository.Patch(id!, actor.account.id, content, amount, "lineItems" in body);
                 else await repository.Submit(id!, actor.account.id, resolvePlan(config, actor.account.id, amount));
                 resultId = id!;
             }

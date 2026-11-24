@@ -20,7 +20,7 @@ test("search authenticates and passes trusted owner to repository", async () =>
             owners.push(ownerId);
             return { items: [], pagination: { currentPage: query.pageNumber, pageSize: query.pageSize, totalPages: 0, totalCount: 0, hasPrevious: false, hasNext: false } };
         },
-        Replay: unavailable, Complete: unavailable, Read: unavailable, Configuration: unavailable, Create: unavailable, Patch: unavailable, Submit: unavailable, Types: unavailable, TypeVersion: unavailable, Type: unavailable,
+        Replay: unavailable, Complete: unavailable, Read: unavailable, Configuration: unavailable, Create: unavailable, Patch: unavailable, Submit: unavailable, Withdraw: unavailable, Types: unavailable, TypeVersion: unavailable, Type: unavailable,
     };
     const app = createApplication(undefined, fixture.dependencies, new RequestService({ Run: (operation) => operation(repository) }));
     const login = await app.handle(new Request("http://localhost/api/v1/auth/login", { method: "POST", headers: { "content-type": "application/json", origin: "http://localhost:3000" }, body: JSON.stringify({ email: fixture.account.email, password: "password" }) }));

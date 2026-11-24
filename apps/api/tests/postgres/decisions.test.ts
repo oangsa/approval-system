@@ -1,17 +1,17 @@
 import { createHash, randomUUID } from "node:crypto";
 import { afterAll, expect, test, vi } from "vitest";
 import { and, eq, inArray, sql } from "drizzle-orm";
-import type { PublishedRequestType, CreateRequest, DecisionRequest } from "@workflow/contracts";
+import { requestDetailSchema, type PublishedRequestType, type CreateRequest, type DecisionRequest, type RequestDetail } from "@workflow/contracts";
 import { createTestDatabase } from "../helpers/testDatabase";
 import { RequestService } from "../../src/Applications/Requests/RequestService";
 import { DecisionService } from "../../src/Applications/Approvals/DecisionService";
-import { RequestUnitOfWork } from "../../src/Infrastructures/Database/Repositories/RequestRepository";
+import { RequestRepository, RequestUnitOfWork } from "../../src/Infrastructures/Database/Repositories/RequestRepository";
 import { DecisionRepository, DecisionUnitOfWork } from "../../src/Infrastructures/Database/Repositories/DecisionRepository";
 import { IdentityRepository } from "../../src/Infrastructures/Database/Repositories/IdentityRepository";
 import { seededDefinition } from "../../src/Infrastructures/Database/seedRequests";
 import type { IActor } from "../../src/Domains/Identity/Identity";
 import type { IStageDefinition } from "../../src/Domains/Requests/RequestRules";
-import { approvalCycles, approvalDecisions, approvalPolicyVersions, approvalSlots, approvalStages, departmentMemberships, departments, decisionIdempotencyRecords, requestAuditEvents, requestOutboxEvents, requests, requestTypes, requestTypeVersions, reviewerAssignmentRules, sessionFamilies, userRoles, users } from "../../src/Infrastructures/Database/schema";
+import { approvalCycles, approvalDecisions, approvalPolicyVersions, approvalSlots, approvalStages, departmentMemberships, departments, decisionIdempotencyRecords, requestAuditEvents, requestOutboxEvents, requestRevisions, requests, requestTypes, requestTypeVersions, reviewerAssignmentRules, sessionFamilies, userRoles, users } from "../../src/Infrastructures/Database/schema";
 const database = createTestDatabase(), observer = createTestDatabase();
 const db = database.connection;
 const service = new RequestService(new RequestUnitOfWork(db));
@@ -421,7 +421,7 @@ test.each([["No", 409, "INVALID_REQUEST_TRANSITION"], [undefined, 422, "VALIDATI
     expect(await response.json()).toMatchObject({ code });
     expect(await evidence(item.submitted.id)).toEqual(before);
 });
-test.skipIf(process.env.RUN_BUILT_HTTP_SMOKE !== "1")("API process restart preserves accepted replay and timeline", async () =>
+test.skipIf(process.env.RUN_BUILT_HTTP_SMOKE !== "1")("API process restart preserves incomplete draft, accepted replay and timeline", async () =>
 {
     const { spawn } = await import("node:child_process");
     const { createServer } = await import("node:net");
@@ -436,6 +436,7 @@ test.skipIf(process.env.RUN_BUILT_HTTP_SMOKE !== "1")("API process restart prese
     const reviewer = await provider.Sign(item.reviewerId, item.reviewer.family.id, 0), owner = await provider.Sign(item.ownerId, item.actor.family.id, 0);
     const key = randomUUID();
     let original: unknown, timeline: unknown;
+    let savedDraft: RequestDetail | null = null;
     for (let iteration = 0; iteration < 2; iteration++)
     {
         const listener = createServer();
@@ -469,6 +470,16 @@ test.skipIf(process.env.RUN_BUILT_HTTP_SMOKE !== "1")("API process restart prese
                 await new Promise((done) => setTimeout(done, 50));
             }
             expect(ready).toBe(true);
+            if (iteration === 0)
+            {
+                const created = await fetch(`${base}/api/v1/requests`, { method: "POST", headers: { authorization: `Bearer ${owner}`, "Idempotency-Key": randomUUID(), "content-type": "application/json" }, body: JSON.stringify({ typeId: item.typeId, formDefinitionVersionId: item.versionId, title: "Survives API restart" }), signal: AbortSignal.timeout(3000) });
+                expect(created.status).toBe(201);
+                savedDraft = requestDetailSchema.parse(await created.json());
+            }
+            const restored = await fetch(`${base}/api/v1/requests/${savedDraft!.id}`, { headers: { authorization: `Bearer ${owner}` }, signal: AbortSignal.timeout(3000) });
+            expect(restored.status).toBe(200);
+            expect(requestDetailSchema.parse(await restored.json())).toEqual(savedDraft);
+            expect(savedDraft).toMatchObject({ status: "DRAFT", requestNumber: null, submittedRevision: null, currentCycleId: null, currentApprovers: [] });
             const response = await fetch(`${base}/api/v1/approval-tasks/${item.slot}/decisions`, { method: "POST", headers: { authorization: `Bearer ${reviewer}`, "Idempotency-Key": key, "content-type": "application/json" }, body: JSON.stringify(approve), signal: AbortSignal.timeout(3000) });
             expect(response.status).toBe(201);
             const value: unknown = await response.json();
@@ -522,4 +533,132 @@ test("handled task remains readable without granting current detail, queue or fo
     await expect(tasks.Search(item.reviewer, approvalTaskSearchSchema.parse({}))).rejects.toMatchObject({ code: "FORBIDDEN" });
     await db.insert(userRoles).values({ userId: item.other.account.id, roleCode: "ADMINISTRATOR" });
     await expect(tasks.Read(item.other, item.slot)).rejects.toMatchObject({ code: "NOT_FOUND" });
+});
+
+test("DW-AC-05 withdrawal preserves partial votes/snapshot, closes future tasks, and replays durably", async () =>
+{
+    const item = await pending(true, true);
+    await decisions.Decide(item.reviewer, item.slot, approve, randomUUID());
+    const before = await evidence(item.submitted.id);
+    const revision = await db.select().from(requestRevisions).where(eq(requestRevisions.id, item.submitted.submittedRevision!.id));
+    const current = await service.Read(item.actor, item.submitted.id);
+    const body = { expectedVersion: current.version, reason: "Plans changed" };
+    const key = randomUUID();
+    const withdrawn = await service.Mutate(item.actor, "withdraw", current.id, body, key);
+    expect(withdrawn).toMatchObject({ status: "WITHDRAWN", version: current.version + 1, currentStageNumber: null, availableActions: [], submittedRevision: current.submittedRevision });
+    expect(withdrawn.currentApprovers.map((slot) => slot.status).sort()).toEqual(["APPROVED", "CANCELLED", "CANCELLED"]);
+    const saved = await evidence(current.id);
+    expect(saved.votes).toEqual(before.votes);
+    expect(saved.cycles[0]).toEqual({ ...before.cycles[0], isActive: false });
+    expect(saved.stages.every((stage) => stage.status === "CANCELLED")).toBe(true);
+    expect(saved.slots.filter((slot) => slot.status === "CANCELLED").every((slot) => slot.version === 1)).toBe(true);
+    expect(saved.audit.filter((event) => event.eventType === "REQUEST_WITHDRAWN")).toEqual([expect.objectContaining({ actorId: item.ownerId, note: "Plans changed", occurredAt: expect.any(Date), cycleId: current.currentCycleId, revisionId: current.submittedRevision!.id })]);
+    expect(await new RequestService(new RequestUnitOfWork(observer.connection)).Mutate(item.actor, "withdraw", current.id, body, key)).toEqual(withdrawn);
+    await expect(service.Mutate(item.actor, "withdraw", current.id, { ...body, reason: "changed" }, key)).rejects.toMatchObject({ code: "IDEMPOTENCY_CONFLICT" });
+    await expect(decisions.Decide(item.other, item.peerSlot!, approve, randomUUID())).rejects.toMatchObject({ code: "APPROVAL_TASK_STALE" });
+    expect(await evidence(current.id)).toEqual(saved);
+    const timeline = await decisions.Timeline(item.actor, current.id, { pageNumber: 1, pageSize: 100 });
+    expect(timeline.items.find((event) => event.eventType === "REQUEST_WITHDRAWN")?.note).toBe("Plans changed");
+    expect(await db.select().from(requestRevisions).where(eq(requestRevisions.id, current.submittedRevision!.id))).toEqual(revision);
+});
+
+test("DW-AC-06 rejects foreign, roleless, stale, draft and terminal withdrawal without mutation", async () =>
+{
+    const item = await pending();
+    const before = await evidence(item.submitted.id);
+    await expect(service.Mutate(item.other, "withdraw", item.submitted.id, { expectedVersion: 1 }, randomUUID())).rejects.toMatchObject({ code: "FORBIDDEN" });
+    const foreign = await fixture();
+    await expect(service.Mutate(foreign.actor, "withdraw", item.submitted.id, { expectedVersion: 1 }, randomUUID())).rejects.toMatchObject({ code: "NOT_FOUND" });
+    await expect(service.Mutate(item.actor, "withdraw", item.submitted.id, { expectedVersion: 0 }, randomUUID())).rejects.toMatchObject({ code: "REQUEST_STALE" });
+    expect(await evidence(item.submitted.id)).toEqual(before);
+    const draft = await item.draft();
+    await expect(service.Mutate(item.actor, "withdraw", draft.id, { expectedVersion: 0 }, randomUUID())).rejects.toMatchObject({ code: "INVALID_REQUEST_TRANSITION" });
+    for (const decision of ["APPROVE", "REJECT"] as const)
+    {
+        const terminal = await pending();
+        await decisions.Decide(terminal.reviewer, terminal.slot, { ...approve, decision, ...(decision === "REJECT" ? { reason: "Terminal rejection" } : {}) }, randomUUID());
+        const saved = await evidence(terminal.submitted.id);
+        await expect(service.Mutate(terminal.actor, "withdraw", terminal.submitted.id, { expectedVersion: 2 }, randomUUID())).rejects.toMatchObject({ code: "INVALID_REQUEST_TRANSITION" });
+        expect(await evidence(terminal.submitted.id)).toEqual(saved);
+    }
+});
+
+test("DB-08 withdrawal rollback includes task changes, audit, outbox and idempotency completion", async () =>
+{
+    const item = await pending(true, true), before = await evidence(item.submitted.id), key = randomUUID();
+    const complete = vi.spyOn(RequestRepository.prototype, "Complete").mockImplementationOnce(async () =>
+    {
+        throw new Error("injected withdrawal completion failure");
+    });
+    try
+    {
+        await expect(service.Mutate(item.actor, "withdraw", item.submitted.id, { expectedVersion: 1 }, key)).rejects.toThrow("injected withdrawal completion failure");
+    }
+    finally
+    {
+        complete.mockRestore();
+    }
+    expect(await evidence(item.submitted.id)).toEqual(before);
+    expect((await service.Mutate(item.actor, "withdraw", item.submitted.id, { expectedVersion: 1 }, key)).status).toBe("WITHDRAWN");
+});
+
+test.each(["APPROVE", "REJECT"] as const)("CX-04 simultaneous withdrawal versus %s shares request lock and has one valid outcome", async (decision) =>
+{
+    const item = await pending();
+    let arrivals = 0;
+    let release!: () => void;
+    const ready = new Promise<void>((resolve) => release = resolve);
+    async function rendezvous()
+    {
+        if (++arrivals === 2) release();
+        await ready;
+    }
+    const read = RequestRepository.prototype.Read;
+    const lock = DecisionRepository.prototype.Lock;
+    const requestSpy = vi.spyOn(RequestRepository.prototype, "Read").mockImplementation(async function (this: RequestRepository, id, locked)
+    {
+        if (id === item.submitted.id && locked) await rendezvous();
+        return read.call(this, id, locked);
+    });
+    const decisionSpy = vi.spyOn(DecisionRepository.prototype, "Lock").mockImplementation(async function (this: DecisionRepository, actor, taskId)
+    {
+        if (taskId === item.slot) await rendezvous();
+        return lock.call(this, actor, taskId);
+    });
+    let outcomes: PromiseSettledResult<unknown>[];
+    try
+    {
+        outcomes = await Promise.allSettled([
+            service.Mutate(item.actor, "withdraw", item.submitted.id, { expectedVersion: 1 }, randomUUID()),
+            independent.Decide(item.reviewer, item.slot, { ...approve, decision, ...(decision === "REJECT" ? { reason: "Concurrent rejection" } : {}) }, randomUUID()),
+        ]);
+    }
+    finally
+    {
+        requestSpy.mockRestore();
+        decisionSpy.mockRestore();
+    }
+    expect(arrivals).toBe(2);
+    expect(outcomes.filter((outcome) => outcome.status === "fulfilled")).toHaveLength(1);
+    const saved = await evidence(item.submitted.id);
+    const withdrawn = saved.request!.status === "WITHDRAWN";
+    expect(saved.request!.status).toBe(withdrawn ? "WITHDRAWN" : decision === "APPROVE" ? "APPROVED" : "REJECTED");
+    expect(saved.cycles[0]!.isActive).toBe(false);
+    expect(saved.votes).toHaveLength(withdrawn ? 0 : 1);
+    expect(saved.slots.every((slot) => !["ACTIONABLE", "WAITING"].includes(slot.status))).toBe(true);
+    expect(saved.audit.filter((event) => event.eventType === "REQUEST_WITHDRAWN")).toHaveLength(withdrawn ? 1 : 0);
+});
+
+test("CX-14 same-key simultaneous withdrawal returns one durable outcome and one history event", async () =>
+{
+    const item = await pending(), key = randomUUID(), body = { expectedVersion: 1, reason: "One logical withdrawal" };
+    const [first, second] = await Promise.all([
+        service.Mutate(item.actor, "withdraw", item.submitted.id, body, key),
+        new RequestService(new RequestUnitOfWork(observer.connection)).Mutate(item.actor, "withdraw", item.submitted.id, body, key),
+    ]);
+    expect(first).toEqual(second);
+    const saved = await evidence(item.submitted.id);
+    expect(saved.audit.filter((event) => event.eventType === "REQUEST_WITHDRAWN")).toHaveLength(1);
+    expect(saved.outbox.filter((event) => event.eventType === "REQUEST_WITHDRAWN")).toHaveLength(1);
+    expect(saved.votes).toEqual([]);
 });

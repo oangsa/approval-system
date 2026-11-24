@@ -62,7 +62,7 @@ export class RequestRepository implements IRequestRepository
             department: row.departmentSnapshot, revisionNumber: submittedRevision?.revisionNumber ?? null, currentCycleId: row.currentCycleId,
             createdAt: row.createdAt.toISOString(), updatedAt: row.updatedAt.toISOString(), submittedAt: row.submittedAt?.toISOString() ?? null, version: row.version,
             workingRevision, submittedRevision, currentStageNumber: slots.find((item) => item.stage.status === "ACTIVE")?.stage.stageNumber ?? null,
-            currentApprovers: slots.map(({ slot, stage, reviewer }) => ({ slotId: slot.id, stageNumber: stage.stageNumber, reviewer, status: slot.status })), availableActions: row.status === "DRAFT" ? ["EDIT_DRAFT", "SUBMIT"] : [],
+            currentApprovers: slots.map(({ slot, stage, reviewer }) => ({ slotId: slot.id, stageNumber: stage.stageNumber, reviewer, status: slot.status })), availableActions: row.status === "DRAFT" ? ["EDIT_DRAFT", "SUBMIT"] : row.status === "PENDING" ? ["WITHDRAW"] : [],
         });
     }
     public async Search(ownerId: string, query: RequestSearchQuery)
@@ -144,14 +144,35 @@ export class RequestRepository implements IRequestRepository
         await this.db.insert(requestAuditEvents).values({ id: randomUUID(), requestId: id, actorId: actor.account.id, eventType: "REQUEST_CREATED", revisionId });
         return id;
     }
-    public async Patch(id: string, actorId: string, content: CreateRequest, amount: string | null): Promise<void>
+    public async Patch(id: string, actorId: string, content: CreateRequest, amount: string | null, replaceLineItems: boolean): Promise<void>
     {
         const row = (await this.db.select().from(requests).where(eq(requests.id, id)))[0]!;
         await this.db.update(requestRevisions).set({ fields: content.fields ?? {}, formDefinitionVersionId: content.formDefinitionVersionId, amount, currency: amount === null ? null : "THB" }).where(eq(requestRevisions.id, row.workingRevisionId!));
-        await this.db.delete(requestItems).where(eq(requestItems.revisionId, row.workingRevisionId!));
-        await this.Items(row.workingRevisionId!, content);
+        if (replaceLineItems)
+        {
+            await this.db.delete(requestItems).where(eq(requestItems.revisionId, row.workingRevisionId!));
+            await this.Items(row.workingRevisionId!, content);
+        }
         await this.db.update(requests).set({ title: content.title ?? "", justification: content.justification ?? "", priority: content.priority ?? "MEDIUM", version: row.version + 1, updatedAt: new Date() }).where(eq(requests.id, id));
         await this.db.insert(requestAuditEvents).values({ id: randomUUID(), requestId: id, actorId, eventType: "DRAFT_UPDATED", revisionId: row.workingRevisionId });
+    }
+    public async Withdraw(detail: import("@workflow/contracts").RequestDetail, actorId: string, reason?: string): Promise<void>
+    {
+        const now = new Date();
+        const cycleId = detail.currentCycleId!;
+        await this.db.select().from(approvalCycles).where(eq(approvalCycles.id, cycleId)).for("update");
+        const stages = await this.db.select().from(approvalStages).where(eq(approvalStages.cycleId, cycleId)).orderBy(asc(approvalStages.stageNumber)).for("update");
+        const stageIds = stages.map((stage) => stage.id);
+        if (stageIds.length)
+        {
+            await this.db.select().from(approvalSlots).where(inArray(approvalSlots.stageId, stageIds)).orderBy(asc(approvalSlots.id)).for("update");
+            await this.db.update(approvalSlots).set({ status: "CANCELLED", version: sql`${approvalSlots.version} + 1` }).where(and(inArray(approvalSlots.stageId, stageIds), inArray(approvalSlots.status, ["ACTIONABLE", "WAITING"])));
+        }
+        await this.db.update(approvalStages).set({ status: "CANCELLED" }).where(and(eq(approvalStages.cycleId, cycleId), inArray(approvalStages.status, ["ACTIVE", "WAITING"])));
+        await this.db.update(approvalCycles).set({ isActive: false }).where(eq(approvalCycles.id, cycleId));
+        await this.db.update(requests).set({ status: "WITHDRAWN", version: detail.version + 1, updatedAt: now }).where(eq(requests.id, detail.id));
+        await this.db.insert(requestAuditEvents).values({ id: randomUUID(), requestId: detail.id, actorId, eventType: "REQUEST_WITHDRAWN", revisionId: detail.submittedRevision!.id, cycleId, occurredAt: now, note: reason ?? null });
+        await this.db.insert(requestOutboxEvents).values({ id: randomUUID(), eventKey: `REQUEST_WITHDRAWN:${cycleId}`, eventType: "REQUEST_WITHDRAWN", payload: { requestId: detail.id, cycleId } });
     }
     public async Submit(id: string, actorId: string, plan: IPlan): Promise<void>
     {

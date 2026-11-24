@@ -84,6 +84,7 @@ export const approvalSlots = pgTable("approval_slots", {
     assignmentKey: text("assignment_key").notNull(), status: text().$type<import("@workflow/contracts").RequestDetail["currentApprovers"][number]["status"]>().notNull(), version: integer().notNull().default(0), dueAt: timestamp("due_at", { withTimezone: true }),
 }, (t) => [unique().on(t.stageId, t.assignmentKey), index("approval_slot_reviewer_status_idx").on(t.reviewerId, t.status)]);
 export const requestAuditEvents = pgTable("audit_events", {
+    note: text(),
     decisionId: uuid("decision_id").unique().references((): AnyPgColumn => approvalDecisions.id),
     id: uuid().primaryKey(), requestId: uuid("request_id").notNull().references(() => requests.id), actorId: uuid("actor_id").notNull().references(() => users.id),
     eventType: text("event_type").notNull(), revisionId: uuid("revision_id").references(() => requestRevisions.id), cycleId: uuid("cycle_id").references(() => approvalCycles.id), occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull().defaultNow(),
