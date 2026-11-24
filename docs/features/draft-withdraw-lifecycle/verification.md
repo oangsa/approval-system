@@ -86,3 +86,51 @@ Verification on Node.js 24.18.1 with Chromium and a fresh task-owned PostgreSQL 
 Experiment ledger: initial browser launch was blocked by the sandbox and succeeded with approved execution outside it. The first repeated browser run passed six tests before an overlapping verification build replaced its served assets, causing two login timeouts; that run was interrupted (one interrupted, one not run). An attempted restart before the original runner stopped failed because its server port remained occupied. After stopping it, the clean isolated repeat run above passed all ten tests. These environment failures were separate from the reproduced dialog race. The task-owned database was removed after verification. No commit, push, merge or publication performed.
 
 `git diff --check -- e2e/draft-withdraw.spec.ts docs/features/draft-withdraw-lifecycle/verification.md` passed. The repository-wide whitespace check reports only six trailing-space lines retained verbatim from the supplied CI log in the required append-only `ai_use.md` prompt record.
+
+## PR #87 B01–B03 repairs — 2026-11-24
+
+Tested **uncommitted working tree** on `feature/6-draft-withdraw-lifecycle`, based on reviewed HEAD `fe7987b2a7e9b89d692d8eeea0e2060521d7104f`. That commit alone does not contain these repairs. No commit, push, merge, independent teammate approval or production release is claimed. Pre-existing `ai_use.md` changes were preserved and new assistance content appended. PR #87 still targets `sprint-2-staging`; @kittipichcha approval and reviewed promotion through dev/main remain external gates.
+
+### Repairs and regression evidence
+
+- **B01 / DW-AC-02:** original immutable definition reconstructs existing editable content; explicit PATCH changes are merged and then validated against the target. PostgreSQL verifies retained THB 5,000 cannot disappear on a direct-to-items version-only PATCH; rejection leaves DTO/version/audit unchanged. Explicit clearing and replacement succeed, title-only omission preserves money even after publication, and items-to-direct migration never reinterprets the computed total as an omitted direct amount. Existing historical-version save/active-version submit and omission/item-identity assertions also pass.
+- **B02 / DW-AC-03–04:** successful creation of B after changing A's type replaces the edit URL after dirty state clears. The edit route restores B's saved content and retains the wizard step in navigation state. Component/browser tests verify cancelled type change, confirmed creation, REPLACE navigation without another unsaved prompt, no duplicate creation on unchanged save, reload of B, and unchanged A.
+- **B03 / DW-AC-04:** unchanged Save uses authoritative GET and checks DRAFT, working revision, EDIT_DRAFT and exact session version. Prior success copy clears before every attempt; conflicts/permission failures reuse existing recovery. Session/component/browser tests cover unchanged success without writes/version changes, peer edits/submission, real Requester-role revocation, preserved recoverable inputs, unavailable editor on permission loss, and absent false success. Browser permission fixture uses a unique synthetic account and confirms no added audit event. Changed PATCH and create lost-response keys remain stable. Submit uses its own authoritative mutation when content is unchanged so an accepted lost submission response can still replay with the same key.
+
+### Final checks
+
+| Command | Actual result |
+| --- | --- |
+| `npm run typecheck` | PASS, all workspaces and root; final new browser tests included |
+| `npm run lint` | PASS |
+| `npm test` | PASS, 46 files / **434 tests**, no skips |
+| `npm run build` | PASS, all workspaces; final Playwright run also rebuilt current web/API |
+| `npm run db:test:migrate` / `npm run db:test:seed` | PASS on task-owned disposable database |
+| `NODE_ENV=test RUN_BUILT_HTTP_SMOKE=1 npm run test:integration` with disposable TEST_DATABASE_URL | PASS, 10 files / **109 tests**, no skips; final test revision, rollback/races and process restart included |
+| `NODE_ENV=test npm run test:e2e` with same guarded test target | PASS, **39 tests**, 46.3 seconds, no skips |
+| `npm run test:release` | PASS, **13 tests**, no skips |
+| `git diff --check` | PASS, no pre-existing or preserved whitespace exceptions |
+
+Node.js 24.18.1, npm 11.16.0, Vitest 4.1.10, Playwright 1.60.0/headless Chromium, PostgreSQL **17.10**. A task-created `postgres:17-alpine` container (`approval-pr87-postgres`) used tmpfs `workflow_test` and loopback port 55432; all migrations and synthetic seed applied before tests. Existing database-target guards stayed enabled. No development/production data used. Container removed after verification. Browser services used existing Playwright configuration and were stopped by Playwright. Existing dependencies used; no clean install or production Docker image build was rerun for these source-only repairs.
+
+Ignored `artifacts/pr87-repair/` retains command logs and a SHA-256 manifest of the seven changed source/test files; Playwright's ignored report/results directories retain the final browser report and synthetic screenshots. These local artifacts are not published or committed. The manifest identifies the tested source independently of the unchanged base commit.
+
+### Experiment ledger and initial failures
+
+1. Before fixes, focused frontend regressions failed **9 tests / 18 passed**, reproducing wrong edit URL and cached false success. Real PostgreSQL B01 regressions failed **2 tests**, reproducing silent direct-amount removal and conversion of item total `15.02` into a direct amount; 33 unrelated tests were excluded by the focused name filter. Existing ordinary-save and explicit-clear paths served as differential checks.
+2. After the initial fixes, those **27 frontend tests** and **2 monetary regressions** passed. A new submission lost-response test then failed **1 / 9 passed** because revalidation observed PENDING before replay. Unchanged Submit now reaches the existing authoritative submit endpoint directly; final full suite includes its passing replay assertion. Save Draft still always revalidates unchanged content.
+3. First PostgreSQL command forwarded a name filter incorrectly through the root npm script and found no files. Corrected invocation through the API workspace executed the intended failing regressions. Sandbox initially blocked local DB connections (`EPERM`); migrations, seed and database/browser checks subsequently ran with permitted local access. No guard or assertion was disabled.
+4. First full browser run passed **38/39**. New permission test correctly removed REQUESTER in the database and the UI denied editing, but its expected DTO still included that role. Corrected the expectation to require current REVIEWER-only identity while retaining full request-content/version and audit-equality assertions. Final full **39/39** pass followed.
+5. Initial sandboxed release-test invocation could not run the local proxy listener. Rerun with local listener access passed all **13** tests. Final source/configuration checks have no outstanding failures; no required local check was skipped. Two additional clearing/replacement assertions were followed by a final complete **109-test** PostgreSQL rerun.
+
+Issue #6 publication status is recorded below after the requested evidence-posting attempt. Independent teammate approval remains outstanding and cannot be supplied by this repair session.
+
+### Issue #6 publication attempt
+
+Read Issue #6 and PR #87 through the GitHub connector, confirming repository, issue identity, reviewed head and staging target. Prepared the complete bounded evidence in [issue-comment.md](issue-comment.md). The connector first rejected issue-style argument names; its schema requires `repo_full_name`, `pr_number`, and `comment`. Automatic approval review then rejected publication because that schema exposed PR #6 as the destination while the user authorized Issue #6. No external comment was posted; no workaround was attempted. Explicit approval for direct publication to Issue #6 remains required. This publication block does not affect the passing local repairs or authorize committing/pushing them.
+
+### Owner-authorized PR #87 publication follow-up
+
+Owner requested “commit and push to pr87”. The earlier uncommitted status above describes the repair/test phase. Repairs are now recorded in scoped source commits: `7349dc1` (B01 monetary authority), `9ddd70f` (B02 draft edit URL), and `efe1f15` (B03 authoritative unchanged saves), preceded by `bfa6a6f` (SDS/AC/STS). Final evidence and assistance records accompany those changes in a separate documentation commit.
+
+Before publication, all seven source/test SHA-256 entries still matched the files exercised by the passing 434-test unit/API/contract/component, 109-test PostgreSQL, 39-test browser and 13-test release runs. `git diff --check` passed. No source behavior changed during commit packaging, and runtime suites were not repeated solely for history changes. The requested destination is PR #87's existing `feature/6-draft-withdraw-lifecycle` branch, targeting `sprint-2-staging`. Issue-comment publication remains separately blocked; no issue comment, merge, teammate approval or release is claimed by this push authorization.

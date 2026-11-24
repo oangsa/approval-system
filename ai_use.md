@@ -234,3 +234,402 @@ reflection/output: Reproduced the exact double-handled dialog error using delaye
 @oangsa
 prompt: commit and push
 reflection/output: Reviewed the focused dialog synchronization fix and verification records, then prepared a scoped fix commit for the current feature/6-draft-withdraw-lifecycle branch and publication to its origin branch. Prior verification passed 10/10 repeated affected browser checks, 423 tests, typecheck, lint and build. No merge or branch promotion requested.
+
+## Issue #6 assistance
+
+@oangsa
+prompt: I am considering to remove commit sha from PR desc because its just redundunt
+reflection/output: Recommended removing commit SHA references from the PR description because GitHub already tracks commits, while keeping behavior, rationale, validation and Closes #6.
+
+## Issue #6 assistance
+
+@oangsa
+prompt: can you do it
+reflection/output: Updated PR #87 through the GitHub connector, changing “Validation at ba97462:” to “Validation:”. Verified the returned description preserves all other content, including validation details and Closes #6. Assistance records appended locally; no source commit or push performed.
+
+## Issue #6 assistance
+
+@oangsa
+prompt: PR #87 Review — Draft & Withdrawal Lifecycle
+
+Review Verdict: REQUEST CHANGES
+
+- PR: https://github.com/oangsa/approval-system/pull/87
+- Reviewed commit: "fe7987b2a7e9b89d692d8eeea0e2060521d7104f"
+- Issue: #6
+- Features: R01 — Save as Draft, R05 — Withdraw Request
+- Source branch: "feature/6-draft-withdraw-lifecycle"
+- Target branch: "sprint-2-staging"
+- Overall implementation quality: 8.8/10
+- CI status: Passed
+- Blocking findings: 3
+- Merge recommendation: NO-GO
+
+1. Review Policy
+
+Only serious edge cases and implementation mismatches are considered blockers. Minor UI improvements, architectural preferences, hypothetical future requirements, and unrelated features are excluded.
+
+The implementation is largely complete. The withdrawal lifecycle is particularly well implemented, with appropriate authorization, transactional persistence, idempotency, and concurrency protection. However, three draft lifecycle implementation mismatches must be resolved before merging.
+
+The following findings are based on source-code execution paths and have not been independently reproduced in a local runtime.
+
+2. Blocking Findings
+
+B01 — Changing a form version can silently overwrite an omitted monetary value
+
+Severity: P1 — Blocker
+Feature: R01
+Category: Backend / Data Integrity
+
+Affected files:
+
+- "apps/api/src/Applications/Requests/RequestService.ts:64–75"
+- "apps/api/src/Domains/Requests/RequestRules.ts:79–85"
+
+Problem:
+
+The application reconstructs existing editable content using the newly selected form definition rather than the original definition under which the draft was saved.
+
+const config = await repository.Configuration(
+    detail.typeId,
+    selectedVersionId,
+    actor.account.id
+);
+
+let content = editableContent(detail, config.definition);
+
+Inside "editableContent":
+
+monetaryAmount: definition.supportsLineItems
+    ? null
+    : revision.amount
+
+An omitted monetary property can consequently be cleared or reinterpreted when the form definition changes.
+
+Reproduction scenario:
+
+1. Create a draft using a direct monetary amount of THB 5,000.
+2. Publish a newer definition that changes monetary authority to line items.
+3. PATCH the draft using only "expectedVersion" and "formDefinitionVersionId".
+4. The previous monetary amount is discarded during content reconstruction, despite not being explicitly cleared.
+
+Contract violation:
+
+- PATCH must preserve omitted properties.
+- Supplied values must remain applicable and valid.
+- Incompatible content must not be silently discarded.
+- Failed validation must preserve prior durable state.
+
+Required fix:
+
+1. Load the original saved form definition.
+2. Reconstruct existing editable content using that original definition.
+3. Apply explicitly supplied PATCH changes.
+4. Validate the resulting content against the target definition.
+5. Reject incompatible retained values unless the caller explicitly clears or replaces them.
+6. Preserve transactional rollback behavior.
+
+Do not introduce a premature active-version requirement for draft creation or saving. Preserve the frozen API rule that the active published version is enforced at initial submission.
+
+Required regression tests:
+
+- Direct monetary amount to line-item definition migration.
+- Line-item definition to direct monetary amount migration.
+- Preservation of omitted monetary properties.
+- Explicit clearing or replacement of incompatible values.
+- Rejection without mutation when retained content is incompatible.
+- Existing ordinary PATCH omission-preservation behavior.
+
+---
+
+B02 — Changing request type inside the edit route leaves the wizard associated with the wrong URL
+
+Severity: P2 — Blocker
+Feature: R01
+Category: Frontend / Routing / Persistence
+
+Affected files:
+
+- "apps/web/app/modules/requests/RequestWizard.tsx:206–222"
+- "apps/web/app/modules/requests/RequestWizard.tsx:160–179"
+
+Problem:
+
+Changing the request type correctly warns the user and creates a new editing session:
+
+session.current = new RequestEditingSession();
+
+However, after successfully saving the newly created draft, the current edit route remains associated with the original draft ID.
+
+Reproduction scenario:
+
+1. Open Draft A at "/requests/A/edit".
+2. Navigate back to the Request Type step.
+3. Select a different request type.
+4. Confirm the type-change warning.
+5. Save the new draft.
+6. Draft B is successfully created in the database.
+7. The browser remains at "/requests/A/edit".
+8. Refresh the browser.
+9. Draft A is restored instead of Draft B.
+
+Although Draft B is persisted and accessible through the resume link, the current editor's resource identity does not match its URL.
+
+Contract violation:
+
+- Saved drafts must be resumable across browser reloads.
+- The edit route must restore the correct saved request.
+- Successful save confirmation must correspond to the request being edited.
+
+Required fix:
+
+1. Synchronize the edit route with the authoritative ID returned by the successful draft creation.
+2. Use an appropriate route replacement strategy.
+3. Preserve the current wizard content and navigation state where appropriate.
+4. Prevent an unnecessary unsaved-change confirmation after successful persistence.
+5. Preserve the original draft without mutation.
+6. Do not create duplicate drafts during unchanged retries.
+
+An equivalent implementation that explicitly transitions to the new-request route before creating a different draft is acceptable, provided resource identity and reload behavior remain coherent.
+
+Required regression tests:
+
+- Open Draft A and change its request type.
+- Cancel the type-change confirmation and verify that Draft A remains unchanged.
+- Confirm the type change and save Draft B.
+- Verify that the active editor corresponds to Draft B.
+- Refresh the browser and verify that Draft B is restored.
+- Verify that Draft A remains unchanged.
+- Verify that retries do not create duplicate drafts.
+
+---
+
+B03 — Unchanged Save Draft can incorrectly report success using stale cached state
+
+Severity: P2 — Blocker
+Feature: R01
+Category: Concurrency / Server Authority
+
+Affected file:
+
+- "apps/web/app/services/requestService.ts:24–40"
+
+Problem:
+
+The editing service returns its cached response without contacting the server when the local content has not changed.
+
+if (this.saved && this.savedContent === serialized)
+    return this.saved;
+
+This optimization bypasses authoritative request status, version, and permission revalidation.
+
+Reproduction scenario:
+
+1. Open the same draft in two browser tabs.
+2. Submit the request from Tab A.
+3. The server transitions the request to PENDING and creates its official number and approval tasks.
+4. In Tab B, press Save Draft without changing its local content.
+5. The service returns the cached DRAFT response.
+6. The wizard incorrectly displays:
+
+«Draft saved. No request number or approval task has been created.»
+
+The displayed message contradicts the authoritative server state.
+
+A similar mismatch can occur when another session edits the draft or the requester loses editing permission.
+
+Contract violation:
+
+- Request status must reflect authoritative server state.
+- Stale versions must be handled safely.
+- Terminal and otherwise ineligible requests must not report successful draft updates.
+- The UI must not display false success.
+
+Required fix:
+
+1. Remove the unconditional cached-success return or replace it with authoritative revalidation.
+2. Verify that the request remains an editable DRAFT.
+3. Verify that the current server version matches the editing session.
+4. Verify current editing authorization.
+5. Route stale, invalid-transition, and permission errors through existing recovery states.
+6. Preserve local inputs during recoverable errors.
+7. Preserve stable idempotency behavior.
+
+Avoid creating unnecessary audit events or incrementing request versions solely to validate an unchanged draft when an authoritative read can satisfy the requirement.
+
+Required regression tests:
+
+- Unchanged Save Draft while server state remains unchanged.
+- Unchanged Save Draft after another session modifies the draft.
+- Unchanged Save Draft after another session submits the request.
+- Unchanged Save Draft after editing permission is revoked.
+- No misleading success message after failed revalidation.
+- Existing changed-content and lost-response retry behavior.
+
+3. Acceptance Criteria Review
+
+#| Acceptance criterion| Result
+1| Initial incomplete draft creation and selection prerequisite| PASS
+2| PATCH version checking, omission preservation, and hidden-field rejection| FAIL — B01
+3| Draft persistence, owner isolation, and absence of approval artifacts| PASS
+4| Edit route, resume, navigation, and error recovery| FAIL — B02, B03
+5| Owner-only PENDING withdrawal with optional reason| PASS
+6| Atomic cancellation and preservation of historical evidence| PASS
+7| Foreign, terminal, stale, and idempotency protection| PASS
+8| Simultaneous withdrawal versus approval/rejection| PASS
+9| Withdrawal UI, authoritative refresh, and automated verification| PASS
+10| Independent review, verification evidence, and promotion workflow| PENDING
+
+Summary:
+
+- Passed: 7/10
+- Failed: 2/10
+- Pending: 1/10
+
+4. R05 — Withdrawal Lifecycle Assessment
+
+Result: PASS — No implementation blockers identified.
+
+The following requirements are correctly implemented:
+
+- Optional withdrawal reason.
+- Current identity and role validation.
+- Owner authorization.
+- PENDING-only withdrawal.
+- Optimistic version checking.
+- Idempotent replay before stale-version rejection.
+- Changed-body idempotency conflict.
+- Atomic cancellation of unfinished approval tasks.
+- Cancelled task version increments.
+- Preservation of submitted snapshots.
+- Preservation of previously accepted votes.
+- Audit actor, timestamp, and optional reason.
+- Transactional outbox event.
+- Atomic rollback.
+- Shared locking with decision operations.
+- Authoritative request refresh.
+- Reviewer queue refresh.
+- Accessible confirmation and recovery states.
+
+Both withdrawal and approval/rejection acquire the same request-row lock before modifying cycle, stage, and slot state.
+
+The PostgreSQL tests use independent connections and synchronization before lock acquisition, providing meaningful evidence of actual concurrent execution.
+
+No withdrawal lifecycle redesign is required.
+
+5. Verification Review
+
+Latest GitHub Actions workflow:
+
+https://github.com/oangsa/approval-system/actions/runs/45343939956
+
+Verification| Latest CI result
+npm clean installation| PASS
+TypeScript typecheck| PASS
+ESLint| PASS
+Frontend tests| PASS
+Backend tests| PASS
+Shared contract tests| PASS
+Workspace builds| PASS
+Release tests| PASS
+Production Docker builds| PASS
+Database migrations| PASS
+PostgreSQL integration tests| PASS
+Playwright browser tests| PASS
+
+Retained local verification evidence reports:
+
+- Unit/API/contract tests: 423 passed.
+- Real PostgreSQL integration tests: 107 passed.
+- Playwright E2E tests: 36 passed.
+
+These totals originate from the retained verification document. The latest CI job independently confirms successful integration and browser test steps, although its exact test totals were not independently counted during this review.
+
+The earlier Playwright failure involving a double-handled confirmation dialog has been addressed. The latest successful CI run means that previous failure is not an outstanding blocker.
+
+6. Architecture and Scope Compliance
+
+Requirement| Result
+Node.js 24| Compliant
+npm Workspaces| Compliant
+Elysia through Node.js runtime| Compliant
+Shared Zod contracts| Compliant
+OOP / Clean Architecture| Compliant
+PostgreSQL / Drizzle| Compliant
+React Router 7| Compliant
+shadcn/ui and Tailwind| Compliant for reviewed changes
+Authenticated client-loaded data| Compliant
+Existing lifecycle infrastructure reused| Compliant
+Feature SDS, AC, STS, and DoD| Present
+Frozen product contracts| Except identified mismatches
+Required feature branch| Compliant
+Required staging target| Compliant
+Independent teammate review| Pending
+Verification evidence posted to Issue #6| Outstanding
+
+7. Implementation Constraints for Repairs
+
+- Keep changes bounded to the identified findings.
+- Preserve all frozen business, API, and UI contracts.
+- Do not introduce a second request lifecycle engine.
+- Do not redesign the existing withdrawal implementation.
+- Do not alter unrelated feature ownership.
+- Do not introduce mandatory withdrawal reason validation.
+- Do not require the active published form version prematurely during draft saving.
+- Do not weaken existing tests or remove acceptance assertions to achieve passing CI.
+- Do not introduce unnecessary dependencies or database migrations.
+- Do not implement unrelated Sprint 2 or Sprint 3 features.
+- Preserve existing authorization, idempotency, transaction, and concurrency guarantees.
+- Follow root "AGENTS.md", including applicable AI assistance recording requirements.
+
+Returned-request editing, resubmission, delegation, notifications, and other separately owned features are outside this review's repair scope.
+
+8. Required Verification Before Merge
+
+- [ ] Resolve B01 — Monetary value preservation across form-definition changes.
+- [ ] Resolve B02 — Draft editor resource and URL synchronization.
+- [ ] Resolve B03 — Authoritative validation of unchanged draft saves.
+- [ ] Reproduce each confirmed finding before applying its fix where feasible.
+- [ ] Add targeted regression tests for all confirmed findings.
+- [ ] Run typecheck.
+- [ ] Run lint.
+- [ ] Run unit, API, and contract tests.
+- [ ] Run real PostgreSQL integration tests.
+- [ ] Run Playwright E2E tests.
+- [ ] Run workspace builds.
+- [ ] Run "git diff --check" and disclose any pre-existing or intentionally preserved exceptions.
+- [ ] Record actual verification results, environment, and tested commit.
+- [ ] Disclose failures, skipped tests, and unexecuted verification.
+- [ ] Update applicable feature design, test, and verification documentation.
+- [ ] Record verification evidence in Issue #6.
+- [ ] Obtain independent teammate review from "@kittipichcha".
+- [ ] Preserve the required staging-to-dev-to-main promotion workflow.
+
+9. Final Assessment
+
+Category| Score
+Backend and lifecycle| 9/10
+Frontend integration| 8/10
+Security and authorization| 9.5/10
+Concurrency and transactions| 9.5/10
+Testing and verification| 9/10
+Contract compliance| 8/10
+Overall| 8.8/10
+
+Final verdict: REQUEST CHANGES — NO-GO.
+
+The core architecture is sound, the withdrawal lifecycle satisfies the important business and security requirements, and the latest CI verification is successful.
+
+A narrowly scoped repair is recommended rather than a comprehensive rewrite.
+
+Once the three identified implementation mismatches are resolved, their regression tests pass, verification evidence is recorded, and independent teammate approval is obtained, no currently identified architectural blocker should prevent PR #87 from merging into "sprint-2-staging".
+ fix fic
+reflection/output: Reproduced B01 in two real-PostgreSQL tests and B02/B03 in nine frontend tests before repairs. Draft PATCH now reconstructs with the original immutable definition before applying and validating target-version changes. Successful creation after a type change replaces the edit URL with the authoritative draft ID after dirty state clears, retaining wizard step. Unchanged Save revalidates server status, editing permission and version through GET, clears prior success, and uses existing recovery states. Submit keeps authoritative endpoint replay for lost responses. Added targeted session/component/PostgreSQL/browser regressions and updated feature design, test and verification records. Actual verification and remaining external gates are recorded in docs/features/draft-withdraw-lifecycle/verification.md. Existing ai_use.md edits preserved; no commit, push, merge or release performed.
+
+Verification follow-up: All final local checks passed: 434 unit/API/contract/component tests, 109 PostgreSQL tests, 39 Playwright tests, 13 release tests, typecheck, lint, builds and diff check. GitHub Issue #6 evidence was prepared locally, but automatic approval review rejected posting because the connector exposed PR #6 instead of the authorized Issue #6. No external comment was posted and no workaround was attempted. Independent teammate approval and reviewed promotion remain pending.
+
+## Issue #6 assistance
+
+@oangsa
+prompt: commit and push to pr87
+reflection/output: Verified PR #87 is open from feature/6-draft-withdraw-lifecycle to sprint-2-staging and its remote head matches the reviewed base. Reviewed unstaged/staged diffs, split SDS/AC/STS, B01, B02, B03 and final evidence into scoped commits, preserving directly related tests and prior assistance records. All seven source/test hashes match the passing verification; diff check passes. Prepared the authorized normal push to the existing PR source branch, with no force push, merge, release or external issue comment. Prior verification remains 434 unit/API/contract/component, 109 PostgreSQL, 39 browser and 13 release tests plus typecheck/lint/build; runtime suites were not repeated for commit packaging.
