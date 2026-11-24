@@ -1,5 +1,6 @@
 import { createRequestSchema, withdrawRequestSchema, requestTypeSearchSchema, type CreateRequest, type RequestDetail, type RequestSearchQuery, type WithdrawRequest } from "@workflow/contracts";
 import { requestApi } from "~/api/requests";
+import { ApiFailure } from "~/api/errors";
 
 /** One in-memory editing session; no request content or action key is persisted in browser storage. */
 export class RequestEditingSession
@@ -25,7 +26,15 @@ export class RequestEditingSession
     {
         const content = createRequestSchema.parse(value);
         const serialized = JSON.stringify(content);
-        if (this.saved && this.savedContent === serialized) return this.saved;
+        if (this.saved && this.savedContent === serialized)
+        {
+            const current = await requestApi.read(this.saved.id);
+            if (current.status !== "DRAFT" || !current.workingRevision) throw new ApiFailure({ kind: "http", status: 409, code: "INVALID_REQUEST_TRANSITION", message: "This request is no longer an editable draft." });
+            if (!current.availableActions.includes("EDIT_DRAFT")) throw new ApiFailure({ kind: "http", status: 403, code: "FORBIDDEN", message: "You no longer have permission to edit this draft." });
+            if (current.version !== this.saved.version) throw new ApiFailure({ kind: "http", status: 409, code: "REQUEST_STALE", message: "This draft has changed. Reload the saved draft before editing." });
+            this.saved = current;
+            return current;
+        }
         if (!this.saved) this.saved = await requestApi.create(content, this.Key("create", content));
         else
         {
@@ -41,7 +50,8 @@ export class RequestEditingSession
     }
     public async Submit(content: CreateRequest): Promise<RequestDetail>
     {
-        const draft = await this.Save(content);
+        // Submit performs its own authoritative checks and must replay an accepted lost response.
+        const draft = this.saved && this.savedContent === JSON.stringify(createRequestSchema.parse(content)) ? this.saved : await this.Save(content);
         this.saved = await requestApi.submit(draft.id, draft.version, this.Key("submit", { id: draft.id, expectedVersion: draft.version }));
         return this.saved;
     }

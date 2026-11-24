@@ -269,3 +269,73 @@ test("B02 type change creates a new edit resource, preserves original, and resum
     const resumed = await page.request.get(`${apiUrl.origin}/api/v1/requests/${draftB.id}`, { headers });
     expect(requestDetailSchema.parse(await resumed.json())).toEqual(draftB);
 });
+
+test("B03 unchanged save reads server state, rejects peer edits and submission without false success", async ({ page }) =>
+{
+    const token = await login(page);
+    const headers = { authorization: `Bearer ${token}` };
+    const types = await (await page.request.post(`${apiUrl.origin}/api/v1/request-types/search`, { headers, data: {} })).json() as { id: string; versionId: string; code: string }[];
+    const type = types.find((item) => item.code === "GENERAL")!;
+    const created = await page.request.post(`${apiUrl.origin}/api/v1/requests`, { headers: { ...headers, "Idempotency-Key": crypto.randomUUID() }, data: { typeId: type.id, formDefinitionVersionId: type.versionId, title: "Unchanged save", justification: "Concurrent browser check", fields: { category: "OPERATIONS" } } });
+    const draft = requestDetailSchema.parse(await created.json());
+    await page.goto(`/requests/${draft.id}/edit`);
+    await expect(page.getByLabel("Title (required)", { exact: true })).toHaveValue(draft.title);
+    await page.getByRole("button", { name: "Save Draft" }).click();
+    await expect(page.getByRole("status")).toContainText("Draft saved");
+    const unchanged = await page.request.get(`${apiUrl.origin}/api/v1/requests/${draft.id}`, { headers });
+    expect(requestDetailSchema.parse(await unchanged.json())).toEqual(draft);
+    const changed = await page.request.patch(`${apiUrl.origin}/api/v1/requests/${draft.id}/draft`, { headers, data: { expectedVersion: draft.version, title: "Peer edit" } });
+    const peer = requestDetailSchema.parse(await changed.json());
+    await page.getByRole("button", { name: "Save Draft" }).click();
+    await expect(page.getByRole("alert")).toContainText("has changed");
+    await expect(page.getByText(/Draft saved/)).not.toBeVisible();
+    await expect(page.getByLabel("Title (required)", { exact: true })).toHaveValue(draft.title);
+    await respondToConfirmation(page, page.getByRole("button", { name: "Reload saved draft" }), "accept");
+    await expect(page.getByLabel("Title (required)", { exact: true })).toHaveValue(peer.title);
+    const submitted = await page.request.post(`${apiUrl.origin}/api/v1/requests/${draft.id}/submit`, { headers: { ...headers, "Idempotency-Key": crypto.randomUUID() }, data: { expectedVersion: peer.version } });
+    expect(submitted.status()).toBe(200);
+    await page.getByRole("button", { name: "Save Draft" }).click();
+    await expect(page.getByRole("alert")).toContainText("no longer an editable draft");
+    await expect(page.getByText(/Draft saved/)).not.toBeVisible();
+    await expect(page.getByLabel("Title (required)", { exact: true })).toHaveValue(peer.title);
+    await expect(page.getByRole("button", { name: "Save Draft" })).toBeDisabled();
+});
+
+test("B03 unchanged save rechecks revoked editing permission without a success message or mutation", async ({ page }) =>
+{
+    const { createTestDatabase } = await import("../apps/api/tests/helpers/testDatabase");
+    const { users, userRoles, requestAuditEvents } = await import("../apps/api/src/Infrastructures/Database/schema");
+    const { and, eq } = await import("drizzle-orm");
+    const database = createTestDatabase();
+    try
+    {
+        const accountId = crypto.randomUUID();
+        const email = `${accountId}@example.test`;
+        const template = (await database.connection.select().from(users).where(eq(users.email, "requester-a@example.test")))[0]!;
+        await database.connection.insert(users).values({ id: accountId, email, displayName: "Permission regression", passwordHash: template.passwordHash });
+        await database.connection.insert(userRoles).values([{ userId: accountId, roleCode: "REQUESTER" }, { userId: accountId, roleCode: "REVIEWER" }]);
+        const token = await login(page, email);
+        const headers = { authorization: `Bearer ${token}` };
+        const types = await (await page.request.post(`${apiUrl.origin}/api/v1/request-types/search`, { headers, data: {} })).json() as { id: string; versionId: string; code: string }[];
+        const type = types.find((item) => item.code === "GENERAL")!;
+        const created = await page.request.post(`${apiUrl.origin}/api/v1/requests`, { headers: { ...headers, "Idempotency-Key": crypto.randomUUID() }, data: { typeId: type.id, formDefinitionVersionId: type.versionId, title: "Permission revoked" } });
+        const draft = requestDetailSchema.parse(await created.json());
+        await page.goto(`/requests/${draft.id}/edit`);
+        await expect(page.getByLabel("Title (required)", { exact: true })).toHaveValue(draft.title);
+        await page.getByRole("button", { name: "Save Draft" }).click();
+        await expect(page.getByRole("status")).toContainText("Draft saved");
+        const audit = await database.connection.select().from(requestAuditEvents).where(eq(requestAuditEvents.requestId, draft.id));
+        await database.connection.delete(userRoles).where(and(eq(userRoles.userId, accountId), eq(userRoles.roleCode, "REQUESTER")));
+        await page.getByRole("button", { name: "Save Draft" }).click();
+        await expect(page.getByRole("alert")).toContainText("You do not have access");
+        await expect(page.getByText(/Draft saved/)).not.toBeVisible();
+        await expect(page.getByLabel("Title (required)", { exact: true })).not.toBeVisible();
+        const current = await page.request.get(`${apiUrl.origin}/api/v1/requests/${draft.id}`, { headers });
+        expect(requestDetailSchema.parse(await current.json())).toEqual({ ...draft, requester: { ...draft.requester, roles: ["REVIEWER"] }, availableActions: [] });
+        expect(await database.connection.select().from(requestAuditEvents).where(eq(requestAuditEvents.requestId, draft.id))).toEqual(audit);
+    }
+    finally
+    {
+        await database.Close();
+    }
+});

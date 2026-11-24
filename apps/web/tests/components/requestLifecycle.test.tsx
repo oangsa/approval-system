@@ -258,3 +258,27 @@ test("B02 type change replaces edit resource URL, keeps step, and unchanged retr
     expect(requestApi.create).toHaveBeenCalledTimes(1);
     expect(requestApi.patch).not.toHaveBeenCalled();
 });
+
+test.each([
+    { server: { ...draft, version: 3 }, message: "changed", recovery: true },
+    { server: { ...draft, status: "PENDING" as const, version: 3 }, message: "draft", recovery: true },
+    { server: { ...draft, availableActions: [] }, message: "access", recovery: false },
+])("B03 unchanged save removes prior success and handles $message server state", async ({ server, recovery }) =>
+{
+    editableFixture();
+    const user = userEvent.setup();
+    await screen.findByLabelText("Title (required)");
+    await user.click(screen.getByRole("button", { name: "Save Draft" }));
+    await screen.findByText(/Draft saved/);
+    vi.mocked(requestApi.read).mockResolvedValue(server);
+    await user.click(screen.getByRole("button", { name: "Save Draft" }));
+    await screen.findByRole("alert");
+    expect(screen.queryByText(/Draft saved/)).not.toBeInTheDocument();
+    expect(requestApi.patch).not.toHaveBeenCalled();
+    if (recovery)
+    {
+        expect(screen.getByRole("button", { name: "Reload saved draft" })).toBeVisible();
+        expect(screen.getByLabelText("Title (required)")).toHaveValue(draft.title);
+    }
+    else expect(screen.queryByLabelText("Title (required)")).not.toBeInTheDocument();
+});

@@ -172,6 +172,7 @@ export function RequestWizard({ initial }: IRequestWizardProps = {})
         if (submit && showIssues(validate(true))) return;
         setBusy(true);
         setError("");
+        setSavedMessage("");
         try
         {
             const detail = submit ? await session.current.Submit(payload()) : await session.current.Save(payload());
