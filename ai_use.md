@@ -663,3 +663,69 @@ B04 verification follow-up: npm run check passed typecheck, lint, 439 tests acro
 @oangsa
 prompt: commit and push
 reflection/output: Verified PR #87 remains open from feature/6-draft-withdraw-lifecycle to sprint-2-staging and fetched its unchanged remote head. Reviewed unstaged and staged diffs, split B04 specifications, the independent browser-fixture correction, B04 behavior with its regressions, and final evidence into scoped commits. Confirmed all three source/test hashes still match the passing 439-test workspace and 40-test browser verification; diff check passes. Prepared the authorized normal push to PR #87's existing source branch. Runtime suites were not repeated for history-only packaging. No force push, merge, release or external issue comment performed.
+
+## Issue #6 assistance
+
+@oangsa
+prompt: fix 
+
+Run docker run --rm --init --network host --ipc host \
+
+> test:e2e
+> playwright test
+
+[WebServer] 
+[WebServer]   dist/index.js  155.6kb
+[WebServer] 
+[WebServer] ⚡ Done in 19ms
+
+Running 40 tests using 1 worker
+·····························F::error file=e2e/request-list-detail.spec.ts,title=[chromium] › e2e/request-list-detail.spec.ts:12:1 › REQ-E2E-01 and REQ-E2E-02: requester list and persisted detail,line=68,col=83::  1) [chromium] › e2e/request-list-detail.spec.ts:12:1 › REQ-E2E-01 and REQ-E2E-02: requester list and persisted detail %0A    Error: locator.click: Error: strict mode violation: getByRole('dialog', { name: 'Advanced filters' }).getByRole('button', { name: 'General request (GENERAL)' }) resolved to 2 elements:%0A        1) <button type="button" class="inline-flex shrink-0 items-center gap-2 rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-50 motion-reduce:transition-none text-muted-foreground hover:bg-accent hover:text-foreground min-h-11 py-2 w-full min-w-0 justify-start whitespace-normal px-3 text-left">…</button> aka getByRole('button', { name: 'General request (GENERAL)' }).first()%0A        2) <button type="button" class="inline-flex shrink-0 items-center gap-2 rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-50 motion-reduce:transition-none text-muted-foreground hover:bg-accent hover:text-foreground min-h-11 py-2 w-full min-w-0 justify-start whitespace-normal px-3 text-left">…</button> aka getByRole('button', { name: 'General request (GENERAL)' }).nth(1)%0A%0A    Call log:%0A      - waiting for getByRole('dialog', { name: 'Advanced filters' }).getByRole('button', { name: 'General request (GENERAL)' })%0A%0A%0A      66 |     await filterDialog.getByLabel("Created through", { exact: true }).fill("2099-12-31");%0A      67 |     await filterDialog.getByRole("button", { name: "Request type All request types" }).click();%0A    > 68 |     await filterDialog.getByRole("button", { name: "General request (GENERAL)" }).click();%0A         |                                                                                   ^%0A      69 |     const searchResponse = page.waitForResponse((response) => response.url().endsWith("/v1/requests/search") && response.request().method() === "POST");%0A      70 |     await filterDialog.getByRole("button", { name: "Apply filters" }).click();%0A      71 |     const filteredResponse = await searchResponse;%0A        at /work/e2e/request-list-detail.spec.ts:68:83
+··········
+
+  1) [chromium] › e2e/request-list-detail.spec.ts:12:1 › REQ-E2E-01 and REQ-E2E-02: requester list and persisted detail 
+
+    Error: locator.click: Error: strict mode violation: getByRole('dialog', { name: 'Advanced filters' }).getByRole('button', { name: 'General request (GENERAL)' }) resolved to 2 elements:
+        1) <button type="button" class="inline-flex shrink-0 items-center gap-2 rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-50 motion-reduce:transition-none text-muted-foreground hover:bg-accent hover:text-foreground min-h-11 py-2 w-full min-w-0 justify-start whitespace-normal px-3 text-left">…</button> aka getByRole('button', { name: 'General request (GENERAL)' }).first()
+        2) <button type="button" class="inline-flex shrink-0 items-center gap-2 rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-50 motion-reduce:transition-none text-muted-foreground hover:bg-accent hover:text-foreground min-h-11 py-2 w-full min-w-0 justify-start whitespace-normal px-3 text-left">…</button> aka getByRole('button', { name: 'General request (GENERAL)' }).nth(1)
+
+    Call log:
+      - waiting for getByRole('dialog', { name: 'Advanced filters' }).getByRole('button', { name: 'General request (GENERAL)' })
+
+
+      66 |     await filterDialog.getByLabel("Created through", { exact: true }).fill("2099-12-31");
+      67 |     await filterDialog.getByRole("button", { name: "Request type All request types" }).click();
+    > 68 |     await filterDialog.getByRole("button", { name: "General request (GENERAL)" }).click();
+         |                                                                                   ^
+      69 |     const searchResponse = page.waitForResponse((response) => response.url().endsWith("/v1/requests/search") && response.request().method() === "POST");
+      70 |     await filterDialog.getByRole("button", { name: "Apply filters" }).click();
+      71 |     const filteredResponse = await searchResponse;
+        at /work/e2e/request-list-detail.spec.ts:68:83
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    artifacts/playwright/results/request-list-detail-REQ-E2-1ab2e-r-list-and-persisted-detail-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: artifacts/playwright/results/request-list-detail-REQ-E2-1ab2e-r-list-and-persisted-detail-chromium/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    artifacts/playwright/results/request-list-detail-REQ-E2-1ab2e-r-list-and-persisted-detail-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace artifacts/playwright/results/request-list-detail-REQ-E2-1ab2e-r-list-and-persisted-detail-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  1 failed
+    [chromium] › e2e/request-list-detail.spec.ts:12:1 › REQ-E2E-01 and REQ-E2E-02: requester list and persisted detail 
+  39 passed (1.0m)
+Notice:   1 failed
+    [chromium] › e2e/request-list-detail.spec.ts:12:1 › REQ-E2E-01 and REQ-E2E-02: requester list and persisted detail 
+  39 passed (1.0m)
+reflection/output: Traced the duplicate picker buttons to the published-version PostgreSQL fixture copying the GENERAL seed code instead of preserving its own type identity. Reproduced the exact browser strict-mode violation by isolating the two conflicting definitions on a task-owned disposable database; added a failing-before metadata-search assertion. Updated the fixture to copy its currently published definition. Verification results are recorded in docs/features/draft-withdraw-lifecycle/verification.md. No product/UI/contract changes, commit, push or external comment.
+
+## Issue #6 assistance
+
+@oangsa
+prompt: commit and push
+reflection/output: Reviewed the fixture correction, regression assertion, verification evidence and assistance records. Fetched the existing feature branch and confirmed local HEAD matches its remote head. Prepared one scoped test(requests) commit for this cohesive fixture correction and its evidence, followed by the authorized normal push to feature/6-draft-withdraw-lifecycle. Prior verification remains 439 workspace tests, 109 PostgreSQL tests and 40 browser tests, plus typecheck/lint/build; no code changed during packaging and runtime suites were not repeated. The six whitespace flags in ai_use.md preserve the previous exact prompt. No force push, merge, release or external comment.

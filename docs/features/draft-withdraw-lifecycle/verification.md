@@ -163,3 +163,19 @@ Final `NODE_ENV=test npm run test:e2e` with guarded disposable TEST_DATABASE_URL
 ### B04 owner-authorized publication follow-up
 
 Owner requested “commit and push”. The uncommitted status above describes the test phase. B04 is now recorded in `0c4249b` with its component/browser regressions, preceded by `10395c4` (SDS/AC/STS) and `b8c4dfa` (independent alternate-type browser fixture). Final evidence and assistance records accompany those changes in a separate documentation commit. All three source/test hashes match the passing 439-test workspace and 40-test browser verification, and diff checks pass. No source changes or runtime reruns were needed during commit packaging. Publication targets PR #87’s existing feature/6-draft-withdraw-lifecycle branch; independent teammate approval and reviewed staging/dev/main promotions remain pending. No merge, release or external issue comment is authorized or claimed here.
+
+## CI request-type fixture correction — 2026-11-24
+
+The rendered-version PostgreSQL regression constructed version 2 from `seededDefinition`, replacing its fixture-specific code with `GENERAL`. The database row retained its unique `T<uuid>` code, but the published JSON returned a second `General request (GENERAL)` option. CI runs integration and browser suites on the same database; the duplicate reached the first picker page depending on UUID ordering. A clean browser-only run therefore missed this defect.
+
+The fixture now copies its own published definition before changing version identity/number. A metadata-search assertion checks that version 2 retains the fixture's type ID and code. Product code, contracts and the browser locator are unchanged.
+
+Evidence from a task-owned disposable PostgreSQL 17 container on loopback port 55439:
+
+- Before correction, all 109 integration tests passed but left two published JSON definitions with code `GENERAL`. An unmodified browser-only journey passed when pagination hid the duplicate. Disabling unrelated types in this disposable database reproduced the reported strict-mode violation at `request-list-detail.spec.ts:68` exactly. This rules out partial-name matching as the cause.
+- The new metadata assertion failed before correction: expected `T<uuid>`, received `GENERAL`.
+- After correction, recreated and migrated/seeded the disposable database, then ran `NODE_ENV=test RUN_BUILT_HTTP_SMOKE=1 npm run test:integration` followed by `NODE_ENV=test npm run test:e2e` against the same guarded `TEST_DATABASE_URL`: **109 PostgreSQL tests passed, no skips; 40 browser tests passed in 46.4 seconds, no skips**. Exactly one published `GENERAL` definition remained after integration.
+- `npm run check`: **PASS**, including typecheck, lint, 439 tests across 46 files and all workspace builds. Browser execution also rebuilt API/web.
+- Source/documentation diff checks pass; `ai_use.md` preserves six trailing spaces from the exact supplied prompt as required by AGENTS.md, which `git diff --check` flags. No other whitespace exceptions.
+
+Logs remain local under `/tmp/picker-*.log`; Playwright output is under ignored `artifacts/playwright/`. No commit, push, merge, release or external comment performed. CI's Docker wrapper, image builds, initialization suite and release tests were not rerun; the integration-to-browser shared-database sequence was verified directly with local Node.js/Chromium.

@@ -794,9 +794,11 @@ test("review: preserve rendered published draft version and enforce active versi
 {
     const item = await fixture();
     const nextId = randomUUID();
-    const definition = { ...seededDefinition, id: item.typeId, versionId: nextId, versionNumber: 2 };
+    const definition = { ...await service.Type(item.actor, item.typeId), versionId: nextId, versionNumber: 2 };
     await db.insert(requestTypeVersions).values({ id: nextId, typeId: item.typeId, versionNumber: 2, definition });
     await db.update(requestTypes).set({ publishedVersionId: nextId }).where(eq(requestTypes.id, item.typeId));
+    const published = await service.Types(item.actor, requestTypeSearchSchema.parse({ search: [{ name: "code", condition: "EQUAL", value: `T${item.typeId}` }] }));
+    expect(published.items).toEqual([expect.objectContaining({ id: item.typeId, code: `T${item.typeId}`, versionNumber: 2 })]);
     const saved = await service.Mutate(item.actor, "create", null, item.content, randomUUID());
     expect(saved.workingRevision!.formDefinitionVersionId).toBe(item.versionId);
     await expect(service.Mutate(item.actor, "submit", saved.id, { expectedVersion: 0 }, randomUUID())).rejects.toMatchObject({ code: "FORM_DEFINITION_CHANGED" });
