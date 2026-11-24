@@ -866,9 +866,31 @@ test("review: malformed line-item quantity is a field-level HTTP 422 with no per
     const send = (content: CreateRequest) => app.handle(new Request("http://localhost/api/v1/requests", { method: "POST", headers: { authorization: `Bearer ${token}`, "content-type": "application/json", "Idempotency-Key": randomUUID() }, body: JSON.stringify(content) }));
     const response = await send({ ...item.content, lineItems: [{ description: "Part", quantity: "invalid", unitAmount: "1.00" }] });
     expect(response.status).toBe(422);
-    expect(await response.json()).toMatchObject({ code: "VALIDATION_ERROR", details: expect.arrayContaining([expect.objectContaining({ field: "lineItems.0.quantity" })]) });
+    expect(await response.json()).toMatchObject({ code: "VALIDATION_ERROR", details: expect.arrayContaining([expect.objectContaining({ field: "lineItems[0].quantity" })]) });
     expect(await db.select().from(requests).where(eq(requests.requesterId, item.ownerId))).toEqual([]);
-    expect((await send(item.content)).status).toBe(201);
+    const created = await send(item.content);
+    expect(created.status).toBe(201);
+    const draft = requestDetailSchema.parse(await created.json());
+    const invalidPatch = await app.handle(new Request(`http://localhost/api/v1/requests/${draft.id}/draft`, {
+        method: "PATCH",
+        headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+        body: JSON.stringify({
+            expectedVersion: draft.version,
+            lineItems: [
+                { description: "Part 1", quantity: "invalid", unitAmount: "1.00" },
+                { description: "Part 2", quantity: "2", unitAmount: "bad" },
+            ],
+        }),
+    }));
+    expect(invalidPatch.status).toBe(422);
+    expect(await invalidPatch.json()).toMatchObject({
+        code: "VALIDATION_ERROR",
+        details: expect.arrayContaining([
+            expect.objectContaining({ field: "lineItems[0].quantity" }),
+            expect.objectContaining({ field: "lineItems[1].unitAmount" }),
+        ]),
+    });
+    expect(await service.Read(item.actor, draft.id)).toEqual(draft);
 });
 
 test("B01 direct amount migration retains omissions and requires explicit clearing for item authority", async () =>

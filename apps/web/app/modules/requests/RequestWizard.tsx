@@ -16,6 +16,10 @@ import { presentFailure, requestPriorityLabel } from "./requestPresentation";
 import { RequestResult } from "./RequestResult";
 
 const baseSteps = ["Request Type", "Basic Information", "Request Details", "Review & Submit"];
+function fieldInputId(field: string): string
+{
+    return field.replace(/\[(\d+)\]/g, ".$1");
+}
 interface IRequestWizardProps
 {
     initial?: { detail: RequestDetail; definition: PublishedRequestType; content: CreateRequest };
@@ -147,7 +151,7 @@ export function RequestWizard({ initial }: IRequestWizardProps = {})
         if (!values.length) return false;
         const first = values[0]!;
         setStep(issueStep(first.field));
-        setFocusField(first.field === "lineItems" ? "lineItems" : first.field);
+        setFocusField(fieldInputId(first.field));
         return true;
     }
     function validate(all: boolean): IFieldIssue[]
@@ -288,7 +292,7 @@ export function RequestWizard({ initial }: IRequestWizardProps = {})
         }
     }
     const review = payload();
-    const errorFor = (field: string) => issues.find((issue) => issue.field === field)?.message;
+    const errorFor = (field: string) => issues.find((issue) => fieldInputId(issue.field) === field)?.message;
     if (!user?.roles.includes("REQUESTER")) return <p role="alert">A Requester role is required to create requests.</p>;
     if (unavailable) return <div role="alert" className="space-y-3"><p>{error}</p><Link className="underline" to="/requests">My Requests</Link></div>;
     if (result) return <div className="mx-auto max-w-3xl space-y-6"><h1 className="flex items-center gap-2 text-2xl font-semibold"><CheckCircle2 aria-hidden="true" />Request submitted</h1><RequestResult detail={result} definition={type} /><Link className="underline" to={`/requests/${result.id}`}>Open saved request</Link></div>;

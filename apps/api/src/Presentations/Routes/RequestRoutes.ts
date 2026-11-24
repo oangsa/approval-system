@@ -38,6 +38,17 @@ export function createRequestOpenApi()
     return { openapi: "3.1.0", info: { title: "Request submission API", version: "1.0.0" }, paths, components: { securitySchemes: { bearerAuth: { type: "http", scheme: "bearer" } } } };
 }
 
+function formatIssuePath(path: readonly PropertyKey[]): string
+{
+    let result = "";
+    for (const segment of path)
+    {
+        if (typeof segment === "number") result += `[${segment}]`;
+        else result += result ? `.${String(segment)}` : String(segment);
+    }
+    return result || "body";
+}
+
 export function registerRequestRoutes(app: {
     route(method: "GET" | "POST" | "PATCH", path: string, handler: (context: { request: Request; params: Record<string, string> }) => Promise<Response>, hook: { parse: "none" }): unknown;
 }, identity: IIdentityHttpDependencies, service: RequestService): void
@@ -78,13 +89,13 @@ export function registerRequestRoutes(app: {
             if (action === "search")
             {
                 const query = requestSearchSchema.safeParse(value);
-                if (!query.success) throw new RequestError("VALIDATION_ERROR", query.error.issues.map((issue) => ({ field: issue.path.join(".") || "body", code: "VALIDATION_ERROR", message: issue.message })));
+                if (!query.success) throw new RequestError("VALIDATION_ERROR", query.error.issues.map((issue) => ({ field: formatIssuePath(issue.path), code: "VALIDATION_ERROR", message: issue.message })));
                 const result = await service.Search(actor, query.data);
                 return Response.json(z.array(requestSummarySchema).parse(result.items), { headers: { "X-Pagination": JSON.stringify(result.pagination) } });
             }
             const schema = action === "create" ? createRequestSchema : action === "patch" ? patchDraftSchema : action === "withdraw" ? withdrawRequestSchema : submitRequestSchema;
             const parsed = schema.safeParse(value);
-            if (!parsed.success) throw new RequestError("VALIDATION_ERROR", parsed.error.issues.map((issue) => ({ field: issue.path.join(".") || "body", code: "VALIDATION_ERROR", message: issue.message })));
+            if (!parsed.success) throw new RequestError("VALIDATION_ERROR", parsed.error.issues.map((issue) => ({ field: formatIssuePath(issue.path), code: "VALIDATION_ERROR", message: issue.message })));
             const key = request.headers.get("idempotency-key");
             if ((action !== "patch" || key !== null) && !z.uuid().safeParse(key).success) throw new HttpError("VALIDATION_ERROR");
             const result = requestDetailSchema.parse(await service.Mutate(actor, action, params.id ?? null, parsed.data, key?.toLowerCase()));
