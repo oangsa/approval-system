@@ -12,34 +12,43 @@ import { ManagedForm } from "~/components/forms/ManagedForm";
 import { FieldRenderer, fieldClassName } from "~/components/forms/FieldRenderer";
 import { useSession } from "~/modules/auth/sessionContext";
 import { RequestEditingSession } from "~/services/requestService";
-import { requestPriorityLabel } from "./requestPresentation";
+import { presentFailure, requestPriorityLabel } from "./requestPresentation";
 import { RequestResult } from "./RequestResult";
 
 const baseSteps = ["Request Type", "Basic Information", "Request Details", "Review & Submit"];
-export function RequestWizard()
+interface IRequestWizardProps
 {
-    const { user } = useSession();
+    initial?: { detail: RequestDetail; definition: PublishedRequestType; content: CreateRequest };
+}
+export function RequestWizard({ initial }: IRequestWizardProps = {})
+{
+    const { user, generation } = useSession();
     const [types, setTypes] = useState<PublishedRequestType[]>([]);
     const [pageNumber, setPageNumber] = useState(1);
     const [pagination, setPagination] = useState<IRequestTypeSearchResult["pagination"] | null>(null);
     const [loading, setLoading] = useState(true);
     const [loadVersion, setLoadVersion] = useState(0);
-    const [type, setType] = useState<PublishedRequestType | null>(null);
-    const [content, setContent] = useState<CreateRequest>({ typeId: "", formDefinitionVersionId: "", title: "", justification: "", priority: "MEDIUM", fields: {}, lineItems: [] });
-    const [step, setStep] = useState(0);
+    const [type, setType] = useState<PublishedRequestType | null>(initial?.definition ?? null);
+    const [content, setContent] = useState<CreateRequest>(initial?.content ?? { typeId: "", formDefinitionVersionId: "", title: "", justification: "", priority: "MEDIUM", fields: {}, lineItems: [] });
+    const [step, setStep] = useState(initial ? 1 : 0);
     const [issues, setIssues] = useState<IFieldIssue[]>([]);
     const [error, setError] = useState("");
     const [staleForm, setStaleForm] = useState(false);
+    const [staleDraft, setStaleDraft] = useState(false);
+    const [unavailable, setUnavailable] = useState(false);
     const [busy, setBusy] = useState(false);
     const [dirty, setDirty] = useState(false);
     const [savedMessage, setSavedMessage] = useState("");
     const [result, setResult] = useState<RequestDetail | null>(null);
+    const [savedId, setSavedId] = useState(initial?.detail.id ?? "");
     const [confirming, setConfirming] = useState(false);
     const [focusField, setFocusField] = useState<string | null>(null);
-    const session = useRef(new RequestEditingSession());
+    const session = useRef(new RequestEditingSession(initial?.detail, initial?.content));
     const dialog = useRef<HTMLDialogElement>(null);
     const stepHeading = useRef<HTMLHeadingElement>(null);
     const previousStep = useRef(step);
+    const completedStep = useRef(step);
+    completedStep.current = Math.max(completedStep.current, step);
     const submitButton = useRef<HTMLButtonElement>(null);
     const steps = type?.supportsLineItems ? [...baseSteps.slice(0, 3), "Items & Attachments", baseSteps[3]!] : baseSteps;
     const visible = type ? applicableFields(type.fields, content.fields ?? {}) : [];
@@ -114,7 +123,7 @@ export function RequestWizard()
     }
     function payload(): CreateRequest
     {
-        return { ...content, fields: Object.fromEntries(visible.filter((field) => isPresent(content.fields?.[field.key])).map((field) => [field.key, content.fields![field.key]])) };
+        return { ...content, lineItems: type?.supportsLineItems ? content.lineItems : [], monetaryAmount: type?.monetary && !type.supportsLineItems ? content.monetaryAmount : null, fields: Object.fromEntries(visible.filter((field) => isPresent(content.fields?.[field.key])).map((field) => [field.key, content.fields![field.key]])) };
     }
     function issueStep(field: string): number
     {
@@ -150,7 +159,7 @@ export function RequestWizard()
     }
     async function save(submit = false): Promise<void>
     {
-        if (!type || busy) return;
+        if (!type || busy || staleDraft) return;
         if (submit && showIssues(validate(true))) return;
         setBusy(true);
         setError("");
@@ -163,13 +172,22 @@ export function RequestWizard()
                 setResult(detail);
                 setConfirming(false);
             }
-            else setSavedMessage("Draft saved. No request number or approval task has been created.");
+            else
+            {
+                setSavedId(detail.id);
+                setSavedMessage("Draft saved. No request number or approval task has been created.");
+            }
         }
         catch (failure)
         {
             if (isApiFailure(failure))
             {
-                setError(failure.message);
+                const view = presentFailure(failure, "The request could not be completed. Your inputs are preserved.");
+                setError(view.requestId ? `${view.message} Request ID: ${view.requestId}` : view.message);
+                setUnavailable(view.terminal);
+                if (view.terminal) setDirty(false);
+                setStaleDraft(["REQUEST_STALE", "INVALID_REQUEST_TRANSITION"].includes(failure.code ?? ""));
+                setSavedId(session.current.SavedId() ?? "");
                 setStaleForm(failure.code === "FORM_DEFINITION_CHANGED");
                 if (failure.details?.length) showIssues(failure.details);
             }
@@ -190,6 +208,11 @@ export function RequestWizard()
         if (type?.id === id) return;
         if (type && (dirty || session.current.HasSaved()) && !window.confirm("Changing the type starts a new draft and clears incompatible values. Continue?")) return;
         const selected = types.find((item) => item.id === id) ?? null;
+        setSavedId("");
+        setError("");
+        setStaleForm(false);
+        setStaleDraft(false);
+        completedStep.current = 0;
         setType(selected);
         session.current = new RequestEditingSession();
         setContent({ typeId: selected?.id ?? "", formDefinitionVersionId: selected?.versionId ?? "", title: "", justification: "", priority: "MEDIUM", fields: Object.fromEntries(selected?.fields.filter((field) => field.defaultValue !== undefined).map((field) => [field.key, field.defaultValue]) ?? []), lineItems: [] });
@@ -204,6 +227,9 @@ export function RequestWizard()
         try
         {
             const latest = await requestApi.type(type.id);
+            const obsoleteItems = !!content.lineItems?.length && !latest.supportsLineItems;
+            const obsoleteAmount = content.monetaryAmount != null && (!latest.monetary || latest.supportsLineItems);
+            if ((obsoleteItems || obsoleteAmount) && !window.confirm("The updated form no longer accepts some items or amounts. They will be excluded when saving. Review the updated form?")) return;
             setType(latest);
             update({ formDefinitionVersionId: latest.versionId });
             setStaleForm(false);
@@ -219,27 +245,64 @@ export function RequestWizard()
             setBusy(false);
         }
     }
+    async function reloadDraft(): Promise<void>
+    {
+        if (busy || !window.confirm("Reload the saved draft? Your unsaved changes will be lost.")) return;
+        setBusy(true);
+        try
+        {
+            const restored = await session.current.Reload(generation);
+            setType(restored.definition);
+            setContent(restored.content);
+            setSavedId(restored.detail.id);
+            setStaleDraft(false);
+            setStaleForm(false);
+            setDirty(false);
+            setIssues([]);
+            setError("");
+            setSavedMessage("");
+            setStep(1);
+        }
+        catch (failure)
+        {
+            const view = presentFailure(failure, "This draft cannot be reloaded for editing. Open the saved request to view its current state.");
+            setError(view.requestId ? `${view.message} Request ID: ${view.requestId}` : view.message);
+            setUnavailable(view.terminal);
+            if (view.terminal) setDirty(false);
+        }
+        finally
+        {
+            setBusy(false);
+        }
+    }
     const errorFor = (field: string) => issues.find((issue) => issue.field === field)?.message;
     if (!user?.roles.includes("REQUESTER")) return <p role="alert">A Requester role is required to create requests.</p>;
+    if (unavailable) return <div role="alert" className="space-y-3"><p>{error}</p><Link className="underline" to="/requests">My Requests</Link></div>;
     if (result) return <div className="mx-auto max-w-3xl space-y-6"><h1 className="flex items-center gap-2 text-2xl font-semibold"><CheckCircle2 aria-hidden="true" />Request submitted</h1><RequestResult detail={result} definition={type} /><Link className="underline" to={`/requests/${result.id}`}>Open saved request</Link></div>;
     function basicField(name: "title" | "justification", label: string)
     {
         return <div className="space-y-2"><label htmlFor={name} className="block text-sm font-medium">{label} (required)</label>{name === "title" ? <Input id={name} value={content[name]} onChange={(event) => update({ [name]: event.target.value })} aria-invalid={!!errorFor(name)} aria-describedby={`${name}.counter ${name}.error`} /> : <textarea id={name} className={fieldClassName} rows={4} value={content[name]} onChange={(event) => update({ [name]: event.target.value })} aria-invalid={!!errorFor(name)} aria-describedby={`${name}.error`} />}{name === "title" && <p id={`${name}.counter`} className="text-sm text-muted-foreground">{(content.title ?? "").trim().length} / 200 characters (excluding leading and trailing spaces)</p>}<p id={`${name}.error`} className="text-sm text-destructive">{errorFor(name)}</p></div>;
     }
     return <div className="mx-auto max-w-5xl space-y-6 sm:space-y-8">
-        <header><h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">New request</h1><p className="mt-2 text-sm leading-relaxed text-muted-foreground">Prepare your request, review the details, then submit for approval.</p></header>
+        <header><h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">{initial ? "Edit draft" : "New request"}</h1><p className="mt-2 text-sm leading-relaxed text-muted-foreground">Prepare your request, review the details, then submit for approval.</p></header>
         <div className="grid items-start gap-5 xl:grid-cols-[14rem_minmax(0,1fr)] xl:gap-8">
             <nav aria-label="Request steps" className="rounded-xl border bg-card p-4">
                 <p aria-hidden="true" className="mb-3 text-xs font-medium text-muted-foreground">Step {step + 1} of {steps.length}</p>
                 <ol className="flex flex-wrap gap-1 sm:gap-2 xl:flex-col">{steps.map((label, index) => <li key={label} aria-current={index === step ? "step" : undefined} className={index === step ? "flex items-center gap-2 rounded-md bg-muted px-2 py-1.5 text-sm font-semibold" : "flex items-center gap-2 px-2 py-1.5 text-sm text-muted-foreground"}>
-                    <span className={index < step ? "flex size-6 shrink-0 items-center justify-center rounded-full border border-primary/30 bg-primary/10 text-xs tabular-nums" : "flex size-6 shrink-0 items-center justify-center rounded-full border bg-background text-xs tabular-nums"}>{index + 1}</span>
-                    <span className="sr-only xl:not-sr-only">{label}{index < step ? <span className="sr-only">, completed</span> : null}</span>
+                    <button type="button" disabled={busy || loading || index > completedStep.current} onClick={() =>
+                    {
+                        if (index > step && showIssues(validate(true).filter((issue) => issueStep(issue.field) < index))) return;
+                        setStep(index);
+                    }} className="flex min-h-11 items-center gap-2 rounded-md text-left transition-colors hover:bg-accent focus-visible:outline-2 focus-visible:outline-ring motion-reduce:transition-none">
+                        <span aria-hidden="true" className={index < step ? "flex size-6 shrink-0 items-center justify-center rounded-full border border-primary/30 bg-primary/10 text-xs tabular-nums" : "flex size-6 shrink-0 items-center justify-center rounded-full border bg-background text-xs tabular-nums"}>{index + 1}</span>
+                        <span className="sr-only xl:not-sr-only">{label}{index < step ? <span className="sr-only">, completed</span> : null}</span>
+                    </button>
                     {index < step && <CheckCircle2 aria-hidden="true" className="hidden size-4 shrink-0 text-primary sm:block" />}
                 </li>)}</ol>
             </nav>
             <div className="min-w-0 space-y-4">
-                {error && <div role="alert" className="rounded-md border border-destructive p-4 text-sm"><AlertCircle className="mr-2 inline h-4 w-4" aria-hidden="true" />{error}{staleForm && <Button type="button" disabled={busy} onClick={() => void reviewUpdatedForm()} className="ml-2 underline">Review updated form</Button>}{!types.length && <Button onClick={() => setLoadVersion((value) => value + 1)} className="ml-2 underline">Retry loading</Button>}</div>}
-                {savedMessage && <p role="status" className="text-sm">{savedMessage}</p>}
+                {error && <div role="alert" className="rounded-md border border-destructive p-4 text-sm"><AlertCircle className="mr-2 inline h-4 w-4" aria-hidden="true" />{error}{staleDraft && <><Button type="button" disabled={busy} onClick={() => void reloadDraft()} className="ml-2 underline">Reload saved draft</Button>{savedId && <Link className="ml-2 underline" to={`/requests/${savedId}`}>Open saved request</Link>}</>}{staleForm && <Button type="button" disabled={busy} onClick={() => void reviewUpdatedForm()} className="ml-2 underline">Review updated form</Button>}{!types.length && <Button onClick={() => setLoadVersion((value) => value + 1)} className="ml-2 underline">Retry loading</Button>}</div>}
+                {savedMessage && <p role="status" className="text-sm">{savedMessage} <Link className="underline" to={`/requests/${savedId}/edit`}>Resume saved draft</Link></p>}
                 {issues.length > 0 && <ul role="alert" className="space-y-1 text-sm text-destructive">{issues.map((issue) => <li key={`${issue.field}-${issue.code}`}>{issue.message}</li>)}</ul>}
                 <ManagedForm busy={busy || loading} onSubmit={(event) =>
                 {
@@ -331,8 +394,8 @@ export function RequestWizard()
                         <div className="flex flex-wrap items-center gap-3">
                             {step > 0 && <ActionButton type="button" variant="ghost" onClick={() => setStep((value) => value - 1)}><ChevronLeft aria-hidden="true" className="size-4" />Back</ActionButton>}
                             <div className="ml-auto flex flex-wrap justify-end gap-2">
-                                <ActionButton type="button" disabled={!type} aria-describedby={!type ? "save-draft-hint" : undefined} onClick={() => void save()}>Save Draft</ActionButton>
-                                <ActionButton ref={submitButton} type="submit" variant="primary" disabled={!type}>{busy ? "Saving…" : step === steps.length - 1 ? "Submit request" : "Next"}{step < steps.length - 1 && <ChevronRight aria-hidden="true" className="size-4" />}</ActionButton>
+                                <ActionButton type="button" disabled={!type || staleDraft} aria-describedby={!type ? "save-draft-hint" : undefined} onClick={() => void save()}>Save Draft</ActionButton>
+                                <ActionButton ref={submitButton} type="submit" variant="primary" disabled={!type || staleDraft}>{busy ? "Saving…" : step === steps.length - 1 ? "Submit request" : "Next"}{step < steps.length - 1 && <ChevronRight aria-hidden="true" className="size-4" />}</ActionButton>
                             </div>
                         </div>
                         {!type && <p id="save-draft-hint" className="text-right text-sm text-muted-foreground">Select a request type to enable Save Draft.</p>}

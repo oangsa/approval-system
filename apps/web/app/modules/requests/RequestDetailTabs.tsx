@@ -1,3 +1,4 @@
+import { RequestOwnerActions } from "./RequestOwnerActions";
 import { ArrowLeft } from "lucide-react";
 import { AuditTimeline } from "./AuditTimeline";
 import { Link, useLocation, useSearchParams } from "react-router";
@@ -9,8 +10,8 @@ import { approverSlotLabel, requestPriorityLabel, requestTypeLabel } from "./req
 
 const tabs = ["Overview", "Approval", "History", "Discussion / Files"] as const;
 const tabKeys = ["overview", "approval", "history", "discussion"] as const;
-interface IRequestDetailTabsProps { detail: RequestDetail; definition: PublishedRequestType | null; }
-export function RequestDetailTabs({ detail, definition }: IRequestDetailTabsProps)
+interface IRequestDetailTabsProps { detail: RequestDetail; definition: PublishedRequestType | null; onChanged?: (detail: RequestDetail) => void; onUnavailable?: () => void; }
+export function RequestDetailTabs({ detail, definition, onChanged, onUnavailable }: IRequestDetailTabsProps)
 {
     const { user } = useSession();
     const { state } = useLocation();
@@ -57,6 +58,7 @@ export function RequestDetailTabs({ detail, definition }: IRequestDetailTabsProp
                 <div><dt>Department</dt><dd>{detail.department?.name ?? "No department"}</dd></div>
                 <div><dt>Last updated</dt><dd><time dateTime={detail.updatedAt}>{new Date(detail.updatedAt).toLocaleString(undefined, { timeZone: "Asia/Bangkok" })}</time></dd></div>
             </dl>
+            <RequestOwnerActions key={`${detail.id}:${detail.version}`} detail={detail} onChanged={onChanged} onUnavailable={onUnavailable} />
         </header>
         <div role="tablist" aria-label="Request details" className="grid grid-cols-2 gap-1 rounded-lg border bg-muted/60 p-1 sm:flex sm:flex-wrap">{tabs.map((tab, index) => <button key={tab} ref={(node) =>
         {

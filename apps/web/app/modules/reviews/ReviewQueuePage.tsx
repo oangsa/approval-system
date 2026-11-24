@@ -77,6 +77,20 @@ export function ReviewQueuePage()
     const pageNumber = normalizePage(params.get("page"));
     const [draft, setDraft] = useState(appliedTerm);
     const [attempt, setAttempt] = useState(0);
+    useEffect(() =>
+    {
+        function refresh()
+        {
+            if (document.visibilityState === "visible") setAttempt((value) => value + 1);
+        }
+        window.addEventListener("focus", refresh);
+        document.addEventListener("visibilitychange", refresh);
+        return () =>
+        {
+            window.removeEventListener("focus", refresh);
+            document.removeEventListener("visibilitychange", refresh);
+        };
+    }, []);
     const [state, setState] = useState<IQueueState | null>(null);
 
     const query = useMemo<ApprovalTaskSearch>(() =>
