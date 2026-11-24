@@ -13,8 +13,9 @@ interface IRequestOwnerActionsProps
     detail: RequestSummary & { availableActions?: RequestDetail["availableActions"] };
     onChanged?: (detail: RequestDetail) => void;
     onUnavailable?: () => void;
+    onFocusFallback?: () => void;
 }
-export function RequestOwnerActions({ detail, onChanged, onUnavailable }: IRequestOwnerActionsProps)
+export function RequestOwnerActions({ detail, onChanged, onUnavailable, onFocusFallback }: IRequestOwnerActionsProps)
 {
     const { user, generation } = useSession();
     const [open, setOpen] = useState(false);
@@ -23,6 +24,21 @@ export function RequestOwnerActions({ detail, onChanged, onUnavailable }: IReque
     const [error, setError] = useState("");
     const [conflict, setConflict] = useState(false);
     const [latest, setLatest] = useState<RequestDetail | null>(null);
+    const [baseVersion, setBaseVersion] = useState(detail.version);
+    if (baseVersion !== detail.version)
+    {
+        setBaseVersion(detail.version);
+        if (!open)
+        {
+            setLatest(null);
+            setError("");
+            setConflict(false);
+            setReason("");
+        }
+    }
+    const trigger = useRef<HTMLButtonElement>(null);
+    const fallbackRef = useRef(onFocusFallback);
+    fallbackRef.current = onFocusFallback;
     const dialog = useRef<HTMLDialogElement>(null);
     const attempt = useRef(new WithdrawalAttempt());
     const current = latest ?? detail;
@@ -31,13 +47,18 @@ export function RequestOwnerActions({ detail, onChanged, onUnavailable }: IReque
     useEffect(() =>
     {
         if (!open) return;
-        const previous = document.activeElement;
         const panel = dialog.current;
+        const target = trigger.current ?? (document.activeElement instanceof HTMLElement && document.activeElement !== document.body && !panel?.contains(document.activeElement) ? document.activeElement : null);
         panel?.showModal();
         return () =>
         {
             panel?.close();
-            if (previous instanceof HTMLElement && previous.isConnected) previous.focus();
+            if (target && target.isConnected && !target.hasAttribute("disabled"))
+            {
+                target.focus();
+                if (document.activeElement === target) return;
+            }
+            fallbackRef.current?.();
         };
     }, [open]);
     if (detail.requester.id !== user?.id || !user.roles.includes("REQUESTER")) return null;
@@ -95,7 +116,7 @@ export function RequestOwnerActions({ detail, onChanged, onUnavailable }: IReque
     }
     return <div className="flex flex-wrap items-center gap-2">
         {canEdit && <Link className={actionStyles({ size: "small" })} to={`/requests/${detail.id}/edit`}>Resume draft</Link>}
-        {canWithdraw && <ActionButton type="button" size="small" variant="danger" onClick={() => setOpen(true)}>Withdraw</ActionButton>}
+        {canWithdraw && <ActionButton ref={trigger} type="button" size="small" variant="danger" onClick={() => setOpen(true)}>Withdraw</ActionButton>}
         {open && <dialog ref={dialog} aria-labelledby={`withdraw-title-${detail.id}`} onCancel={(event) =>
         {
             event.preventDefault();

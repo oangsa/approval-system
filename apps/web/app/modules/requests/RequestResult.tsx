@@ -1,12 +1,13 @@
+import type { Ref } from "react";
 import type { PublishedRequestType, RequestDetail } from "@workflow/contracts";
 import { requestPriorityLabel, requestStatusLabel, requestTypeLabel } from "./requestPresentation";
 
 export interface IRequestResultProps { detail: RequestDetail; definition?: PublishedRequestType | null; showSummary?: boolean; }
-interface IRequestStatusProps { status: RequestDetail["status"]; }
-export function RequestStatus({ status }: IRequestStatusProps)
+interface IRequestStatusProps { status: RequestDetail["status"]; ref?: Ref<HTMLSpanElement>; tabIndex?: number; }
+export function RequestStatus({ status, ref, tabIndex }: IRequestStatusProps)
 {
     const tones = { DRAFT: "bg-secondary text-secondary-foreground", PENDING: "bg-amber-100 text-amber-950 dark:bg-amber-950 dark:text-amber-100", RETURNED: "bg-blue-100 text-blue-950 dark:bg-blue-950 dark:text-blue-100", APPROVED: "bg-green-100 text-green-950 dark:bg-green-950 dark:text-green-100", REJECTED: "bg-red-100 text-red-950 dark:bg-red-950 dark:text-red-100", WITHDRAWN: "bg-muted text-muted-foreground" };
-    return <span className={`inline-flex whitespace-nowrap rounded-md border px-2 py-1 text-sm font-medium ${tones[status]}`}>{requestStatusLabel(status)}</span>;
+    return <span ref={ref} tabIndex={tabIndex} className={`inline-flex whitespace-nowrap rounded-md border px-2 py-1 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${tones[status]}`}>{requestStatusLabel(status)}</span>;
 }
 export function RequestResult({ detail, definition, showSummary = true }: IRequestResultProps)
 {

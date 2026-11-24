@@ -1,7 +1,8 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router";
 import { http, HttpResponse } from "msw";
-import { afterEach, expect, test, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, expect, test, vi } from "vitest";
 import type { PublishedRequestType, RequestDetail } from "@workflow/contracts";
 import { RequestDetailPage } from "../../app/modules/requests/RequestDetailPage";
 import { requestApi } from "../../app/api/requests";
@@ -9,6 +10,26 @@ import { server } from "../helpers/server";
 
 const session = vi.hoisted(() => ({ generation: 0, user: { id: "owner", roles: ["REQUESTER"] } }));
 vi.mock("../../app/modules/auth/sessionContext", () => ({ useSession: () => session }));
+const showDescriptor = Object.getOwnPropertyDescriptor(HTMLDialogElement.prototype, "showModal");
+const closeDescriptor = Object.getOwnPropertyDescriptor(HTMLDialogElement.prototype, "close");
+beforeAll(() =>
+{
+    Object.defineProperty(HTMLDialogElement.prototype, "showModal", { configurable: true, value: function (this: HTMLDialogElement)
+    {
+        this.open = true;
+    } });
+    Object.defineProperty(HTMLDialogElement.prototype, "close", { configurable: true, value: function (this: HTMLDialogElement)
+    {
+        this.open = false;
+    } });
+});
+afterAll(() =>
+{
+    if (showDescriptor) Object.defineProperty(HTMLDialogElement.prototype, "showModal", showDescriptor);
+    else delete (HTMLDialogElement.prototype as Partial<HTMLDialogElement>).showModal;
+    if (closeDescriptor) Object.defineProperty(HTMLDialogElement.prototype, "close", closeDescriptor);
+    else delete (HTMLDialogElement.prototype as Partial<HTMLDialogElement>).close;
+});
 afterEach(() =>
 {
     vi.restoreAllMocks();
@@ -169,4 +190,25 @@ test("late detail response from the previous account cannot replace current deta
     await act(async () => pending[0]!.resolve({ ...noRevisions, title: "Old detail" }));
     expect(screen.getByRole("heading", { name: "Current detail", level: 1 })).toBeVisible();
     expect(screen.queryByText("Old detail")).not.toBeInTheDocument();
+});
+
+test("B07 detail withdrawal restores focus to Withdraw on cancel and moves focus to status when Withdraw disappears", async () =>
+{
+    session.user.id = id;
+    const pending: RequestDetail = { ...detail, availableActions: ["WITHDRAW"] };
+    const withdrawn: RequestDetail = { ...pending, status: "WITHDRAWN", version: 2, availableActions: [] };
+    vi.spyOn(requestApi, "read").mockResolvedValue(pending);
+    vi.spyOn(requestApi, "version").mockResolvedValue(definition);
+    vi.spyOn(requestApi, "withdraw").mockResolvedValue(withdrawn);
+    const user = userEvent.setup();
+    render(<MemoryRouter initialEntries={[`/requests/${id}`]}><Routes><Route path="/requests/:id" element={<RequestDetailPage />} /></Routes></MemoryRouter>);
+    const withdraw = await screen.findByRole("button", { name: "Withdraw" });
+    await user.click(withdraw);
+    fireEvent(screen.getByRole("dialog"), new Event("cancel", { cancelable: true }));
+    await waitFor(() => expect(withdraw).toHaveFocus());
+    await user.click(withdraw);
+    await user.click(screen.getByRole("button", { name: "Confirm withdrawal" }));
+    const status = await screen.findByText("Withdrawn");
+    await waitFor(() => expect(status).toHaveFocus());
+    expect(screen.queryByRole("button", { name: "Withdraw" })).not.toBeInTheDocument();
 });
