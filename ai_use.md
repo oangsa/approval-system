@@ -49,3 +49,85 @@ The issue #27 documentation received independent approval on [PR #59](https://gi
 ## Issue #71 assistance
 
 OpenAI Codex assisted with the BUG-B01 fix, tests, local review and [regression evidence](docs/labs/lab-06/bug-b01-regression-evidence.md). Agent review does not constitute independent human review; the evidence record distinguishes executed checks, reported results and outstanding verification.
+
+## Issue #6 assistance
+
+@oangsa
+prompt: $karpathy-guidelines $caveman
+reflection/output: Applied supplied Karpathy guidelines and concise communication preferences to Issue #6 implementation.
+
+## Issue #6 assistance
+
+@oangsa
+prompt: Implement
+
+## Issue #6
+
+## Type
+- Full-stack Feature
+
+## Sprint
+- Sprint 2
+- Planned primary owner: @oangsa — accountable for both API/DB and UI.
+- Planned PR reviewer: @kittipichcha — independent teammate review, never self-review.
+- Ownership allocation (2026-11-24): Balanced by existing issue estimates within each remaining sprint: 20 points per person in Sprint 2 and 20 points per person in Sprint 3, totaling 40 points each. #6 remains assigned to @oangsa at the owner's explicit request. The other teammate provides independent PR review. Estimates and frozen product/API/UI contracts are unchanged.
+- Rebalance unstarted work if actual effort diverges; estimates do not prove equal actual contributions.
+
+## Features
+- `R01` — Save as Draft
+- `R05` — Withdraw Request
+
+## Depends on
+- #2
+- #5
+
+## Scope
+- Implement complete backend Domain/Application/Infrastructure/Presentation behavior, Drizzle data changes, shared Zod contracts, and permission validation needed for these features.
+- Implement complete React Router 7 frontend routes, shadcn/ui + Tailwind-only UI, states and integration for the same features. Keep public SSR and authenticated client-loaded data isolated; use the owner-approved D-01 stack from #1: Node.js 24, npm Workspaces, root `package-lock.json`, Elysia through `@elysia/node`, TypeScript, Vitest for unit/API/contract/real-PostgreSQL integration tests and Playwright for browser E2E, with OOP/Clean Architecture, PostgreSQL/Drizzle and shared Zod contracts in `packages/contracts`. This runtime/toolchain amendment overrides obsolete engineering runtime wording only; all 54 features, frozen business/API/UI behavior, ownership and effort estimates remain unchanged.
+- Complete incomplete draft save/reopen/edit orchestration and eligible withdrawal through backend lifecycle services, shared contracts and request/revision/task persistence.
+- Extend New/Edit wizard with Save Draft at each eligible step, resume routes and unsaved-change handling; add owner withdrawal confirmation in detail/list actions and authoritative queue refresh.
+- Reuse existing creation/decision/idempotency infrastructure; this issue owns complete draft/withdraw feature acceptance, not a second request engine.
+- Add/update applicable unit, API/contract, real-PostgreSQL integration, security, concurrency and Playwright/E2E tests. Version feature SDS, UI/API/data contract, numbered AC, STS and DoD before implementation; preserve feature traceability and record actual verification evidence in this issue.
+- Dependencies are integration prerequisites, not a ban on parallel implementation against the frozen shared contracts. Coordinate shared contract/schema changes and reuse earlier components; keep supporting consumer integrations separate from primary Feature ID ownership.
+
+## Acceptance criteria
+- [ ] After valid published type/version selection, `POST /api/v1/requests` plus key saves incomplete but supplied-value-valid draft and returns `201 RequestDetail`; before selection Save Draft explains why unavailable.
+- [ ] Subsequent `PATCH /api/v1/requests/:id/draft` sends expectedVersion and changed working fields, returns `200 RequestDetail`, preserves omitted properties and replaces fields map as specified. Hidden keys remain rejected.
+- [ ] Save from any wizard step does not require submission completeness; draft persists across reload/restart and appears only to owner, with no official number, submitted revision/cycle or review task.
+- [ ] `/requests/:id/edit` resumes saved values and step navigation; form errors focus correct step, unsaved route/type changes warn, safe recoverable errors retain inputs.
+- [ ] `POST /api/v1/requests/:id/withdraw` takes `{expectedVersion,reason?}` plus Idempotency-Key, returns `200 RequestDetail` WITHDRAWN only for own PENDING request. Reason is optional per frozen API, not invented mandatory validation.
+- [ ] Withdrawal atomically closes unfinished tasks, preserves prior submitted snapshots/votes, appends actor/time/event and makes later decisions non-actionable.
+- [ ] Foreign and terminal withdrawals are denied with safe 404/state-conflict semantics and no mutation. Stale versions conflict; same-key replay produces no duplicate history; changed body conflicts.
+- [ ] True simultaneous withdrawal versus approve/reject yields one serializable valid ordering, with no post-withdraw vote or orphan state.
+- [ ] UI confirms withdrawal, displays server status and refreshes request/queue; accessible busy/validation/forbidden/stale/network states work. Execute PG persistence/rollback/race and draft/withdraw E2E with evidence.
+- [ ] Teammate reviews bounded implementation; feature PR targets `sprint-2-staging`, followed by reviewed promotion to `dev` then release-reviewed `main`. Run applicable typecheck, lint, build and planned tests; record actual commit/environment/results and disclose failures/skips. This planning issue asserts no implementation or passing tests.
+
+## Required branch
+`feature/6-draft-withdraw-lifecycle`
+
+## Traceability
+- Features: `R01`, `R05`
+- Functional requirements: `FR-019`, `FR-023`
+- Business rules: `BR-026`, `BR-028`, `BR-029`, `BR-033`, `BR-034`, `BR-044`
+- Acceptance criteria: `AC-019`, `AC-023`
+- Planned tests: `FT-019`, `FT-023`; `EP-033`, `EP-035`, `EP-038`, `API-08`, `DB-02`, `DB-08`, `CX-04`, `CX-14`, `SEC-02`, `UI-05`, `UI-06`, `E2E-01`, `E2E-06`
+- Contracts: `docs/specs/specifications.md` (frozen product v1.0), `docs/specs/api-specs.md` (frozen v1.0.1), `docs/specs/ui-specs.md` (frozen v1.0), `docs/specs/test.md` (planned verification).
+- Supporting design/traceability: `docs/specs/srs.md`, `docs/specs/system-sds.md`, `docs/specs/traceability.md`, `docs/sprints/sprint-2.md`, root `AGENTS.md`.
+- API paths use `/api/v1` unless explicitly stated otherwise; suffixes within a named endpoint family share its prefix. Preserve frozen contracts over older non-frozen sprint suggestions or scaffold defaults; no additional product behavior is implied.
+
+## Estimated effort
+- 4 points (planning estimate, not hours)
+- Includes business rules, backend/API, frontend/UI, shared schemas, migrations/data integration, negative/race testing, documentation and integration review.
+reflection/output: Versioned Issue #6 SDS, API/UI/data decisions, numbered acceptance criteria, STS and DoD before implementation. Reused request/decision transaction and idempotency infrastructure for optional-reason owner withdrawal, cancellation, preserved submitted evidence and audit note migration. Added owner draft resume and withdrawal UI, changed-fields PATCH orchestration, queue refresh and automated contract/component/PostgreSQL/browser coverage. Actual checks, initial failures, environment and remaining teammate-review/promotion gates are recorded in docs/features/draft-withdraw-lifecycle/verification.md. Existing user edits to AGENTS.md preserved; no commits, pushes or publication performed.
+
+## Issue #6 assistance
+
+@oangsa
+prompt: use $scrutinize the implementation once to trace every single implementation mismatches, and fix if needed
+reflection/output: Ran one scrutinize pass across frozen contracts, routes, schemas, application/domain authorization, transactional persistence, idempotency, decision races, services, wizard, owner actions and queue refresh. Reproduced and repaired invalid quantity exceptions, completed-step validation bypass, premature draft version gating, omitted line-item identity changes, UUID replay scope mismatch, missing stale-draft reload, forbidden editor retention, missing support Request IDs, obsolete monetary values after form review, and withdrawal reload/close/permission propagation. Added regression tests and recorded actual failed-before/passed-after checks in docs/features/draft-withdraw-lifecycle/review.md. Preserved existing user changes; no commits, pushes or external publication.
+
+## Issue #6 assistance
+
+@oangsa
+prompt: $caveman commit, push and oprn pr to sprint-2-staging with issue 6 closing in body
+reflection/output: Inspected and split existing authorized changes into scoped policy, design, shared-contract, backend, frontend and verification commits. Fresh npm run check passed typecheck, lint, 423 tests and builds; git diff --check passed. Source hashes match retained evidence for 107 PostgreSQL and 36 browser tests, which were not rerun in this publication turn. Prepared feature branch publication and PR targeting sprint-2-staging with Closes #6; independent teammate review remains required.

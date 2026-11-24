@@ -1,0 +1,5 @@
+Issue #6 implementation is complete locally on feature/6-draft-withdraw-lifecycle. Owner authorized scoped commits, push and PR to sprint-2-staging on 2026-11-24. Independent teammate review, merge and release remain pending. This proposed issue comment has not been posted.
+
+Verification: typecheck, lint, build and diff checks pass; 410 unit/API/contract/component tests pass; 104 real-PostgreSQL tests pass with no skips, including process restart, rollback, idempotency and simultaneous withdrawal/decision races. Full Playwright suite passes 34 tests; final owner-action guard was followed by 3 passing focused browser rechecks.
+
+Versioned design, numbered acceptance criteria, test specification, DoD and detailed results are in the local docs/features/draft-withdraw-lifecycle/ directory. Initial environment/test failures and their corrections are disclosed in verification.md. Independent review by @kittipichcha remains pending. Eventual feature PR targets sprint-2-staging, then reviewed promotion to dev and release-reviewed main.
