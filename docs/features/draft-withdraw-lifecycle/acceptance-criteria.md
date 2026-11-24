@@ -15,3 +15,9 @@
 DW-AC-02 includes monetary authority changes across published form versions: omitted values remain retained and are validated against the target definition; incompatible retained values require explicit clearing/replacement and rejection preserves durable state. DW-AC-03–04 include replacing the edit URL when a type change creates a different draft, restoring that draft after reload, and authoritative unchanged-save status/version/permission checks without no-op writes or false success. The frozen acceptance baseline and external review/promotion gates remain unchanged.
 
 B04 / DW-AC-02–04: confirmed form-version migration clears incompatible monetary/item state while preserving compatible content; cancellation retains all original content and pinned definition. Review summary matches the canonical save/submit payload, and discarded values stay absent through navigation, later version changes and draft save/reload.
+
+B05–B08 / DW-AC-02, DW-AC-04, DW-AC-08, DW-AC-09:
+- B05: unchanged Save Draft compares `fields` independent of object key order, triggering authoritative `GET` verification without `PATCH` mutation, version increment or new audit event.
+- B06: API validation responses emit canonical bracket-form paths (`lineItems[0].quantity`) and the wizard maps them to item inputs to mark invalid fields and focus the affected input.
+- B07: closing the withdrawal dialog restores keyboard focus to the `Withdraw` trigger when it survives, or moves focus to the updated detail status (`RequestDetailTabs`) or list search input (`RequestListPage`) when `Withdraw` disappears.
+- B08: final verification evidence (tested SHA, PR and CI links, results and any failures or skips) is prepared for direct posting on Issue #6 after final CI completes.
