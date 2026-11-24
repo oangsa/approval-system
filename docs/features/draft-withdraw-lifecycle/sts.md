@@ -5,3 +5,9 @@ Planned before implementation; not passing assertions. FT-019/EP-033/035/API-08/
 ## Review regression additions — v2
 
 Malformed quantity transport must return field-level 422 rather than throw; completed-step forward navigation validates before monetary rendering. Partial title-only PATCH retains existing item DTO identities; resource UUID spelling shares idempotency scope. Draft version regression saves rendered published version, rejects stale first submit without mutation, and succeeds after explicit current-version review. UI cases cover forbidden editor removal, confirmed stale-draft reload/cancellation/version reset, support Request ID retention, obsolete monetary authority removal after explicit review, request-only withdrawal reload, Escape parent refresh and lost permission during reload. Two new real browser flows verify concurrent edit/reload/save and competing withdrawal/reload/Escape. Actual evidence belongs in verification follow-up.
+
+## PR #87 regressions — v3
+
+- B01 / DW-AC-02: real PostgreSQL covers direct amount to item authority and reverse migration, rejection and rollback for omitted incompatible values, explicit clearing/replacement, ordinary omission preservation, and historical-version save/active-version submit boundaries.
+- B02 / DW-AC-03–04: component and browser checks open A, cancel then confirm type change, save B, assert replaced URL/current step and reload B, unchanged retry without duplicate creation, and unchanged A.
+- B03 / DW-AC-04: session/component and browser checks unchanged saves against unchanged, peer-edited, submitted and permission-revoked records; assert authoritative reads, no no-op writes, recovery without false success, recoverable input retention, and stable changed-content/lost-response retries.

@@ -9,3 +9,7 @@
 7. DW-AC-07: real concurrent withdrawal versus approve/reject has one valid ordering, no late vote, rollback leaves no partial effects.
 8. DW-AC-08: accessible owner confirmation, busy/error/conflict recovery and request/queue refresh; real PostgreSQL and browser evidence recorded.
 9. DW-AC-09: applicable checks run; failures/skips disclosed; independent review and staged promotion remain external gates.
+
+## PR #87 repair coverage
+
+DW-AC-02 includes monetary authority changes across published form versions: omitted values remain retained and are validated against the target definition; incompatible retained values require explicit clearing/replacement and rejection preserves durable state. DW-AC-03–04 include replacing the edit URL when a type change creates a different draft, restoring that draft after reload, and authoritative unchanged-save status/version/permission checks without no-op writes or false success. The frozen acceptance baseline and external review/promotion gates remain unchanged.
