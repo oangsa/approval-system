@@ -76,6 +76,20 @@
 - Keep pull requests scoped and reviewable. Coordinate changes to shared contracts, migrations, workspace configuration, and lockfiles.
 - Keep requirements, design, acceptance criteria, and test specifications versioned before implementation when required by the course; preserve traceability to implemented changes and actual verification.
 
+## AI Assistance Records
+
+- Agents must record each user prompt and a reflection/output in the root `ai_use.md` under the relevant issue using the format below.
+- Replace `{number}` with the issue number and `@github_user` with the requesting user's GitHub handle. Preserve the exact user prompt verbatim in `{EXACT_USER_PROMPT}` and describe the work performed in `{WHAT YOU DID}`.
+- Append new records without changing or removing any existing `ai_use.md` content.
+
+```text
+## Issue #{number} assistance
+
+@github_user
+prompt: {EXACT_USER_PROMPT}
+reflection/output: {WHAT YOU DID}
+```
+
 ## Branch Workflow
 
 - **`main`:** The primary and production branch. It receives the final reviewed release from `dev` through a pull request.
