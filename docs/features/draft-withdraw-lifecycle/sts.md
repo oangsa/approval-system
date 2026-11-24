@@ -11,3 +11,9 @@ Malformed quantity transport must return field-level 422 rather than throw; comp
 - B01 / DW-AC-02: real PostgreSQL covers direct amount to item authority and reverse migration, rejection and rollback for omitted incompatible values, explicit clearing/replacement, ordinary omission preservation, and historical-version save/active-version submit boundaries.
 - B02 / DW-AC-03–04: component and browser checks open A, cancel then confirm type change, save B, assert replaced URL/current step and reload B, unchanged retry without duplicate creation, and unchanged A.
 - B03 / DW-AC-04: session/component and browser checks unchanged saves against unchanged, peer-edited, submitted and permission-revoked records; assert authoritative reads, no no-op writes, recovery without false success, recoverable input retention, and stable changed-content/lost-response retries.
+
+## B04 regressions — v4
+
+Component tests reproduce obsolete review items, then cover canonical review rendering independent of migration, cancellation without content loss, compatible money/items retention, incompatible clearing and no reappearance after a later definition restores support. Assert actual PATCH contents and resumed saved values. Browser regression uses real published-version fixtures, stale initial-submit recovery, cancelled/confirmed migration, review-summary comparison, draft PATCH and browser reload. Run typecheck, lint, unit/API/contracts, workspace build and applicable browser checks; record actual results and skipped checks separately.
+
+Fresh-database browser execution also requires B02 to create its own alternate published type rather than depending on earlier PostgreSQL-suite fixtures. Keep all URL, reload, original-preservation and duplicate-prevention assertions intact.

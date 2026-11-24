@@ -31,3 +31,7 @@ B01: reconstruct saved content with its original immutable definition, apply exp
 B02: after a type change creates a different draft from an edit route, replace that route with the authoritative saved ID after clearing dirty state. Restore saved content and current wizard step through the edit route; unchanged retries must not create another draft. Cancelled type changes and the original draft remain untouched.
 
 B03: unchanged Save reads authoritative request state and verifies DRAFT, EDIT_DRAFT permission and the session's version before reporting success. Reuse API failure/recovery paths, retain recoverable inputs and retry keys, and avoid no-op PATCH writes, audit events or version increments. Clear prior success copy before every save attempt.
+
+## B04 review-summary repair — v4, 2026-11-24
+
+After updated-form review is accepted, update the definition and content together: retain compatible values, clear direct monetary amount unless the target uses direct monetary authority, and clear items unless the target supports them. Do not change any original content or definition when the warning is cancelled. Render review values, items and totals from the same canonical payload() used for persistence/submission. Cleared values must not reappear when navigating, saving/resuming, or later restoring a compatible form definition. Reuse existing frontend state/API/service paths; no backend, contracts, dependency or database changes.

@@ -13,3 +13,5 @@
 ## PR #87 repair coverage
 
 DW-AC-02 includes monetary authority changes across published form versions: omitted values remain retained and are validated against the target definition; incompatible retained values require explicit clearing/replacement and rejection preserves durable state. DW-AC-03–04 include replacing the edit URL when a type change creates a different draft, restoring that draft after reload, and authoritative unchanged-save status/version/permission checks without no-op writes or false success. The frozen acceptance baseline and external review/promotion gates remain unchanged.
+
+B04 / DW-AC-02–04: confirmed form-version migration clears incompatible monetary/item state while preserving compatible content; cancellation retains all original content and pinned definition. Review summary matches the canonical save/submit payload, and discarded values stay absent through navigation, later version changes and draft save/reload.
