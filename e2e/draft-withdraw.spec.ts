@@ -140,6 +140,7 @@ test("E2E-06 optional withdrawal confirmation, lost-response replay, stale revie
         expect(keys).toHaveLength(2);
         expect(keys[0]).toBe(keys[1]);
         await expect(page.getByRole("button", { name: "Withdraw", exact: true })).not.toBeVisible();
+        await expect(page.getByText("Withdrawn", { exact: true })).toBeFocused();
         await reviewer.getByRole("button", { name: "Confirm approval" }).click();
         await expect(reviewer.getByRole("dialog")).not.toBeVisible();
         await expect(reviewer.getByRole("button", { name: "Reload task" })).toBeVisible();
@@ -174,6 +175,7 @@ test("mobile list withdrawal retains optional reason in history and refreshes ap
     await dialog.getByRole("button", { name: "Confirm withdrawal" }).click();
     await expect(dialog).not.toBeVisible();
     await expect(page.getByText("No requests match your filters.")).toBeVisible();
+    await expect(page.getByRole("textbox", { name: "Search", exact: true })).toBeFocused();
     await page.goto(`/requests/${submitted.id}?tab=history`);
     await expect(page.getByRole("tabpanel", { name: "History" })).toContainText("No longer needed by the team");
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
@@ -224,6 +226,7 @@ test("review: Escape after withdrawal conflict reload refreshes terminal owner d
     await expect(dialog).not.toBeVisible();
     await expect(page.getByText("Withdrawn", { exact: true })).toBeVisible();
     await expect(page.getByRole("button", { name: "Withdraw", exact: true })).not.toBeVisible();
+    await expect(page.getByText("Withdrawn", { exact: true })).toBeFocused();
 });
 
 test("B02 type change creates a new edit resource, preserves original, and resumes new draft after reload", async ({ page }) =>
@@ -427,4 +430,133 @@ test("B04 confirmed form migration clears obsolete review items and persists thr
     {
         await database.Close();
     }
+});
+
+test("B05 unchanged save with reordered jsonb keys triggers GET without PATCH or new audit entry", async ({ page }) =>
+{
+    const { createTestDatabase } = await import("../apps/api/tests/helpers/testDatabase");
+    const { requestAuditEvents } = await import("../apps/api/src/Infrastructures/Database/schema");
+    const { eq } = await import("drizzle-orm");
+    const database = createTestDatabase();
+    try
+    {
+        const token = await login(page);
+        const headers = { authorization: `Bearer ${token}` };
+        const types = await (await page.request.post(`${apiUrl.origin}/api/v1/request-types/search`, { headers, data: {} })).json() as { id: string; versionId: string; code: string }[];
+        const type = types.find((item) => item.code === "GENERAL")!;
+        const created = await page.request.post(`${apiUrl.origin}/api/v1/requests`, {
+            headers: { ...headers, "Idempotency-Key": crypto.randomUUID() },
+            data: { typeId: type.id, formDefinitionVersionId: type.versionId, title: `B05 key order ${Date.now()}`, fields: { category: "OTHER", reason: "Key order check" } },
+        });
+        expect(created.status()).toBe(201);
+        const draft = requestDetailSchema.parse(await created.json());
+        expect(Object.keys(draft.workingRevision!.fields)).toEqual(["reason", "category"]);
+        const initialAudit = await database.connection.select().from(requestAuditEvents).where(eq(requestAuditEvents.requestId, draft.id));
+        await page.goto(`/requests/${draft.id}/edit`);
+        await expect(page.getByLabel("Title (required)", { exact: true })).toHaveValue(draft.title);
+        let getCount = 0;
+        let patchCount = 0;
+        page.on("request", (request) =>
+        {
+            const pathname = new URL(request.url()).pathname;
+            if (request.method() === "GET" && pathname === `/api/v1/requests/${draft.id}`) getCount++;
+            if (request.method() === "PATCH" && pathname === `/api/v1/requests/${draft.id}/draft`) patchCount++;
+        });
+        await page.getByRole("button", { name: "Save Draft" }).click();
+        await expect(page.getByRole("status")).toContainText("Draft saved");
+        expect(getCount).toBe(1);
+        expect(patchCount).toBe(0);
+        const current = await page.request.get(`${apiUrl.origin}/api/v1/requests/${draft.id}`, { headers });
+        expect(requestDetailSchema.parse(await current.json())).toEqual(draft);
+        expect(await database.connection.select().from(requestAuditEvents).where(eq(requestAuditEvents.requestId, draft.id))).toEqual(initialAudit);
+    }
+    finally
+    {
+        await database.Close();
+    }
+});
+
+test("B06 canonical bracket-form lineItems[0].quantity path focuses the affected wizard input", async ({ page }) =>
+{
+    const { createTestDatabase } = await import("../apps/api/tests/helpers/testDatabase");
+    const { requestTypes, requestTypeVersions } = await import("../apps/api/src/Infrastructures/Database/schema");
+    const { seededDefinition } = await import("../apps/api/src/Infrastructures/Database/seedRequests");
+    const { eq } = await import("drizzle-orm");
+    const database = createTestDatabase();
+    try
+    {
+        const token = await login(page);
+        const headers = { authorization: `Bearer ${token}` };
+        const typeId = crypto.randomUUID(), versionId = crypto.randomUUID();
+        const itemType = { ...seededDefinition, id: typeId, versionId, code: `B06-${typeId}`, name: { en: "B06 item type" }, monetary: true, supportsLineItems: true };
+        await database.connection.insert(requestTypes).values({ id: typeId, code: itemType.code });
+        await database.connection.insert(requestTypeVersions).values({ id: versionId, typeId, versionNumber: 1, definition: itemType });
+        await database.connection.update(requestTypes).set({ publishedVersionId: versionId }).where(eq(requestTypes.id, typeId));
+
+        const invalidCreate = await page.request.post(`${apiUrl.origin}/api/v1/requests`, {
+            headers: { ...headers, "Idempotency-Key": crypto.randomUUID() },
+            data: { typeId, formDefinitionVersionId: versionId, lineItems: [{ description: "Part", quantity: "invalid", unitAmount: "1.00" }] },
+        });
+        expect(invalidCreate.status()).toBe(422);
+        expect(await invalidCreate.json()).toMatchObject({
+            code: "VALIDATION_ERROR",
+            details: expect.arrayContaining([expect.objectContaining({ field: "lineItems[0].quantity" })]),
+        });
+
+        const created = await page.request.post(`${apiUrl.origin}/api/v1/requests`, {
+            headers: { ...headers, "Idempotency-Key": crypto.randomUUID() },
+            data: { typeId, formDefinitionVersionId: versionId, title: "B06 line item", justification: "Focus check", fields: { category: "OPERATIONS" }, lineItems: [{ description: "Part", quantity: "1", unitAmount: "10.00" }] },
+        });
+        expect(created.status()).toBe(201);
+        const draft = requestDetailSchema.parse(await created.json());
+
+        await page.goto(`/requests/${draft.id}/edit`);
+        await expect(page.getByLabel("Title (required)", { exact: true })).toHaveValue(draft.title);
+        for (let step = 0; step < 2; step++) await page.getByRole("button", { name: "Next", exact: true }).click();
+        await page.getByLabel("Quantity (item 1)").fill("9999999999999999");
+        await page.getByLabel("Unit amount (item 1)").fill("100.00");
+        await page.getByRole("button", { name: "Back", exact: true }).click();
+        await page.getByRole("button", { name: "Back", exact: true }).click();
+        await expect(page.getByRole("heading", { name: "Basic Information", exact: true })).toBeVisible();
+
+        const patchResponse = page.waitForResponse((response) => response.url().endsWith(`/requests/${draft.id}/draft`) && response.request().method() === "PATCH");
+        await page.getByRole("button", { name: "Save Draft" }).click();
+        const failed = await patchResponse;
+        expect(failed.status()).toBe(422);
+        expect(await failed.json()).toMatchObject({
+            code: "VALIDATION_ERROR",
+            details: expect.arrayContaining([expect.objectContaining({ field: "lineItems[0].quantity" })]),
+        });
+        await expect(page.getByRole("heading", { name: "Items & Attachments", exact: true })).toBeVisible();
+        const quantity = page.getByLabel("Quantity (item 1)");
+        await expect(quantity).toBeFocused();
+        await expect(quantity).toHaveAttribute("aria-invalid", "true");
+    }
+    finally
+    {
+        await database.Close();
+    }
+});
+
+test("B07 desktop list withdrawal restores trigger on Escape and focuses search input when Withdraw disappears", async ({ page }) =>
+{
+    const token = await login(page);
+    const title = `Desktop list focus ${Date.now()}`;
+    await createPending(page, token, title);
+    await page.goto(`/requests?search=${encodeURIComponent(title)}`);
+    const withdraw = page.getByRole("button", { name: "Withdraw", exact: true });
+    await expect(withdraw).toBeVisible();
+    await withdraw.click();
+    const dialog = page.getByRole("dialog", { name: "Withdraw request?" });
+    await expect(dialog).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(dialog).not.toBeVisible();
+    await expect(withdraw).toBeFocused();
+    await page.keyboard.press("Enter");
+    await expect(dialog).toBeVisible();
+    await dialog.getByRole("button", { name: "Confirm withdrawal" }).click();
+    await expect(dialog).not.toBeVisible();
+    await expect(page.getByRole("table").getByText("Withdrawn", { exact: true })).toBeVisible();
+    await expect(withdraw).not.toBeVisible();
+    await expect(page.getByRole("textbox", { name: "Search", exact: true })).toBeFocused();
 });

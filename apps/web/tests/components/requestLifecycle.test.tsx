@@ -366,3 +366,55 @@ test.each([false, true])("B04 compatible form migration preserves monetary value
     expect(requestApi.patch).toHaveBeenLastCalledWith(id, { expectedVersion: 2, formDefinitionVersionId: latest.versionId, title: `${original.title} retained` }, expect.any(String));
     expect(confirm).not.toHaveBeenCalled();
 });
+
+test("B06 wizard maps bracket-form server error path lineItems[0].quantity to item input and focuses it", async () =>
+{
+    const itemDefinition = { ...definition, monetary: true, supportsLineItems: true };
+    const itemDraft = { ...draft, workingRevision: { ...draft.workingRevision!, amount: "10.00", currency: "THB", lineItems: [{ id, description: "Part", quantity: "1", unitAmount: "10.00", totalAmount: "10.00" }] } };
+    vi.mocked(requestApi.patch).mockRejectedValueOnce(new ApiFailure({
+        kind: "http",
+        status: 422,
+        message: "Validation failed",
+        details: [{ field: "lineItems[0].quantity", code: "VALIDATION_ERROR", message: "Invalid quantity" }],
+    }));
+    editableFixture(itemDraft, itemDefinition);
+    const user = userEvent.setup();
+    await user.type(await screen.findByLabelText("Title (required)"), " check");
+    await user.click(screen.getByRole("button", { name: "Save Draft" }));
+    const quantity = await screen.findByLabelText("Quantity (item 1)");
+    await waitFor(() => expect(quantity).toHaveFocus());
+    expect(quantity).toHaveAttribute("aria-invalid", "true");
+    expect(screen.getByRole("heading", { name: "Items & Attachments" })).toBeVisible();
+});
+
+test("B07 withdrawal dialog returns focus to trigger when surviving and calls fallback when removed", async () =>
+{
+    const pending = { ...draft, status: "PENDING" as const, availableActions: ["WITHDRAW"], requestNumber: "REQ-00000001" };
+    vi.mocked(requestApi.withdraw).mockResolvedValue({ ...pending, status: "WITHDRAWN", version: 3, availableActions: [] });
+    const fallback = vi.fn();
+    const user = userEvent.setup();
+    const view = render(<MemoryRouter><RequestOwnerActions detail={pending} onFocusFallback={fallback} /></MemoryRouter>);
+    const withdraw = screen.getByRole("button", { name: "Withdraw" });
+    await user.click(withdraw);
+    expect(screen.getByRole("dialog")).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    await waitFor(() => expect(withdraw).toHaveFocus());
+    expect(fallback).not.toHaveBeenCalled();
+    await user.click(withdraw);
+    await user.click(screen.getByRole("button", { name: "Confirm withdrawal" }));
+    await waitFor(() => expect(screen.queryByRole("button", { name: "Withdraw" })).not.toBeInTheDocument());
+    expect(fallback).toHaveBeenCalledTimes(1);
+    view.unmount();
+
+    const fallbackConflict = vi.fn();
+    vi.mocked(requestApi.withdraw).mockRejectedValueOnce(new ApiFailure({ kind: "http", status: 409, code: "REQUEST_STALE", message: "Stale request" }));
+    vi.mocked(requestApi.read).mockResolvedValue({ ...pending, status: "WITHDRAWN", version: 4, availableActions: [] });
+    render(<MemoryRouter><RequestOwnerActions detail={pending} onFocusFallback={fallbackConflict} /></MemoryRouter>);
+    await user.click(screen.getByRole("button", { name: "Withdraw" }));
+    await user.click(screen.getByRole("button", { name: "Confirm withdrawal" }));
+    await user.click(await screen.findByRole("button", { name: "Reload request" }));
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("Current server status: Withdrawn"));
+    fireEvent(screen.getByRole("dialog"), new Event("cancel", { cancelable: true }));
+    await waitFor(() => expect(screen.queryByRole("button", { name: "Withdraw" })).not.toBeInTheDocument());
+    expect(fallbackConflict).toHaveBeenCalledTimes(1);
+});
