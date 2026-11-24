@@ -131,3 +131,106 @@ reflection/output: Ran one scrutinize pass across frozen contracts, routes, sche
 @oangsa
 prompt: $caveman commit, push and oprn pr to sprint-2-staging with issue 6 closing in body
 reflection/output: Inspected and split existing authorized changes into scoped policy, design, shared-contract, backend, frontend and verification commits. Fresh npm run check passed typecheck, lint, 423 tests and builds; git diff --check passed. Source hashes match retained evidence for 107 PostgreSQL and 36 browser tests, which were not rerun in this publication turn. Prepared feature branch publication and PR targeting sprint-2-staging with Closes #6; independent teammate review remains required.
+
+
+## Issue #6 assistance
+
+@oangsa
+prompt: fix
+reflection/output: Inspected the clean Issue #6 feature branch and requested the missing failure details before changing code.
+
+## Issue #6 assistance
+
+@oangsa
+prompt: ﻿2026-11-24T06:43:06.5250371Z ##[group]Run docker run --rm --init --network host --ipc host \
+docker run --rm --init --network host --ipc host \
+  --user "$(id -u):$(id -g)" \
+  -e HOME=/tmp -e CI=true -e NODE_ENV -e TEST_DATABASE_URL \
+  -v "$GITHUB_WORKSPACE:/work" -w /work \
+  approval-playwright:ci npm run test:e2e
+shell: /usr/bin/bash -e {0}
+env:
+  NODE_ENV: test
+  TEST_DATABASE_URL: ***127.0.0.1:5432/workflow_test
+
+> test:e2e
+> playwright test
+
+[WebServer] 
+[WebServer]   dist/index.js  155.3kb
+[WebServer] 
+[WebServer] ⚡ Done in 17ms
+
+Running 36 tests using 1 worker
+····················F::error file=e2e/draft-withdraw.spec.ts,title=[chromium] › e2e/draft-withdraw.spec.ts:32:1 › DW-AC-01–04 incomplete saves, reload/resume, navigation warning and input-preserving retry,line=83,col=44::  1) [chromium] › e2e/draft-withdraw.spec.ts:32:1 › DW-AC-01–04 incomplete saves, reload/resume, navigation warning and input-preserving retry %0A    Error: dialog.accept: Cannot accept dialog which is already handled!%0A%0A      81 |     await expect(page).toHaveURL(new RegExp(`/requests/${draft.id}/edit$`));%0A      82 |     await expect(page.getByLabel("Title (required)", { exact: true })).toHaveValue(`${title} unsaved`);%0A    > 83 |     page.once("dialog", (dialog) => dialog.accept());%0A         |                                            ^%0A      84 |     await page.getByRole("link", { name: "My Requests", exact: true }).click();%0A      85 |     await page.getByRole("textbox", { name: "Search", exact: true }).fill(title);%0A      86 |     const row = page.getByRole("row").filter({ hasText: title });%0A        at _Page.<anonymous> (/work/e2e/draft-withdraw.spec.ts:83:44)
+  1) [chromium] › e2e/draft-withdraw.spec.ts:32:1 › DW-AC-01–04 incomplete saves, reload/resume, navigation warning and input-preserving retry 
+    Error: locator.fill: Test ended.
+    Call log:
+      - waiting for getByRole('textbox', { name: 'Search', exact: true })
+
+
+      83 |     page.once("dialog", (dialog) => dialog.accept());
+      84 |     await page.getByRole("link", { name: "My Requests", exact: true }).click();
+    > 85 |     await page.getByRole("textbox", { name: "Search", exact: true }).fill(title);
+         |                                                                      ^
+      86 |     const row = page.getByRole("row").filter({ hasText: title });
+      87 |     await row.getByRole("link", { name: "Resume draft" }).click();
+      88 |     await expect(page.getByLabel("Title (required)", { exact: true })).toHaveValue(title);
+        at /work/e2e/draft-withdraw.spec.ts:85:70
+···············
+
+  1) [chromium] › e2e/draft-withdraw.spec.ts:32:1 › DW-AC-01–04 incomplete saves, reload/resume, navigation warning and input-preserving retry 
+
+    Error: dialog.accept: Cannot accept dialog which is already handled!
+
+      81 |     await expect(page).toHaveURL(new RegExp(`/requests/${draft.id}/edit$`));
+      82 |     await expect(page.getByLabel("Title (required)", { exact: true })).toHaveValue(`${title} unsaved`);
+    > 83 |     page.once("dialog", (dialog) => dialog.accept());
+         |                                            ^
+      84 |     await page.getByRole("link", { name: "My Requests", exact: true }).click();
+      85 |     await page.getByRole("textbox", { name: "Search", exact: true }).fill(title);
+      86 |     const row = page.getByRole("row").filter({ hasText: title });
+        at _Page.<anonymous> (/work/e2e/draft-withdraw.spec.ts:83:44)
+
+    Error: locator.fill: Test ended.
+    Call log:
+      - waiting for getByRole('textbox', { name: 'Search', exact: true })
+
+
+      83 |     page.once("dialog", (dialog) => dialog.accept());
+      84 |     await page.getByRole("link", { name: "My Requests", exact: true }).click();
+    > 85 |     await page.getByRole("textbox", { name: "Search", exact: true }).fill(title);
+         |                                                                      ^
+      86 |     const row = page.getByRole("row").filter({ hasText: title });
+      87 |     await row.getByRole("link", { name: "Resume draft" }).click();
+      88 |     await expect(page.getByLabel("Title (required)", { exact: true })).toHaveValue(title);
+        at /work/e2e/draft-withdraw.spec.ts:85:70
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    artifacts/playwright/results/draft-withdraw-DW-AC-01–04-3b26b--and-input-preserving-retry-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: artifacts/playwright/results/draft-withdraw-DW-AC-01–04-3b26b--and-input-preserving-retry-chromium/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    artifacts/playwright/results/draft-withdraw-DW-AC-01–04-3b26b--and-input-preserving-retry-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace artifacts/playwright/results/draft-withdraw-DW-AC-01–04-3b26b--and-input-preserving-retry-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  1 failed
+    [chromium] › e2e/draft-withdraw.spec.ts:32:1 › DW-AC-01–04 incomplete saves, reload/resume, navigation warning and input-preserving retry 
+  35 passed (53.4s)
+##[notice]  1 failed
+    [chromium] › e2e/draft-withdraw.spec.ts:32:1 › DW-AC-01–04 incomplete saves, reload/resume, navigation warning and input-preserving retry 
+  35 passed (53.4s)
+Process completed with exit code 1.
+reflection/output: Reproduced the exact double-handled dialog error using delayed Chromium confirmation. Traced the failure to unsynchronized one-shot handlers: unchanged URL/input assertions can finish before the first navigation dialog arrives. Updated all four native-confirmation checks in e2e/draft-withdraw.spec.ts to await both the triggering click and the dialog response, asserting confirmation type. Application behavior and acceptance assertions remain intact. Verification results are recorded in docs/features/draft-withdraw-lifecycle/verification.md. No commit or push performed.
+
+## Issue #6 assistance
+
+@oangsa
+prompt: commit and push
+reflection/output: Reviewed the focused dialog synchronization fix and verification records, then prepared a scoped fix commit for the current feature/6-draft-withdraw-lifecycle branch and publication to its origin branch. Prior verification passed 10/10 repeated affected browser checks, 423 tests, typecheck, lint and build. No merge or branch promotion requested.

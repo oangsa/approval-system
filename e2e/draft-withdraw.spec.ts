@@ -1,6 +1,19 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 import { requestDetailSchema } from "@workflow/contracts";
 import { apiUrl } from "./helpers/environment";
+
+async function respondToConfirmation(page: Page, trigger: Locator, action: "accept" | "dismiss")
+{
+    // A click can finish before a React effect opens the confirmation.
+    await Promise.all([
+        page.waitForEvent("dialog").then(async (dialog) =>
+        {
+            expect(dialog.type()).toBe("confirm");
+            await dialog[action]();
+        }),
+        trigger.click(),
+    ]);
+}
 
 async function login(page: Page, email = "requester-a@example.test")
 {
@@ -76,12 +89,10 @@ test("DW-AC-01–04 incomplete saves, reload/resume, navigation warning and inpu
     await expect(page.getByRole("status")).toContainText("Draft saved");
     await page.getByRole("button", { name: /Basic Information/ }).click();
     await page.getByLabel("Title (required)", { exact: true }).fill(`${title} unsaved`);
-    page.once("dialog", (dialog) => dialog.dismiss());
-    await page.getByRole("link", { name: "My Requests", exact: true }).click();
+    await respondToConfirmation(page, page.getByRole("link", { name: "My Requests", exact: true }), "dismiss");
     await expect(page).toHaveURL(new RegExp(`/requests/${draft.id}/edit$`));
     await expect(page.getByLabel("Title (required)", { exact: true })).toHaveValue(`${title} unsaved`);
-    page.once("dialog", (dialog) => dialog.accept());
-    await page.getByRole("link", { name: "My Requests", exact: true }).click();
+    await respondToConfirmation(page, page.getByRole("link", { name: "My Requests", exact: true }), "accept");
     await page.getByRole("textbox", { name: "Search", exact: true }).fill(title);
     const row = page.getByRole("row").filter({ hasText: title });
     await row.getByRole("link", { name: "Resume draft" }).click();
@@ -184,11 +195,9 @@ test("review: concurrent draft edit recovers through confirmed reload and saves 
     await page.getByRole("button", { name: "Save Draft" }).click();
     const reload = page.getByRole("button", { name: "Reload saved draft" });
     await expect(reload).toBeVisible();
-    page.once("dialog", (dialog) => dialog.dismiss());
-    await reload.click();
+    await respondToConfirmation(page, reload, "dismiss");
     await expect(page.getByLabel("Title (required)", { exact: true })).toHaveValue("Unsaved local edit");
-    page.once("dialog", (dialog) => dialog.accept());
-    await reload.click();
+    await respondToConfirmation(page, reload, "accept");
     await expect(page.getByLabel("Title (required)", { exact: true })).toHaveValue("Concurrent saved edit");
     await page.getByLabel("Title (required)", { exact: true }).fill("Saved after conflict review");
     await page.getByRole("button", { name: "Save Draft" }).click();

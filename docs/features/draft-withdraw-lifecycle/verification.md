@@ -69,3 +69,20 @@ Ignored artifacts/issue6-review/ retains failed-before and final logs plus sourc
 Owner explicitly authorized commits, push and a PR to sprint-2-staging with Closes #6 in its body. Earlier uncommitted/unpublished descriptions above are historical. Implementation is recorded in scoped commits: 1a70cb0 (design), 25f9e98 (contracts), f1bfa43 (backend), and df219e8 (frontend). Root assistance-record policy is a separate docs(workflow) commit.
 
 Fresh `npm run check` passed typecheck, lint, 46 files / 423 tests and all builds. `git diff --check` passed. All 33 source/test entries in artifacts/issue6-review/source-sha256.txt matched, preserving correspondence with the earlier 107-test PostgreSQL and 36-test browser evidence. PostgreSQL/browser suites were not rerun in this publication turn. Independent teammate review and subsequent staged promotions remain pending. No issue comment or merge is authorized by this follow-up.
+
+## CI confirmation race repair — 2026-11-24
+
+The reported CI run passed 35/36 browser tests and failed DW-AC-01–04 with `dialog.accept: Cannot accept dialog which is already handled!`. A local Chromium reproduction delayed confirmation by 200 ms and reproduced that exact error: the unchanged URL/input assertions completed before the first dialog arrived, so both one-shot handlers received the same dialog. This is test synchronization, with no application behavior change.
+
+All four native-confirmation checks in `e2e/draft-withdraw.spec.ts` now await both the triggering click and completion of the requested dialog response through `respondToConfirmation`; the helper also asserts `confirm` type. Existing cancel/input-retention, accept/navigation, saved-resume and concurrent-edit assertions remain intact.
+
+Verification on Node.js 24.18.1 with Chromium and a fresh task-owned PostgreSQL 17 disposable database (`workflow_test`, loopback 55432), migrated and seeded through the guarded test scripts:
+
+- A harness executing the actual helper passed dismiss/accept at 0, 50 and 200 ms confirmation delays. The old handler pattern reproduced the CI error.
+- `npm run test:e2e -- e2e/draft-withdraw.spec.ts --grep 'DW-AC-01|concurrent draft edit' --repeat-each=5`: **10/10 passed**, 24.6 seconds, no retries.
+- `npm run typecheck`, `npm run lint`, `npm test` (**423 tests / 46 files**) and `npm run build`: passed.
+- The full 36-test browser suite and PostgreSQL integration suite were not rerun for this test-only repair.
+
+Experiment ledger: initial browser launch was blocked by the sandbox and succeeded with approved execution outside it. The first repeated browser run passed six tests before an overlapping verification build replaced its served assets, causing two login timeouts; that run was interrupted (one interrupted, one not run). An attempted restart before the original runner stopped failed because its server port remained occupied. After stopping it, the clean isolated repeat run above passed all ten tests. These environment failures were separate from the reproduced dialog race. The task-owned database was removed after verification. No commit, push, merge or publication performed.
+
+`git diff --check -- e2e/draft-withdraw.spec.ts docs/features/draft-withdraw-lifecycle/verification.md` passed. The repository-wide whitespace check reports only six trailing-space lines retained verbatim from the supplied CI log in the required append-only `ai_use.md` prompt record.
