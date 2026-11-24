@@ -359,3 +359,72 @@ test("B03 unchanged save rechecks revoked editing permission without a success m
         await database.Close();
     }
 });
+
+test("B04 confirmed form migration clears obsolete review items and persists through browser reload", async ({ page }) =>
+{
+    const { createTestDatabase } = await import("../apps/api/tests/helpers/testDatabase");
+    const { requestTypes, requestTypeVersions } = await import("../apps/api/src/Infrastructures/Database/schema");
+    const { seededDefinition } = await import("../apps/api/src/Infrastructures/Database/seedRequests");
+    const { eq } = await import("drizzle-orm");
+    const database = createTestDatabase();
+    try
+    {
+        const token = await login(page);
+        const headers = { authorization: `Bearer ${token}` };
+        const typeId = crypto.randomUUID(), versionId = crypto.randomUUID(), nextId = crypto.randomUUID();
+        const original = { ...seededDefinition, id: typeId, versionId, code: `B04-${typeId}`, name: { en: "B04 version migration" }, monetary: true, supportsLineItems: true };
+        await database.connection.insert(requestTypes).values({ id: typeId, code: original.code });
+        await database.connection.insert(requestTypeVersions).values({ id: versionId, typeId, versionNumber: 1, definition: original });
+        await database.connection.update(requestTypes).set({ publishedVersionId: versionId }).where(eq(requestTypes.id, typeId));
+        const created = await page.request.post(`${apiUrl.origin}/api/v1/requests`, { headers: { ...headers, "Idempotency-Key": crypto.randomUUID() }, data: { typeId, formDefinitionVersionId: versionId, title: "B04 retained title", justification: "Retain compatible content", priority: "HIGH", fields: { category: "OPERATIONS" }, lineItems: [{ description: "B04 obsolete part", quantity: "2", unitAmount: "5.00" }] } });
+        expect(created.status()).toBe(201);
+        const draft = requestDetailSchema.parse(await created.json());
+        await database.connection.insert(requestTypeVersions).values({ id: nextId, typeId, versionNumber: 2, definition: { ...original, versionId: nextId, versionNumber: 2, monetary: false, supportsLineItems: false } });
+        await database.connection.update(requestTypes).set({ publishedVersionId: nextId }).where(eq(requestTypes.id, typeId));
+        await page.goto(`/requests/${draft.id}/edit`);
+        await expect(page.getByLabel("Title (required)", { exact: true })).toHaveValue(draft.title);
+        for (let step = 0; step < 3; step++) await page.getByRole("button", { name: "Next", exact: true }).click();
+        await expect(page.getByText("B04 obsolete part", { exact: true })).toBeVisible();
+        await expect(page.getByText("Total: 10.00 THB")).toBeVisible();
+        await page.getByRole("button", { name: "Submit request", exact: true }).click();
+        await page.getByRole("button", { name: "Confirm submission", exact: true }).click();
+        const review = page.getByRole("button", { name: "Review updated form" });
+        await expect(review).toBeVisible();
+        await respondToConfirmation(page, review, "dismiss");
+        await expect(page.getByText("B04 obsolete part", { exact: true })).toBeVisible();
+        await expect(page.getByText("Total: 10.00 THB")).toBeVisible();
+        const untouched = await page.request.get(`${apiUrl.origin}/api/v1/requests/${draft.id}`, { headers });
+        expect(requestDetailSchema.parse(await untouched.json())).toEqual(draft);
+        await respondToConfirmation(page, review, "accept");
+        await expect(page.getByLabel("Category", { exact: false })).toHaveValue("OPERATIONS");
+        await page.getByRole("button", { name: "Next", exact: true }).click();
+        await expect(page.getByRole("heading", { name: "Review & Submit", exact: true })).toBeVisible();
+        await expect(page.getByText("B04 obsolete part", { exact: true })).not.toBeVisible();
+        await expect(page.getByText(/Total:/)).not.toBeVisible();
+        await expect(page.getByText(draft.title, { exact: true })).toBeVisible();
+        await expect(page.getByText(draft.justification, { exact: true })).toBeVisible();
+        const patch = page.waitForResponse((response) => response.url().endsWith(`/requests/${draft.id}/draft`) && response.request().method() === "PATCH");
+        await page.getByRole("button", { name: "Save Draft" }).click();
+        const savedResponse = await patch;
+        expect(savedResponse.request().postDataJSON()).toMatchObject({ expectedVersion: 0, formDefinitionVersionId: nextId, lineItems: [] });
+        expect(savedResponse.status()).toBe(200);
+        const saved = requestDetailSchema.parse(await savedResponse.json());
+        expect(saved).toMatchObject({ title: draft.title, justification: draft.justification, priority: "HIGH", status: "DRAFT", requestNumber: null, workingRevision: { formDefinitionVersionId: nextId, amount: null, currency: null, fields: draft.workingRevision!.fields, lineItems: [] } });
+        await expect(page.getByRole("status")).toContainText("Draft saved");
+        await page.reload();
+        await expect(page.getByLabel("Title (required)", { exact: true })).toHaveValue(draft.title);
+        await page.getByRole("button", { name: "Next", exact: true }).click();
+        await expect(page.getByLabel("Category", { exact: false })).toHaveValue("OPERATIONS");
+        await page.getByRole("button", { name: "Next", exact: true }).click();
+        await expect(page.getByText("B04 obsolete part", { exact: true })).not.toBeVisible();
+        await expect(page.getByText(/Total:/)).not.toBeVisible();
+        await page.getByRole("button", { name: "Save Draft" }).click();
+        await expect(page.getByRole("status")).toContainText("Draft saved");
+        const persisted = await page.request.get(`${apiUrl.origin}/api/v1/requests/${draft.id}`, { headers });
+        expect(requestDetailSchema.parse(await persisted.json())).toEqual(saved);
+    }
+    finally
+    {
+        await database.Close();
+    }
+});

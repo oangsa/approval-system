@@ -241,7 +241,9 @@ export function RequestWizard({ initial }: IRequestWizardProps = {})
             const obsoleteAmount = content.monetaryAmount != null && (!latest.monetary || latest.supportsLineItems);
             if ((obsoleteItems || obsoleteAmount) && !window.confirm("The updated form no longer accepts some items or amounts. They will be excluded when saving. Review the updated form?")) return;
             setType(latest);
-            update({ formDefinitionVersionId: latest.versionId });
+            update({ formDefinitionVersionId: latest.versionId,
+                monetaryAmount: latest.monetary && !latest.supportsLineItems ? content.monetaryAmount : null,
+                lineItems: latest.supportsLineItems ? content.lineItems : [] });
             setStaleForm(false);
             setStep(2);
             setError("Review your existing values against the updated form before submitting.");
@@ -285,6 +287,7 @@ export function RequestWizard({ initial }: IRequestWizardProps = {})
             setBusy(false);
         }
     }
+    const review = payload();
     const errorFor = (field: string) => issues.find((issue) => issue.field === field)?.message;
     if (!user?.roles.includes("REQUESTER")) return <p role="alert">A Requester role is required to create requests.</p>;
     if (unavailable) return <div role="alert" className="space-y-3"><p>{error}</p><Link className="underline" to="/requests">My Requests</Link></div>;
@@ -388,14 +391,14 @@ export function RequestWizard({ initial }: IRequestWizardProps = {})
                             {step === steps.length - 1 && <div className="space-y-5 wrap-anywhere">
                                 <p className="text-sm text-muted-foreground">{type?.name.en} · Version {type?.versionNumber}</p>
                                 <dl className="grid gap-4 sm:grid-cols-2 [&_dt]:text-sm [&_dt]:text-muted-foreground">
-                                    <div className="sm:col-span-2"><dt>Title</dt><dd className="font-medium">{content.title}</dd></div>
-                                    <div className="sm:col-span-2"><dt>Justification</dt><dd className="whitespace-pre-wrap">{content.justification}</dd></div>
-                                    <div><dt>Priority</dt><dd>{requestPriorityLabel(content.priority ?? "MEDIUM")}</dd></div>
+                                    <div className="sm:col-span-2"><dt>Title</dt><dd className="font-medium">{review.title}</dd></div>
+                                    <div className="sm:col-span-2"><dt>Justification</dt><dd className="whitespace-pre-wrap">{review.justification}</dd></div>
+                                    <div><dt>Priority</dt><dd>{requestPriorityLabel(review.priority ?? "MEDIUM")}</dd></div>
                                     <div><dt>Department</dt><dd>{user.department?.name ?? "Not assigned"}</dd></div>
-                                    {visible.map((field) => <div key={field.key}><dt>{field.label.en}</dt><dd>{typeof content.fields?.[field.key] === "boolean" ? content.fields[field.key] ? "Yes" : "No" : field.constraints?.options?.find((option) => option.value === content.fields?.[field.key])?.label.en ?? String(content.fields?.[field.key] ?? "—")}</dd></div>)}
+                                    {visible.map((field) => <div key={field.key}><dt>{field.label.en}</dt><dd>{typeof review.fields?.[field.key] === "boolean" ? review.fields[field.key] ? "Yes" : "No" : field.constraints?.options?.find((option) => option.value === review.fields?.[field.key])?.label.en ?? String(review.fields?.[field.key] ?? "—")}</dd></div>)}
                                 </dl>
-                                {!!content.lineItems?.length && <ul className="divide-y border-y">{content.lineItems.map((item, index) => <li key={index} className="flex flex-wrap justify-between gap-x-4 gap-y-1 py-3"><span>{item.description}</span><span className="tabular-nums text-muted-foreground">{item.quantity} × {item.unitAmount}</span></li>)}</ul>}
-                                {type?.monetary && <p className="font-medium tabular-nums">Total: {type.supportsLineItems ? sumAmounts((content.lineItems ?? []).map((item) => itemTotal(item.quantity, item.unitAmount))) : content.monetaryAmount} THB</p>}
+                                {!!review.lineItems?.length && <ul className="divide-y border-y">{review.lineItems.map((item, index) => <li key={index} className="flex flex-wrap justify-between gap-x-4 gap-y-1 py-3"><span>{item.description}</span><span className="tabular-nums text-muted-foreground">{item.quantity} × {item.unitAmount}</span></li>)}</ul>}
+                                {type?.monetary && <p className="font-medium tabular-nums">Total: {type.supportsLineItems ? sumAmounts((review.lineItems ?? []).map((item) => itemTotal(item.quantity, item.unitAmount))) : review.monetaryAmount} THB</p>}
                                 <p className="rounded-lg bg-muted/60 p-4 text-sm leading-relaxed text-muted-foreground">Submission locks this revision. The server checks the active department, policy and eligible reviewers before assigning a request number.</p>
                             </div>}
                         </>}

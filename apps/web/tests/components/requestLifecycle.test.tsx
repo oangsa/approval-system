@@ -282,3 +282,87 @@ test.each([
     }
     else expect(screen.queryByLabelText("Title (required)")).not.toBeInTheDocument();
 });
+
+test("B04 review summary excludes raw line items that canonical payload omits", async () =>
+{
+    editableFixture({ ...draft, justification: "Needed", workingRevision: { ...draft.workingRevision!, lineItems: [{ id, description: "Obsolete part", quantity: "2", unitAmount: "5.00", totalAmount: "10.00" }] } });
+    const user = userEvent.setup();
+    await screen.findByLabelText("Title (required)");
+    await user.click(screen.getByRole("button", { name: /^Next$/ }));
+    await user.click(screen.getByRole("button", { name: /^Next$/ }));
+    expect(screen.getByRole("heading", { name: "Review & Submit" })).toBeVisible();
+    expect(screen.queryByText("Obsolete part")).not.toBeInTheDocument();
+});
+
+test.each([false, true])("B04 confirmed migration clears incompatible values permanently (items: %s)", async (items) =>
+{
+    const oldDefinition = { ...definition, monetary: true, supportsLineItems: items };
+    const lineItems = items ? [{ id, description: "Obsolete part", quantity: "2", unitAmount: "5.00", totalAmount: "10.00" }] : [];
+    const original = { ...draft, justification: "Needed", workingRevision: { ...draft.workingRevision!, amount: "10.00", currency: "THB", lineItems } };
+    const latest = { ...definition, versionId: "9bb91ef4-5982-405f-8bd5-61b5c3cf410b", versionNumber: 2 };
+    const migrated = { ...original, version: 3, workingRevision: { ...original.workingRevision, formDefinitionVersionId: latest.versionId, amount: null, currency: null, lineItems: [] } };
+    vi.mocked(requestApi.patch).mockRejectedValueOnce(new ApiFailure({ kind: "http", status: 409, code: "FORM_DEFINITION_CHANGED", message: "Review updated form" })).mockResolvedValue(migrated);
+    editableFixture(original, oldDefinition);
+    vi.mocked(requestApi.type).mockResolvedValue(latest);
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+    const user = userEvent.setup();
+    await user.type(await screen.findByLabelText("Title (required)"), " retained");
+    await user.click(screen.getByRole("button", { name: "Save Draft" }));
+    await user.click(await screen.findByRole("button", { name: "Review updated form" }));
+    expect(screen.getByLabelText("Title (required)")).toHaveValue(`${original.title} retained`);
+    await user.click(screen.getByRole("button", { name: /^Next$/ }));
+    if (items)
+    {
+        await user.click(screen.getByRole("button", { name: /^Next$/ }));
+        expect(screen.getByLabelText("Description (item 1)")).toHaveValue("Obsolete part");
+    }
+    else expect(screen.getByLabelText("Amount (THB, required)")).toHaveValue("10.00");
+    await user.click(screen.getByRole("button", { name: /^Next$/ }));
+    expect(screen.getByText("Total: 10.00 THB")).toBeVisible();
+    confirm.mockReturnValue(true);
+    await user.click(screen.getByRole("button", { name: "Review updated form" }));
+    await user.click(screen.getByRole("button", { name: /^Next$/ }));
+    expect(screen.getByRole("heading", { name: "Review & Submit" })).toBeVisible();
+    expect(screen.queryByText("Obsolete part")).not.toBeInTheDocument();
+    expect(screen.queryByText(/Total:/)).not.toBeInTheDocument();
+    expect(screen.getByText(`${original.title} retained`)).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Save Draft" }));
+    expect(requestApi.patch).toHaveBeenLastCalledWith(id, expect.objectContaining({ expectedVersion: 2, formDefinitionVersionId: latest.versionId, ...(items ? { lineItems: [] } : { monetaryAmount: null }) }), expect.any(String));
+    await screen.findByText(/Draft saved/);
+    await user.click(screen.getByRole("button", { name: /Basic Information/ }));
+    await user.type(screen.getByLabelText("Title (required)"), " again");
+    vi.mocked(requestApi.patch).mockRejectedValueOnce(new ApiFailure({ kind: "http", status: 409, code: "FORM_DEFINITION_CHANGED", message: "Review updated form" }));
+    vi.mocked(requestApi.type).mockResolvedValue({ ...oldDefinition, versionId: "abb91ef4-5982-405f-8bd5-61b5c3cf410b", versionNumber: 3 });
+    await user.click(screen.getByRole("button", { name: "Save Draft" }));
+    await user.click(await screen.findByRole("button", { name: "Review updated form" }));
+    if (items)
+    {
+        await user.click(screen.getByRole("button", { name: /^Next$/ }));
+        expect(screen.queryByLabelText("Description (item 1)")).not.toBeInTheDocument();
+    }
+    else expect(screen.getByLabelText("Amount (THB, required)")).toHaveValue("");
+    expect(confirm).toHaveBeenCalledTimes(2);
+});
+
+test.each([false, true])("B04 compatible form migration preserves monetary values and review/persistence payload (items: %s)", async (items) =>
+{
+    const oldDefinition = { ...definition, monetary: true, supportsLineItems: items };
+    const lineItems = items ? [{ id, description: "Retained part", quantity: "2", unitAmount: "5.00", totalAmount: "10.00" }] : [];
+    const original = { ...draft, justification: "Needed", workingRevision: { ...draft.workingRevision!, amount: "10.00", currency: "THB", lineItems } };
+    const latest = { ...oldDefinition, versionId: "9bb91ef4-5982-405f-8bd5-61b5c3cf410b", versionNumber: 2 };
+    vi.mocked(requestApi.patch).mockRejectedValueOnce(new ApiFailure({ kind: "http", status: 409, code: "FORM_DEFINITION_CHANGED", message: "Review updated form" })).mockResolvedValue({ ...original, version: 3 });
+    editableFixture(original, oldDefinition);
+    vi.mocked(requestApi.type).mockResolvedValue(latest);
+    const confirm = vi.spyOn(window, "confirm");
+    const user = userEvent.setup();
+    await user.type(await screen.findByLabelText("Title (required)"), " retained");
+    await user.click(screen.getByRole("button", { name: "Save Draft" }));
+    await user.click(await screen.findByRole("button", { name: "Review updated form" }));
+    await user.click(screen.getByRole("button", { name: /^Next$/ }));
+    if (items) await user.click(screen.getByRole("button", { name: /^Next$/ }));
+    expect(screen.getByText("Total: 10.00 THB")).toBeVisible();
+    if (items) expect(screen.getByText("Retained part")).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Save Draft" }));
+    expect(requestApi.patch).toHaveBeenLastCalledWith(id, { expectedVersion: 2, formDefinitionVersionId: latest.versionId, title: `${original.title} retained` }, expect.any(String));
+    expect(confirm).not.toHaveBeenCalled();
+});
