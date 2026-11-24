@@ -3,6 +3,20 @@ import { requestApi } from "~/api/requests";
 import { ApiFailure } from "~/api/errors";
 
 /** One in-memory editing session; no request content or action key is persisted in browser storage. */
+function canonical(value: unknown): string
+{
+    if (Array.isArray(value)) return `[${value.map((item) => item === undefined ? "null" : canonical(item)).join(",")}]`;
+    if (value !== null && typeof value === "object")
+    {
+        return `{${Object.entries(value)
+            .filter(([, item]) => item !== undefined)
+            .sort(([left], [right]) => left < right ? -1 : left > right ? 1 : 0)
+            .map(([key, item]) => `${JSON.stringify(key)}:${canonical(item)}`)
+            .join(",")}}`;
+    }
+    return JSON.stringify(value);
+}
+
 export class RequestEditingSession
 {
     private saved: RequestDetail | null = null;
@@ -10,12 +24,12 @@ export class RequestEditingSession
     constructor(detail?: RequestDetail, content?: CreateRequest)
     {
         this.saved = detail ?? null;
-        this.savedContent = content ? JSON.stringify(createRequestSchema.parse(content)) : "";
+        this.savedContent = content ? canonical(createRequestSchema.parse(content)) : "";
     }
     private attempts = new Map<string, { body: string; key: string }>();
     private Key(scope: string, body: unknown): string
     {
-        const serialized = JSON.stringify(body);
+        const serialized = canonical(body);
         const previous = this.attempts.get(scope);
         if (previous?.body === serialized) return previous.key;
         const key = crypto.randomUUID();
@@ -25,7 +39,7 @@ export class RequestEditingSession
     public async Save(value: CreateRequest): Promise<RequestDetail>
     {
         const content = createRequestSchema.parse(value);
-        const serialized = JSON.stringify(content);
+        const serialized = canonical(content);
         if (this.saved && this.savedContent === serialized)
         {
             const current = await requestApi.read(this.saved.id);
@@ -41,7 +55,7 @@ export class RequestEditingSession
             const previous = this.savedContent ? JSON.parse(this.savedContent) as CreateRequest : null;
             const { typeId: ignored, ...editable } = content;
             void ignored;
-            const fields = Object.fromEntries(Object.entries(editable).filter(([key, value]) => !previous || JSON.stringify(previous[key as keyof CreateRequest]) !== JSON.stringify(value)));
+            const fields = Object.fromEntries(Object.entries(editable).filter(([key, value]) => !previous || canonical(previous[key as keyof CreateRequest]) !== canonical(value)));
             const body = { ...fields, expectedVersion: this.saved.version };
             this.saved = await requestApi.patch(this.saved.id, body, this.Key("patch", body));
         }
@@ -51,7 +65,7 @@ export class RequestEditingSession
     public async Submit(content: CreateRequest): Promise<RequestDetail>
     {
         // Submit performs its own authoritative checks and must replay an accepted lost response.
-        const draft = this.saved && this.savedContent === JSON.stringify(createRequestSchema.parse(content)) ? this.saved : await this.Save(content);
+        const draft = this.saved && this.savedContent === canonical(createRequestSchema.parse(content)) ? this.saved : await this.Save(content);
         this.saved = await requestApi.submit(draft.id, draft.version, this.Key("submit", { id: draft.id, expectedVersion: draft.version }));
         return this.saved;
     }
@@ -64,7 +78,7 @@ export class RequestEditingSession
         if (!this.saved) throw new Error("No saved draft to reload.");
         const result = await resumeDraft(this.saved.id, new AbortController().signal, generation);
         this.saved = result.detail;
-        this.savedContent = JSON.stringify(createRequestSchema.parse(result.content));
+        this.savedContent = canonical(createRequestSchema.parse(result.content));
         this.attempts.clear();
         return result;
     }

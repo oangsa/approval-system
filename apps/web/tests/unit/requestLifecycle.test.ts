@@ -109,3 +109,45 @@ test("B03 submission retry still replays accepted lost response after server lea
     expect(calls).toHaveLength(2);
     expect(calls[0]).toEqual(calls[1]);
 });
+
+test("B05 unchanged save with reordered fields keys triggers GET with no PATCH", async () =>
+{
+    const content = { typeId: id, formDefinitionVersionId: definition.versionId, fields: { reason: "Details", category: "OTHER" } };
+    const reordered = { typeId: id, formDefinitionVersionId: definition.versionId, fields: { category: "OTHER", reason: "Details" } };
+    const session = new RequestEditingSession(draft, content);
+    vi.mocked(requestApi.read).mockResolvedValue(draft);
+    expect(await session.Save(reordered)).toEqual(draft);
+    expect(requestApi.read).toHaveBeenCalledWith(id);
+    expect(requestApi.create).not.toHaveBeenCalled();
+    expect(requestApi.patch).not.toHaveBeenCalled();
+});
+
+test("B05 changed title with reordered fields omits unchanged fields from PATCH", async () =>
+{
+    const content = { typeId: id, formDefinitionVersionId: definition.versionId, title: "Initial", fields: { reason: "Details", category: "OTHER" } };
+    const session = new RequestEditingSession(draft, content);
+    vi.mocked(requestApi.patch).mockResolvedValue({ ...draft, title: "Updated", version: 3 });
+    await session.Save({ typeId: id, formDefinitionVersionId: definition.versionId, title: "Updated", fields: { category: "OTHER", reason: "Details" } });
+    expect(requestApi.patch).toHaveBeenCalledWith(id, { title: "Updated", expectedVersion: 2 }, expect.any(String));
+});
+
+test("B05 submit with reordered fields keys skips PATCH and submits directly", async () =>
+{
+    const content = { typeId: id, formDefinitionVersionId: definition.versionId, fields: { reason: "Details", category: "OTHER" } };
+    const reordered = { typeId: id, formDefinitionVersionId: definition.versionId, fields: { category: "OTHER", reason: "Details" } };
+    const session = new RequestEditingSession(draft, content);
+    const pending = { ...draft, status: "PENDING" as const, workingRevision: null, version: 3 };
+    vi.mocked(requestApi.submit).mockResolvedValue(pending);
+    expect(await session.Submit(reordered)).toEqual(pending);
+    expect(requestApi.patch).not.toHaveBeenCalled();
+    expect(requestApi.submit).toHaveBeenCalledWith(id, 2, expect.any(String));
+});
+
+test("B05 changed field value with reordered keys still sends PATCH with updated fields", async () =>
+{
+    const content = { typeId: id, formDefinitionVersionId: definition.versionId, fields: { reason: "Details", category: "OTHER" } };
+    const session = new RequestEditingSession(draft, content);
+    vi.mocked(requestApi.patch).mockResolvedValue({ ...draft, version: 3 });
+    await session.Save({ typeId: id, formDefinitionVersionId: definition.versionId, fields: { category: "OPERATIONS", reason: "Updated" } });
+    expect(requestApi.patch).toHaveBeenCalledWith(id, { fields: { category: "OPERATIONS", reason: "Updated" }, expectedVersion: 2 }, expect.any(String));
+});
