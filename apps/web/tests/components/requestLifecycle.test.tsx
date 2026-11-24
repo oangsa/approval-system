@@ -8,7 +8,7 @@ import { requestApi } from "../../app/api/requests";
 import { ApiFailure } from "../../app/api/errors";
 import { definition, draft, id } from "../helpers/requestLifecycle";
 vi.mock("../../app/modules/auth/sessionContext", () => ({ useSession: () => ({ generation: 1, user: { id: "7bb91ef4-5982-405f-8bd5-61b5c3cf410b", roles: ["REQUESTER"] } }) }));
-vi.mock("../../app/api/requests", () => ({ requestApi: { read: vi.fn(), version: vi.fn(), type: vi.fn(), types: vi.fn(), patch: vi.fn(), withdraw: vi.fn() } }));
+vi.mock("../../app/api/requests", () => ({ requestApi: { read: vi.fn(), version: vi.fn(), type: vi.fn(), types: vi.fn(), create: vi.fn(), patch: vi.fn(), withdraw: vi.fn() } }));
 const show = Object.getOwnPropertyDescriptor(HTMLDialogElement.prototype, "showModal");
 const close = Object.getOwnPropertyDescriptor(HTMLDialogElement.prototype, "close");
 beforeAll(() =>
@@ -225,4 +225,36 @@ test("review: returning to completed Review step validates edited amounts before
     await user.click(screen.getByRole("button", { name: /Review & Submit/ }));
     expect(screen.getByLabelText("Quantity (item 1)")).toHaveFocus();
     expect(screen.getByRole("heading", { name: "Items & Attachments" })).toBeVisible();
+});
+
+test("B02 type change replaces edit resource URL, keeps step, and unchanged retry creates no duplicate", async () =>
+{
+    const other = { ...definition, id: "9bb91ef4-5982-405f-8bd5-61b5c3cf410b", code: "OTHER", name: { en: "Other" } };
+    const saved = { ...draft, id: "abb91ef4-5982-405f-8bd5-61b5c3cf410b", typeId: other.id, typeCode: other.code, title: "", version: 0 };
+    vi.mocked(requestApi.read).mockImplementation(async (requestId) => requestId === saved.id ? saved : draft);
+    vi.mocked(requestApi.version).mockImplementation(async (typeId) => typeId === other.id ? other : definition);
+    vi.mocked(requestApi.types).mockResolvedValue({ items: [definition, other], pagination: { currentPage: 1, pageSize: 100, totalCount: 2, totalPages: 1, hasNext: false, hasPrevious: false } });
+    vi.mocked(requestApi.create).mockResolvedValue(saved);
+    const router = createMemoryRouter([{ path: "/requests/:id/edit", Component: RequestEditPage }], { initialEntries: [`/requests/${id}/edit`] });
+    render(<RouterProvider router={router} />);
+    const user = userEvent.setup();
+    await screen.findByLabelText("Title (required)");
+    await user.click(screen.getByRole("button", { name: "Back" }));
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+    await user.selectOptions(screen.getByLabelText("Request type (required)"), other.id);
+    expect(screen.getByLabelText("Request type (required)")).toHaveValue(definition.id);
+    expect(requestApi.create).not.toHaveBeenCalled();
+    expect(requestApi.patch).not.toHaveBeenCalled();
+    confirm.mockReturnValue(true);
+    await user.selectOptions(screen.getByLabelText("Request type (required)"), other.id);
+    await user.click(screen.getByRole("button", { name: "Save Draft" }));
+    await waitFor(() => expect(router.state.location.pathname).toBe(`/requests/${saved.id}/edit`));
+    expect(router.state.historyAction).toBe("REPLACE");
+    await waitFor(() => expect(screen.getByLabelText("Request type (required)")).toHaveValue(other.id));
+    expect(screen.getByRole("heading", { name: "Request Type" })).toBeVisible();
+    expect(confirm).toHaveBeenCalledTimes(2);
+    await user.click(screen.getByRole("button", { name: "Save Draft" }));
+    await screen.findByText(/Draft saved/);
+    expect(requestApi.create).toHaveBeenCalledTimes(1);
+    expect(requestApi.patch).not.toHaveBeenCalled();
 });

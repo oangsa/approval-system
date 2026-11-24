@@ -225,3 +225,47 @@ test("review: Escape after withdrawal conflict reload refreshes terminal owner d
     await expect(page.getByText("Withdrawn", { exact: true })).toBeVisible();
     await expect(page.getByRole("button", { name: "Withdraw", exact: true })).not.toBeVisible();
 });
+
+test("B02 type change creates a new edit resource, preserves original, and resumes new draft after reload", async ({ page }) =>
+{
+    const token = await login(page);
+    const headers = { authorization: `Bearer ${token}` };
+    const typeResponse = await page.request.post(`${apiUrl.origin}/api/v1/request-types/search`, { headers, data: {} });
+    const types = await typeResponse.json() as { id: string; versionId: string; code: string }[];
+    const original = types.find((item) => item.code === "GENERAL")!;
+    const other = types.find((item) => item.id !== original.id)!;
+    expect(other).toBeDefined();
+    const response = await page.request.post(`${apiUrl.origin}/api/v1/requests`, { headers: { ...headers, "Idempotency-Key": crypto.randomUUID() }, data: { typeId: original.id, formDefinitionVersionId: original.versionId, title: "Original draft retained" } });
+    const draftA = requestDetailSchema.parse(await response.json());
+    await page.goto(`/requests/${draftA.id}/edit`);
+    await expect(page.getByLabel("Title (required)", { exact: true })).toHaveValue(draftA.title);
+    await page.getByRole("button", { name: "Back", exact: true }).click();
+    const selection = page.getByLabel("Request type (required)");
+    await Promise.all([page.waitForEvent("dialog").then((dialog) => dialog.dismiss()), selection.selectOption(other.id)]);
+    await expect(selection).toHaveValue(original.id);
+    await expect(page).toHaveURL(new RegExp(`/requests/${draftA.id}/edit$`));
+    await Promise.all([page.waitForEvent("dialog").then((dialog) => dialog.accept()), selection.selectOption(other.id)]);
+    let creations = 0;
+    page.on("request", (request) =>
+    {
+        if (/\/api\/v1\/requests$/.test(request.url()) && request.method() === "POST") creations++;
+    });
+    const created = page.waitForResponse((value) => /\/api\/v1\/requests$/.test(value.url()) && value.request().method() === "POST");
+    await page.getByRole("button", { name: "Save Draft" }).click();
+    const draftB = requestDetailSchema.parse(await (await created).json());
+    expect(draftB.id).not.toBe(draftA.id);
+    expect(draftB.typeId).toBe(other.id);
+    await expect(page).toHaveURL(new RegExp(`/requests/${draftB.id}/edit$`));
+    await expect(page.getByRole("heading", { name: "Request Type", exact: true })).toBeVisible();
+    await expect(selection).toHaveValue(other.id);
+    await page.getByRole("button", { name: "Save Draft" }).click();
+    await expect(page.getByRole("status")).toContainText("Draft saved");
+    expect(creations).toBe(1);
+    await page.reload();
+    await expect(selection).toHaveValue(other.id);
+    await expect(page).toHaveURL(new RegExp(`/requests/${draftB.id}/edit$`));
+    const retained = await page.request.get(`${apiUrl.origin}/api/v1/requests/${draftA.id}`, { headers });
+    expect(requestDetailSchema.parse(await retained.json())).toEqual(draftA);
+    const resumed = await page.request.get(`${apiUrl.origin}/api/v1/requests/${draftB.id}`, { headers });
+    expect(requestDetailSchema.parse(await resumed.json())).toEqual(draftB);
+});

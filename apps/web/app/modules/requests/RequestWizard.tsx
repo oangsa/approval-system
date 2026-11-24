@@ -1,6 +1,6 @@
 import { ZodError } from "zod";
 import { useEffect, useRef, useState } from "react";
-import { Link, useBeforeUnload, useBlocker } from "react-router";
+import { Link, useBeforeUnload, useBlocker, useLocation, useNavigate } from "react-router";
 import { AlertCircle, CheckCircle2, ChevronLeft, ChevronRight, LoaderCircle, Plus, Trash2 } from "lucide-react";
 import { applicableFields, createRequestSchema, isPresent, itemTotal, sumAmounts, validateFields, type IRequestTypeSearchResult, type CreateRequest, type IFieldIssue, type PublishedRequestType, type RequestDetail } from "@workflow/contracts";
 import { requestApi } from "~/api/requests";
@@ -23,6 +23,8 @@ interface IRequestWizardProps
 export function RequestWizard({ initial }: IRequestWizardProps = {})
 {
     const { user, generation } = useSession();
+    const navigate = useNavigate();
+    const routeState = useLocation().state as { requestWizardStep?: number } | null;
     const [types, setTypes] = useState<PublishedRequestType[]>([]);
     const [pageNumber, setPageNumber] = useState(1);
     const [pagination, setPagination] = useState<IRequestTypeSearchResult["pagination"] | null>(null);
@@ -30,7 +32,7 @@ export function RequestWizard({ initial }: IRequestWizardProps = {})
     const [loadVersion, setLoadVersion] = useState(0);
     const [type, setType] = useState<PublishedRequestType | null>(initial?.definition ?? null);
     const [content, setContent] = useState<CreateRequest>(initial?.content ?? { typeId: "", formDefinitionVersionId: "", title: "", justification: "", priority: "MEDIUM", fields: {}, lineItems: [] });
-    const [step, setStep] = useState(initial ? 1 : 0);
+    const [step, setStep] = useState(initial ? routeState?.requestWizardStep ?? 1 : 0);
     const [issues, setIssues] = useState<IFieldIssue[]>([]);
     const [error, setError] = useState("");
     const [staleForm, setStaleForm] = useState(false);
@@ -53,6 +55,13 @@ export function RequestWizard({ initial }: IRequestWizardProps = {})
     const steps = type?.supportsLineItems ? [...baseSteps.slice(0, 3), "Items & Attachments", baseSteps[3]!] : baseSteps;
     const visible = type ? applicableFields(type.fields, content.fields ?? {}) : [];
     const blocker = useBlocker(dirty && !result);
+    useEffect(() =>
+    {
+        if (initial && savedId && savedId !== initial.detail.id && !dirty)
+        {
+            void navigate(`/requests/${savedId}/edit`, { replace: true, state: { requestWizardStep: step } });
+        }
+    }, [dirty, initial, navigate, savedId, step]);
     useBeforeUnload((event) =>
     {
         if (dirty && !result)
