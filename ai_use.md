@@ -633,3 +633,33 @@ Verification follow-up: All final local checks passed: 434 unit/API/contract/com
 @oangsa
 prompt: commit and push to pr87
 reflection/output: Verified PR #87 is open from feature/6-draft-withdraw-lifecycle to sprint-2-staging and its remote head matches the reviewed base. Reviewed unstaged/staged diffs, split SDS/AC/STS, B01, B02, B03 and final evidence into scoped commits, preserving directly related tests and prior assistance records. All seven source/test hashes match the passing verification; diff check passes. Prepared the authorized normal push to the existing PR source branch, with no force push, merge, release or external issue comment. Prior verification remains 434 unit/API/contract/component, 109 PostgreSQL, 39 browser and 13 release tests plus typecheck/lint/build; runtime suites were not repeated for commit packaging.
+
+## Issue #6 assistance
+
+@oangsa
+prompt: fix B04 — Review summary displays obsolete line items (P2)
+
+Problem: When a draft migrates to a newer form definition that no longer supports line items, the wizard still displays old items in the review summary, even though the API payload excludes them.
+
+Affected file: RequestWizard.tsx
+
+Required fix:
+
+* Clear incompatible monetary values and line items after the user confirms the form-version migration.
+* Render the review summary using the canonical payload() instead of raw form state.
+* Preserve compatible values and retain all original values if migration is cancelled.
+* Add regression tests for form-version migration, review summary accuracy and draft persistence.
+* Update the SDS, acceptance criteria, STS and verification evidence.
+
+Expected result: The displayed review summary matches the actual submission payload, and obsolete values never reappear.
+
+No backend or database migration changes are required.
+reflection/output: Reproduced three B04 failures before repair: raw obsolete items in canonical review, migrated obsolete items in review, and an old direct amount reappearing when a later version restores direct monetary support. Confirmed migration now clears incompatible monetary/item state while retaining compatible content; cancellation leaves the original definition and values unchanged. Review summary values, items and totals now use payload(). Added component regressions for canonical rendering, cancellation, compatible retention and permanent clearing, plus a real browser migration/save/reload regression. Updated SDS, acceptance criteria, STS and verification evidence. Backend, shared contracts and migrations remain unchanged. Actual checks and publication status are recorded in docs/features/draft-withdraw-lifecycle/verification.md.
+
+B04 verification follow-up: npm run check passed typecheck, lint, 439 tests across 46 files and all workspace builds. All 23 lifecycle component tests pass after three failing-before regressions. First full browser run passed B04 but exposed B02's pre-existing dependence on another suite's alternate type fixture (39 passed / 1 failed). Made that browser fixture explicit without weakening assertions, recreated the task-owned database, and reran: all 40 browser tests passed. Final typecheck/lint and diff check passed. Standalone PostgreSQL integration/release/Docker suites were not rerun for this frontend change. No commit, push or external comment performed for B04.
+
+## Issue #6 assistance
+
+@oangsa
+prompt: commit and push
+reflection/output: Verified PR #87 remains open from feature/6-draft-withdraw-lifecycle to sprint-2-staging and fetched its unchanged remote head. Reviewed unstaged and staged diffs, split B04 specifications, the independent browser-fixture correction, B04 behavior with its regressions, and final evidence into scoped commits. Confirmed all three source/test hashes still match the passing 439-test workspace and 40-test browser verification; diff check passes. Prepared the authorized normal push to PR #87's existing source branch. Runtime suites were not repeated for history-only packaging. No force push, merge, release or external issue comment performed.

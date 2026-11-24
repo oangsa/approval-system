@@ -134,3 +134,32 @@ Read Issue #6 and PR #87 through the GitHub connector, confirming repository, is
 Owner requested “commit and push to pr87”. The earlier uncommitted status above describes the repair/test phase. Repairs are now recorded in scoped source commits: `7349dc1` (B01 monetary authority), `9ddd70f` (B02 draft edit URL), and `efe1f15` (B03 authoritative unchanged saves), preceded by `bfa6a6f` (SDS/AC/STS). Final evidence and assistance records accompany those changes in a separate documentation commit.
 
 Before publication, all seven source/test SHA-256 entries still matched the files exercised by the passing 434-test unit/API/contract/component, 109-test PostgreSQL, 39-test browser and 13-test release runs. `git diff --check` passed. No source behavior changed during commit packaging, and runtime suites were not repeated solely for history changes. The requested destination is PR #87's existing `feature/6-draft-withdraw-lifecycle` branch, targeting `sprint-2-staging`. Issue-comment publication remains separately blocked; no issue comment, merge, teammate approval or release is claimed by this push authorization.
+
+## B04 canonical review summary — 2026-11-24
+
+Tested **uncommitted working tree** based on `6d561eed7f78fdfcfb06873ee2dc50a53516cdd3` on `feature/6-draft-withdraw-lifecycle`. B04 changes only RequestWizard frontend behavior and its tests/documentation. Backend, shared contracts, database schema and migrations are unchanged. This follow-up does not claim a commit, push, external issue comment, teammate approval, merge or release.
+
+### Reproduction and repair
+
+Three new component regressions failed before repair, with 20 other lifecycle tests passing. They reproduced raw obsolete items in review despite payload exclusion, obsolete items after confirmed migration, and a discarded direct amount returning when a subsequent definition restored direct monetary support. Compatible direct/item migrations and cancelled migration paths provided passing differential checks. This confirms both retained incompatible local state and raw-state rendering, rather than a server persistence defect.
+
+After confirmation, migration now keeps only applicable monetary/item state while retaining compatible content. Cancellation returns before any definition or content changes. Review values, fields, items and totals all read the same `payload()` representation used by save/submit. Clearing state prevents obsolete values returning during later definition changes; canonical summary rendering independently protects against inapplicable raw state. The five new component cases cover both monetary authorities, compatible retention, cancellation, permanent clearing and exact changed-property PATCH bodies.
+
+The real browser regression creates an isolated published item-based type, saves a complete draft, publishes a nonmonetary definition without item support, and triggers the existing stale first-submit recovery. Cancelling migration preserves displayed old items/total and the identical durable DTO. Confirming retains title, justification, priority and category, removes obsolete review items/total, sends an explicit empty item replacement, and persists null amount/currency with the new version. Reload restores that content; another unchanged save leaves the durable DTO identical.
+
+### Verification and initial failures
+
+- Before repair: focused lifecycle component run **3 failed / 20 passed**. After repair: **23 passed**, no skips.
+- `npm run check`: PASS, including typecheck across root/workspaces, lint, **439 tests across 46 files**, and all workspace builds; no skipped tests.
+- Final `npm run typecheck` and `npm run lint` after browser-fixture correction: PASS.
+- First full Playwright run: B04 passed; overall **39 passed / 1 failed**. Existing B02 assumed a second published type supplied by a prior PostgreSQL suite; a fresh seeded database contains only GENERAL. The failure was `expect(other).toBeDefined()`, before B02 application interaction. B02 now creates its own alternate published type and selects that exact generated ID. All existing acceptance assertions remain intact. Recreated only the task-owned disposable database for final verification.
+
+Standalone PostgreSQL integration/release/production Docker suites and clean installation were not rerun for this frontend repair; the browser suite exercises the real API and PostgreSQL persistence. Earlier 109-test PostgreSQL and 13-test release results remain historical B01–B03 evidence, not newly claimed B04 runs.
+
+Runtime: Node.js 24.18.1, npm 11.16.0, Vitest 4.1.10, Playwright 1.60.0/headless Chromium. Task-owned `postgres:17-alpine` / PostgreSQL 17.10 container `approval-pr87-b04-postgres` uses tmpfs workflow_test on loopback port 55432. Existing migrations and synthetic seed applied with database-target guard enabled. Existing Playwright configuration builds and starts local web/API services; no development/production data used. Ignored `artifacts/pr87-b04/` retains failed-before/passing-after/check/browser logs and a source SHA-256 manifest; Playwright report/results remain ignored local artifacts.
+
+Final `NODE_ENV=test npm run test:e2e` with guarded disposable TEST_DATABASE_URL: **PASS, 40 tests / 46.2 seconds, no skips** on the recreated seeded database, including the explicit B02 fixture and B04 migration/persistence regression. `git diff --check`: **PASS**, no whitespace exceptions. No failed final check remains. API/web builds were also repeated by the final browser runner. Disposable database removed after completion; no browser servers retained.
+
+### B04 owner-authorized publication follow-up
+
+Owner requested “commit and push”. The uncommitted status above describes the test phase. B04 is now recorded in `0c4249b` with its component/browser regressions, preceded by `10395c4` (SDS/AC/STS) and `b8c4dfa` (independent alternate-type browser fixture). Final evidence and assistance records accompany those changes in a separate documentation commit. All three source/test hashes match the passing 439-test workspace and 40-test browser verification, and diff checks pass. No source changes or runtime reruns were needed during commit packaging. Publication targets PR #87’s existing feature/6-draft-withdraw-lifecycle branch; independent teammate approval and reviewed staging/dev/main promotions remain pending. No merge, release or external issue comment is authorized or claimed here.
