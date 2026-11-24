@@ -64,3 +64,19 @@ test("BUG-B02 title limits give specific feedback for create and draft updates",
         }
     }
 });
+
+test("withdrawal reason stays optional; version and strict authority are required", async () =>
+{
+    const { withdrawRequestSchema } = await import("../src/requests");
+    expect(withdrawRequestSchema.parse({ expectedVersion: 1 })).toEqual({ expectedVersion: 1 });
+    expect(withdrawRequestSchema.parse({ expectedVersion: 1, reason: "" }).reason).toBe("");
+    expect(withdrawRequestSchema.parse({ expectedVersion: 1, reason: "Changed plans" }).reason).toBe("Changed plans");
+    for (const body of [{}, { expectedVersion: -1 }, { expectedVersion: 1.5 }, { expectedVersion: 1, reason: null }, { expectedVersion: 1, actorId: "injected" }]) expect(withdrawRequestSchema.safeParse(body).success).toBe(false);
+});
+
+test.each(["invalid", "", "1e2", "NaN", "1.2.3"])("review: invalid item quantity %s returns validation issues instead of throwing", (quantity) =>
+{
+    const content = { typeId: definition.id, formDefinitionVersionId: definition.versionId, lineItems: [{ description: "Part", quantity, unitAmount: "1.00" }] };
+    expect(createRequestSchema.safeParse(content).success).toBe(false);
+    expect(patchDraftSchema.safeParse({ expectedVersion: 0, lineItems: content.lineItems }).success).toBe(false);
+});
