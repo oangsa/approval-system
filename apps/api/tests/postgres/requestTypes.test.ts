@@ -23,8 +23,10 @@ import {
     approvalPolicyVersions,
     departmentMemberships,
     departments,
+    requestAuditEvents,
     requestRevisions,
     requests,
+    requestTypes,
     requestTypeVersions,
     reviewerAssignmentRules,
     sessionFamilies,
@@ -436,4 +438,179 @@ test("FT-024/034 disabled type allows pinned RETURNED editing; line items & prio
         formDefinitionVersionId: v2.versionId,
     })).rejects.toMatchObject({ code: "FORM_DEFINITION_CHANGED" });
     expect((await db.select().from(requests).where(and(eq(requests.id, draft.id))))[0]?.version).toBe(returnedPatched.version);
+});
+
+test("B01 stored invalid or cyclic published definitions fail with 409 CONFIGURATION_INCOMPLETE and zero mutation", async () =>
+{
+    const departmentId = randomUUID();
+    await db.insert(departments).values({ id: departmentId, code: `D_${departmentId.slice(0, 8)}`, name: "Ops" });
+    const admin = await createActorWithToken(["ADMINISTRATOR"]);
+    const owner = await createActorWithToken(["REQUESTER"], departmentId);
+    const app = await setupApp(admin.env);
+
+    const send = (method: string, path: string, body?: unknown, key?: string) => app.handle(new Request(`http://localhost/api/v1${path}`, {
+        method,
+        headers: {
+            authorization: `Bearer ${owner.token}`,
+            "content-type": "application/json",
+            ...(key ? { "Idempotency-Key": key } : {}),
+        },
+        ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+    }));
+
+    const validTypeId = randomUUID();
+    const validVersionId = randomUUID();
+    const corruptVersionId = randomUUID();
+    const cyclicTypeId = randomUUID();
+    const cyclicVersionId = randomUUID();
+    const validCode = `B01_V_${validTypeId.slice(0, 8)}`;
+    const cyclicCode = `B01_C_${cyclicTypeId.slice(0, 8)}`;
+
+    const validDefinition = {
+        id: validTypeId,
+        code: validCode,
+        name: { en: "Valid v1" },
+        versionId: validVersionId,
+        versionNumber: 1,
+        isEnabled: true,
+        supportsLineItems: false,
+        monetary: false,
+        fields: [{ key: "note", kind: "TEXT" as const, label: { en: "Note" }, required: false }],
+        publishedAt: "2026-11-25T00:00:00.000Z",
+    };
+    const zodInvalidDefinition = {
+        ...validDefinition,
+        versionId: corruptVersionId,
+        versionNumber: 2,
+        fields: [{ key: "123_bad", kind: "TEXT", label: { en: "Bad" }, required: false }],
+    };
+    const cyclicDefinition = {
+        id: cyclicTypeId,
+        code: cyclicCode,
+        name: { en: "Cyclic stored" },
+        versionId: cyclicVersionId,
+        versionNumber: 1,
+        isEnabled: true,
+        supportsLineItems: false,
+        monetary: false,
+        fields: [
+            { key: "alpha", kind: "TEXT" as const, label: { en: "Alpha" }, required: false, visibleWhen: { all: [{ fieldKey: "beta", operator: "PRESENT" as const }] } },
+            { key: "beta", kind: "TEXT" as const, label: { en: "Beta" }, required: false, requiredWhen: { all: [{ fieldKey: "alpha", operator: "PRESENT" as const }] } },
+        ],
+        publishedAt: "2026-11-25T00:00:00.000Z",
+    };
+
+    try
+    {
+        await db.insert(requestTypes).values([
+            { id: validTypeId, code: validCode, isEnabled: true },
+            { id: cyclicTypeId, code: cyclicCode, isEnabled: true },
+        ]);
+        await db.insert(requestTypeVersions).values([
+            { id: validVersionId, typeId: validTypeId, versionNumber: 1, definition: validDefinition },
+            { id: corruptVersionId, typeId: validTypeId, versionNumber: 2, definition: zodInvalidDefinition as unknown as typeof validDefinition },
+            { id: cyclicVersionId, typeId: cyclicTypeId, versionNumber: 1, definition: cyclicDefinition },
+        ]);
+        await db.update(requestTypes).set({ publishedVersionId: validVersionId }).where(eq(requestTypes.id, validTypeId));
+        await db.update(requestTypes).set({ publishedVersionId: cyclicVersionId }).where(eq(requestTypes.id, cyclicTypeId));
+
+        // Create a valid draft on v1 before corrupt v2 becomes active.
+        const createdResp = await send("POST", "/requests", {
+            typeId: validTypeId,
+            formDefinitionVersionId: validVersionId,
+            title: "Valid draft",
+            justification: "Before corruption",
+            fields: { note: "hello" },
+        }, randomUUID());
+        expect(createdResp.status).toBe(201);
+        const draft = requestDetailSchema.parse(await createdResp.json());
+
+        // Point active version to Zod-invalid v2 and test all requester operations.
+        await db.update(requestTypes).set({ publishedVersionId: corruptVersionId }).where(eq(requestTypes.id, validTypeId));
+
+        expect((await send("GET", `/request-types/${validTypeId}`)).status).toBe(409);
+        expect((await send("POST", "/request-types/search", { search: [{ name: "code", condition: "EQUAL", value: validCode }] })).status).toBe(409);
+        expect((await send("POST", "/requests", { typeId: validTypeId, formDefinitionVersionId: corruptVersionId }, randomUUID())).status).toBe(409);
+        expect((await send("PATCH", `/requests/${draft.id}/draft`, { expectedVersion: 0, formDefinitionVersionId: corruptVersionId })).status).toBe(409);
+
+        // Cyclic published definition fails GET, search, create, and pinned TypeVersion read.
+        expect((await send("GET", `/request-types/${cyclicTypeId}`)).status).toBe(409);
+        expect((await send("POST", "/request-types/search", { search: [{ name: "code", condition: "EQUAL", value: cyclicCode }] })).status).toBe(409);
+        expect((await send("POST", "/requests", { typeId: cyclicTypeId, formDefinitionVersionId: cyclicVersionId }, randomUUID())).status).toBe(409);
+        await expect(requestService.TypeVersion(admin.actor, cyclicTypeId, cyclicVersionId)).rejects.toMatchObject({ code: "CONFIGURATION_INCOMPLETE" });
+
+        // Zero mutation on failed operations.
+        expect((await db.select().from(requests).where(eq(requests.typeId, cyclicTypeId)))).toHaveLength(0);
+        const retained = await requestService.Read(owner.actor, draft.id);
+        expect(retained).toEqual(draft);
+        expect(await db.select().from(requestAuditEvents).where(eq(requestAuditEvents.requestId, draft.id))).toHaveLength(1);
+    }
+    finally
+    {
+        await db.update(requestTypes).set({ isEnabled: false }).where(eq(requestTypes.id, validTypeId));
+        await db.update(requestTypes).set({ isEnabled: false }).where(eq(requestTypes.id, cyclicTypeId));
+    }
+});
+
+test("B02 and B03 HTTP draft/patch reject explicit null/empty/whitespace values and ignore inherited prototype keys", async () =>
+{
+    const departmentId = randomUUID();
+    await db.insert(departments).values({ id: departmentId, code: `D_${departmentId.slice(0, 8)}`, name: "Ops" });
+    const admin = await createActorWithToken(["ADMINISTRATOR"]);
+    const owner = await createActorWithToken(["REQUESTER"], departmentId);
+    const app = await setupApp(admin.env);
+
+    const createdType = await requestTypeService.Create(admin.actor, {
+        code: `B023_${randomUUID().slice(0, 8)}`,
+        name: { en: "B02 B03 Type" },
+        monetary: false,
+        supportsLineItems: false,
+        fields: [
+            { key: "constructor", kind: "TEXT", label: { en: "Constructor" }, required: false },
+            { key: "child", kind: "TEXT", label: { en: "Child" }, required: true, visibleWhen: { all: [{ fieldKey: "constructor", operator: "PRESENT" }] } },
+            { key: "note", kind: "TEXT", label: { en: "Note" }, required: false },
+        ],
+    }, randomUUID());
+    const v1 = await requestTypeService.Publish(admin.actor, createdType.id, { expectedVersion: 0 }, randomUUID());
+
+    const send = (method: string, path: string, body: unknown, key?: string) => app.handle(new Request(`http://localhost/api/v1${path}`, {
+        method,
+        headers: {
+            authorization: `Bearer ${owner.token}`,
+            "content-type": "application/json",
+            ...(key ? { "Idempotency-Key": key } : {}),
+        },
+        body: JSON.stringify(body),
+    }));
+
+    // Omitting fields succeeds and inherited "constructor" does not activate "child".
+    const draftResp = await send("POST", "/requests", {
+        typeId: createdType.id,
+        formDefinitionVersionId: v1.versionId,
+        fields: {},
+    }, randomUUID());
+    expect(draftResp.status).toBe(201);
+    const draft = requestDetailSchema.parse(await draftResp.json());
+
+    // Explicit null, empty, and whitespace values fail with 422 VALIDATION_ERROR and zero DB mutation.
+    for (const invalid of [null, "", "   "])
+    {
+        const createBad = await send("POST", "/requests", {
+            typeId: createdType.id,
+            formDefinitionVersionId: v1.versionId,
+            fields: { note: invalid },
+        }, randomUUID());
+        expect(createBad.status).toBe(422);
+        expect(await createBad.json()).toMatchObject({ code: "VALIDATION_ERROR", details: [expect.objectContaining({ field: "fields.note" })] });
+
+        const patchBad = await send("PATCH", `/requests/${draft.id}/draft`, {
+            expectedVersion: 0,
+            fields: { note: invalid },
+        });
+        expect(patchBad.status).toBe(422);
+        expect(await patchBad.json()).toMatchObject({ code: "VALIDATION_ERROR", details: [expect.objectContaining({ field: "fields.note" })] });
+    }
+
+    expect(await requestService.Read(owner.actor, draft.id)).toEqual(draft);
+    expect(await db.select().from(requestRevisions).where(eq(requestRevisions.requestId, draft.id))).toHaveLength(1);
 });

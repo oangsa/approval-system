@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import type { CreateRequest, PatchDraft, RequestDetail, RequestTypeSearch, RequestSearchQuery } from "@workflow/contracts";
 import type { IActor } from "../../Domains/Identity/Identity";
 import type { IRequestRepository, IRequestUnitOfWork, RequestMutation } from "../../Domains/Requests/Ports";
-import { assertContent, assertWithdrawal, editableContent, RequestError, resolvePlan } from "../../Domains/Requests/RequestRules";
+import { assertContent, assertPublishedDefinition, assertWithdrawal, editableContent, RequestError, resolvePlan } from "../../Domains/Requests/RequestRules";
 
 function canonical(value: unknown): string
 {
@@ -45,8 +45,9 @@ export class RequestService
             {
                 const content = body as CreateRequest;
                 const config = await repository.Configuration(content.typeId, content.formDefinitionVersionId, actor.account.id);
+                const definition = assertPublishedDefinition(config.definition, { typeId: content.typeId, versionId: content.formDefinitionVersionId });
                 if (!config.isEnabled) throw new RequestError("CONFIGURATION_INCOMPLETE");
-                resultId = await repository.Create(actor, content, assertContent(config.definition, content, false));
+                resultId = await repository.Create(actor, content, assertContent(definition, content, false));
             }
             else if (operation === "withdraw")
             {
@@ -68,8 +69,10 @@ export class RequestService
                 }
                 const selectedVersionId = operation === "patch" ? (body as PatchDraft).formDefinitionVersionId?.toLowerCase() ?? detail.workingRevision.formDefinitionVersionId : detail.workingRevision.formDefinitionVersionId;
                 const config = await repository.Configuration(detail.typeId, selectedVersionId, actor.account.id);
-                const originalDefinition = selectedVersionId === detail.workingRevision.formDefinitionVersionId ? config.definition : await repository.TypeVersion(detail.typeId, detail.workingRevision.formDefinitionVersionId);
-                if (!originalDefinition) throw new RequestError("NOT_FOUND");
+                const targetDefinition = assertPublishedDefinition(config.definition, { typeId: detail.typeId, versionId: selectedVersionId });
+                const originalRaw = selectedVersionId === detail.workingRevision.formDefinitionVersionId ? targetDefinition : await repository.TypeVersion(detail.typeId, detail.workingRevision.formDefinitionVersionId);
+                if (!originalRaw) throw new RequestError("NOT_FOUND");
+                const originalDefinition = selectedVersionId === detail.workingRevision.formDefinitionVersionId ? targetDefinition : assertPublishedDefinition(originalRaw, { typeId: detail.typeId, versionId: detail.workingRevision.formDefinitionVersionId });
                 let content = editableContent(detail, originalDefinition);
                 if (operation === "patch")
                 {
@@ -78,9 +81,9 @@ export class RequestService
                     content = { ...content, ...changes };
                 }
                 if (operation === "submit" && content.formDefinitionVersionId !== config.activeVersionId) throw new RequestError("FORM_DEFINITION_CHANGED");
-                const amount = assertContent(config.definition, content, operation === "submit");
+                const amount = assertContent(targetDefinition, content, operation === "submit");
                 if (operation === "patch") await repository.Patch(id!, actor.account.id, content, amount, "lineItems" in body);
-                else await repository.Submit(id!, actor.account.id, resolvePlan(config, actor.account.id, amount));
+                else await repository.Submit(id!, actor.account.id, resolvePlan({ ...config, definition: targetDefinition }, actor.account.id, amount));
                 resultId = id!;
             }
             const result = (await repository.Read(resultId))!;
@@ -110,7 +113,7 @@ export class RequestService
             }
             const definition = await repository.TypeVersion(id, versionId);
             if (!definition) throw new RequestError("NOT_FOUND");
-            return definition;
+            return assertPublishedDefinition(definition, { typeId: id, versionId });
         });
     }
     public async Read(actor: IActor, id: string): Promise<RequestDetail>
@@ -138,7 +141,7 @@ export class RequestService
             await repository.CurrentActor(actor);
             const type = await repository.Type(id);
             if (!type) throw new RequestError("NOT_FOUND");
-            return type;
+            return assertPublishedDefinition(type, { typeId: id });
         });
     }
     public async Types(actor: IActor, query: RequestTypeSearch)
@@ -147,7 +150,8 @@ export class RequestService
         {
             const current = await repository.CurrentActor(actor);
             const allowDisabled = current.roles.includes("ADMINISTRATOR") && query.search.some((filter) => filter.name === "isEnabled");
-            return repository.Types(query, allowDisabled);
+            const result = await repository.Types(query, allowDisabled);
+            return { ...result, items: result.items.map((item) => assertPublishedDefinition(item, { typeId: item.id })) };
         });
     }
 }

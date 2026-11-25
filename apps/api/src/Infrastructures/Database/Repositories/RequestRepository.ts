@@ -138,7 +138,7 @@ export class RequestRepository implements IRequestRepository
         const id = randomUUID();
         const revisionId = randomUUID();
         await this.db.insert(requests).values({ id, requesterId: actor.account.id, typeId: content.typeId, title: content.title ?? "", justification: content.justification ?? "", priority: content.priority ?? "MEDIUM" });
-        await this.db.insert(requestRevisions).values({ id: revisionId, requestId: id, typeId: content.typeId, formDefinitionVersionId: content.formDefinitionVersionId, revisionNumber: 1, fields: content.fields ?? {}, amount, currency: amount === null ? null : "THB" });
+        await this.db.insert(requestRevisions).values({ id: revisionId, requestId: id, typeId: content.typeId, formDefinitionVersionId: content.formDefinitionVersionId, revisionNumber: 1, fields: Object.fromEntries(Object.entries(content.fields ?? {})), amount, currency: amount === null ? null : "THB" });
         await this.Items(revisionId, content);
         await this.db.update(requests).set({ workingRevisionId: revisionId }).where(eq(requests.id, id));
         await this.db.insert(requestAuditEvents).values({ id: randomUUID(), requestId: id, actorId: actor.account.id, eventType: "REQUEST_CREATED", revisionId });
@@ -147,7 +147,7 @@ export class RequestRepository implements IRequestRepository
     public async Patch(id: string, actorId: string, content: CreateRequest, amount: string | null, replaceLineItems: boolean): Promise<void>
     {
         const row = (await this.db.select().from(requests).where(eq(requests.id, id)))[0]!;
-        await this.db.update(requestRevisions).set({ fields: content.fields ?? {}, formDefinitionVersionId: content.formDefinitionVersionId, amount, currency: amount === null ? null : "THB" }).where(eq(requestRevisions.id, row.workingRevisionId!));
+        await this.db.update(requestRevisions).set({ fields: Object.fromEntries(Object.entries(content.fields ?? {})), formDefinitionVersionId: content.formDefinitionVersionId, amount, currency: amount === null ? null : "THB" }).where(eq(requestRevisions.id, row.workingRevisionId!));
         if (replaceLineItems)
         {
             await this.db.delete(requestItems).where(eq(requestItems.revisionId, row.workingRevisionId!));

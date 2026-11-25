@@ -139,7 +139,7 @@ export function registerRequestRoutes(app: {
                 const query = requestTypeSearchSchema.safeParse(value);
                 if (!query.success) throw new HttpError("VALIDATION_ERROR");
                 const result = await service.Types(actor, query.data);
-                return Response.json(result.items, { headers: { "X-Pagination": JSON.stringify(result.pagination) } });
+                return Response.json(z.array(publishedRequestTypeSchema).parse(result.items), { headers: { "X-Pagination": JSON.stringify(result.pagination) } });
             }
             if (action === "search")
             {

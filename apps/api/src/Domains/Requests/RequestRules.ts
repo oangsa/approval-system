@@ -1,4 +1,4 @@
-import { compareDecimals, itemTotal, moneySchema, sumAmounts, validateFields, type CreateRequest, type DepartmentSummary, type IFieldIssue, type PublishedRequestType, type RequestDetail, type RequestRevision } from "@workflow/contracts";
+import { compareDecimals, createFieldRecord, itemTotal, moneySchema, publishedRequestTypeSchema, sumAmounts, validateFields, validateRequestTypeDefinition, type CreateRequest, type DepartmentSummary, type IFieldIssue, type PublishedRequestType, type RequestDetail, type RequestRevision } from "@workflow/contracts";
 
 export type RequestErrorCode = "VALIDATION_ERROR" | "FORM_FIELD_NOT_APPLICABLE" | "FORM_DEFINITION_CHANGED" | "CONFIGURATION_INCOMPLETE" | "AMBIGUOUS_APPROVAL_POLICY" | "BUDGET_LIMIT_EXCEEDED" | "INVALID_REQUEST_TRANSITION" | "REQUEST_STALE" | "IDEMPOTENCY_CONFLICT" | "NOT_FOUND" | "FORBIDDEN" | "UNAUTHENTICATED";
 export class RequestError extends Error
@@ -22,26 +22,36 @@ export interface IConfiguration
     budgets: { departmentId: string | null; maxAmount: string }[];
 }
 export interface IPlan { policy: IPolicy; assignments: IAssignment[]; department: DepartmentSummary; }
+export function assertPublishedDefinition(raw: unknown, expected?: { typeId?: string; versionId?: string }): PublishedRequestType
+{
+    const parsed = publishedRequestTypeSchema.safeParse(raw);
+    if (!parsed.success) throw new RequestError("CONFIGURATION_INCOMPLETE");
+    if (expected?.typeId && parsed.data.id.toLowerCase() !== expected.typeId.toLowerCase()) throw new RequestError("CONFIGURATION_INCOMPLETE");
+    if (expected?.versionId && parsed.data.versionId.toLowerCase() !== expected.versionId.toLowerCase()) throw new RequestError("CONFIGURATION_INCOMPLETE");
+    if (validateRequestTypeDefinition(parsed.data).length > 0) throw new RequestError("CONFIGURATION_INCOMPLETE");
+    return parsed.data;
+}
 export function validateContent(definition: PublishedRequestType, content: CreateRequest, complete: boolean): { amount: string | null; issues: IFieldIssue[] }
 {
-    const issues = validateFields(definition, content.fields ?? {}, complete);
+    const validDefinition = assertPublishedDefinition(definition);
+    const issues = validateFields(validDefinition, content.fields ?? {}, complete);
     const add = (field: string, message: string) => issues.push({ field, code: "VALIDATION_ERROR", message });
     if (complete && !content.title?.trim()) add("title", "Title is required.");
     if (complete && !content.justification?.trim()) add("justification", "Justification is required.");
-    if ((!definition.monetary || definition.supportsLineItems) && content.monetaryAmount != null) add("monetaryAmount", "This amount is not applicable to this type.");
-    if (!definition.supportsLineItems && content.lineItems?.length) add("lineItems", "Line items are not applicable to this type.");
-    if (complete && definition.supportsLineItems && !content.lineItems?.length) add("lineItems", "At least one item is required.");
+    if ((!validDefinition.monetary || validDefinition.supportsLineItems) && content.monetaryAmount != null) add("monetaryAmount", "This amount is not applicable to this type.");
+    if (!validDefinition.supportsLineItems && content.lineItems?.length) add("lineItems", "Line items are not applicable to this type.");
+    if (complete && validDefinition.supportsLineItems && !content.lineItems?.length) add("lineItems", "At least one item is required.");
     for (const [index, item] of (content.lineItems ?? []).entries())
     {
         if (complete && !item.description.trim()) add(`lineItems[${index}].description`, "Item description is required.");
     }
-    if (complete && definition.monetary && !definition.supportsLineItems && content.monetaryAmount == null) add("monetaryAmount", "Amount is required.");
+    if (complete && validDefinition.monetary && !validDefinition.supportsLineItems && content.monetaryAmount == null) add("monetaryAmount", "Amount is required.");
     for (const [index, item] of (content.lineItems ?? []).entries())
     {
         if (!moneySchema.safeParse(itemTotal(item.quantity, item.unitAmount)).success) add(`lineItems[${index}].quantity`, "The item total exceeds the supported amount range.");
     }
-    const amount = !definition.monetary ? null : definition.supportsLineItems ? sumAmounts((content.lineItems ?? []).map((item) => itemTotal(item.quantity, item.unitAmount))) : content.monetaryAmount ?? null;
-    if (amount !== null && !moneySchema.safeParse(amount).success) add(definition.supportsLineItems ? "lineItems" : "monetaryAmount", "The total exceeds the supported amount range.");
+    const amount = !validDefinition.monetary ? null : validDefinition.supportsLineItems ? sumAmounts((content.lineItems ?? []).map((item) => itemTotal(item.quantity, item.unitAmount))) : content.monetaryAmount ?? null;
+    if (amount !== null && !moneySchema.safeParse(amount).success) add(validDefinition.supportsLineItems ? "lineItems" : "monetaryAmount", "The total exceeds the supported amount range.");
     return { amount, issues };
 }
 export function assertContent(definition: PublishedRequestType, content: CreateRequest, complete: boolean): string | null
@@ -52,6 +62,7 @@ export function assertContent(definition: PublishedRequestType, content: CreateR
 }
 export function resolvePlan(config: IConfiguration, ownerId: string, amount: string | null, options: { allowDisabledType?: boolean } = {}): IPlan
 {
+    assertPublishedDefinition(config.definition);
     if ((!config.isEnabled && !options.allowDisabledType) || !config.department?.isActive) throw new RequestError("CONFIGURATION_INCOMPLETE");
     const department = config.department;
     const budgets = config.budgets.filter((budget) => budget.departmentId === null || budget.departmentId === department.id).sort((a, b) => Number(b.departmentId !== null) - Number(a.departmentId !== null));
@@ -78,10 +89,11 @@ export function resolvePlan(config: IConfiguration, ownerId: string, amount: str
 }
 export function editableContent(detail: RequestDetail, definition: PublishedRequestType): CreateRequest
 {
+    const validDefinition = assertPublishedDefinition(definition);
     const revision: RequestRevision | null = detail.workingRevision;
     if (!revision) throw new RequestError("INVALID_REQUEST_TRANSITION");
-    return { typeId: detail.typeId, formDefinitionVersionId: revision.formDefinitionVersionId, title: detail.title, justification: detail.justification, priority: detail.priority, fields: revision.fields,
-        lineItems: revision.lineItems.map(({ description, quantity, unitAmount }) => ({ description, quantity, unitAmount })), monetaryAmount: definition.supportsLineItems ? null : revision.amount };
+    return { typeId: detail.typeId, formDefinitionVersionId: revision.formDefinitionVersionId, title: detail.title, justification: detail.justification, priority: detail.priority, fields: createFieldRecord(revision.fields),
+        lineItems: revision.lineItems.map(({ description, quantity, unitAmount }) => ({ description, quantity, unitAmount })), monetaryAmount: validDefinition.supportsLineItems ? null : revision.amount };
 }
 // Pure calendar seam shared by later activation/SLA features; Bangkok has no DST.
 export function businessDueAt(start: Date, minutes: number): Date

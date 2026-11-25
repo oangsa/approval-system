@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { assertContent, businessDueAt, resolvePlan, validateContent, type IConfiguration } from "../../src/Domains/Requests/RequestRules";
+import { assertContent, assertPublishedDefinition, businessDueAt, editableContent, resolvePlan, validateContent, type IConfiguration } from "../../src/Domains/Requests/RequestRules";
 import { seededDefinition } from "../../src/Infrastructures/Database/seedRequests";
 const department = { id: "department", code: "OPS", name: "Operations", isActive: true };
 function config(): IConfiguration
@@ -57,4 +57,52 @@ test("B06 validateContent emits canonical bracket-form line-item error paths", (
     expect(overflow.issues).toEqual(expect.arrayContaining([
         expect.objectContaining({ field: "lineItems[0].quantity", code: "VALIDATION_ERROR" }),
     ]));
+});
+
+test("B01 assertPublishedDefinition rejects Zod-invalid and cyclic stored definitions with CONFIGURATION_INCOMPLETE", () =>
+{
+    const malformed = { ...seededDefinition, fields: [{ key: "123_invalid", kind: "TEXT", label: { en: "Bad" }, required: false }] };
+    const cyclic = {
+        ...seededDefinition,
+        fields: [
+            { key: "alpha", kind: "TEXT" as const, label: { en: "Alpha" }, required: false, visibleWhen: { all: [{ fieldKey: "beta", operator: "PRESENT" as const }] } },
+            { key: "beta", kind: "TEXT" as const, label: { en: "Beta" }, required: false, requiredWhen: { all: [{ fieldKey: "alpha", operator: "PRESENT" as const }] } },
+        ],
+    };
+    const conflictingMonetary = { ...seededDefinition, monetary: false, supportsLineItems: true };
+
+    for (const invalid of [malformed, cyclic, conflictingMonetary])
+    {
+        expect(() => assertPublishedDefinition(invalid)).toThrowError("CONFIGURATION_INCOMPLETE");
+        expect(() => assertContent(invalid as typeof seededDefinition, { typeId: seededDefinition.id, formDefinitionVersionId: seededDefinition.versionId }, false)).toThrowError("CONFIGURATION_INCOMPLETE");
+        const cfg = config();
+        cfg.definition = invalid as typeof seededDefinition;
+        expect(() => resolvePlan(cfg, "owner", null)).toThrowError("CONFIGURATION_INCOMPLETE");
+    }
+
+    const detail = {
+        id: seededDefinition.id,
+        requestNumber: null,
+        typeId: seededDefinition.id,
+        typeCode: seededDefinition.code,
+        title: "Draft",
+        justification: "",
+        priority: "MEDIUM" as const,
+        status: "DRAFT" as const,
+        requester: { id: "owner", displayName: "Owner", email: "owner@example.test", roles: ["REQUESTER" as const], isActive: true, department: null },
+        department: null,
+        revisionNumber: null,
+        currentCycleId: null,
+        createdAt: "2026-11-06T00:00:00.000Z",
+        updatedAt: "2026-11-06T00:00:00.000Z",
+        submittedAt: null,
+        version: 0,
+        workingRevision: { id: seededDefinition.id, revisionNumber: 1, formDefinitionVersionId: seededDefinition.versionId, fields: {}, lineItems: [], amount: null, currency: null, submittedAt: null, submittedBy: null },
+        submittedRevision: null,
+        currentStageNumber: null,
+        currentApprovers: [],
+        availableActions: ["EDIT_DRAFT", "SUBMIT"],
+    };
+    expect(() => editableContent(detail, cyclic as typeof seededDefinition)).toThrowError("CONFIGURATION_INCOMPLETE");
+    expect(Object.getPrototypeOf(editableContent(detail, seededDefinition).fields)).toBeNull();
 });
