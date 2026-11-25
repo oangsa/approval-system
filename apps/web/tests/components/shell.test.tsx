@@ -65,7 +65,7 @@ test("navigation items are filtered by the current role union", () =>
     expect(visibleNavigation(navigationItems, ["REQUESTER"]).map((item) => item.to)).toEqual(["/dashboard", "/requests", "/settings"]);
     expect(visibleNavigation(navigationItems, ["REQUESTER", "REVIEWER"]).map((item) => item.to)).toEqual(["/dashboard", "/requests", "/reviews", "/settings"]);
     expect(visibleNavigation(navigationItems, ["REVIEWER"]).map((item) => item.to)).toEqual(["/dashboard", "/reviews", "/settings"]);
-    expect(visibleNavigation(navigationItems, ["ADMINISTRATOR"]).map((item) => item.to)).toEqual(["/dashboard", "/admin/request-types", "/settings"]);
+    expect(visibleNavigation(navigationItems, ["ADMINISTRATOR"]).map((item) => item.to)).toEqual(["/dashboard", "/admin/request-types", "/admin/approval-policies", "/admin/reviewer-assignments", "/admin/budget-policies", "/settings"]);
     expect(visibleNavigation([], ["ADMINISTRATOR"])).toEqual([]);
 });
 
