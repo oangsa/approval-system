@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, expect, test } from "vitest";
-import { eq, sql } from "drizzle-orm";
+import { asc, eq, inArray, sql } from "drizzle-orm";
 import { configurationSearchSchema, type CreateApprovalPolicy, type UserRole } from "@workflow/contracts";
 import { ConfigurationService } from "../../src/Applications/Policies/ConfigurationService";
 import { ConfigurationRepository, ConfigurationUnitOfWork } from "../../src/Infrastructures/Database/Repositories/ConfigurationRepository";
@@ -9,7 +9,7 @@ import { RequestUnitOfWork } from "../../src/Infrastructures/Database/Repositori
 import { DecisionService } from "../../src/Applications/Approvals/DecisionService";
 import { DecisionUnitOfWork } from "../../src/Infrastructures/Database/Repositories/DecisionRepository";
 import { IdentityRepository } from "../../src/Infrastructures/Database/Repositories/IdentityRepository";
-import { approvalCycles, approvalPolicies, approvalPolicyVersions, configurationAuditEvents, departmentMemberships, departments, requestAuditEvents, requestOutboxEvents, requests, requestTypes, requestTypeVersions, reviewerAssignmentRules, sessionFamilies, userRoles, users } from "../../src/Infrastructures/Database/schema";
+import { approvalCycles, approvalPolicies, approvalPolicyVersions, approvalSlots, approvalStages, configurationAuditEvents, departmentMemberships, departments, requestAuditEvents, requestOutboxEvents, requests, requestTypes, requestTypeVersions, reviewerAssignmentRules, sessionFamilies, userRoles, users } from "../../src/Infrastructures/Database/schema";
 import { seededDefinition } from "../../src/Infrastructures/Database/seedRequests";
 import { createTestDatabase } from "../helpers/testDatabase";
 import { readEnvironment } from "../../src/Infrastructures/Configuration/environment";
@@ -331,4 +331,171 @@ test("PRB-AC-04/09 rejected assignment key rename preserves mapping identity, pu
     expect(audits.map((item) => item.action)).toEqual(["ASSIGNMENT_CREATED", "ASSIGNMENT_UPDATED"]);
     expect(audits[1]!.before).toMatchObject({ key: f.mapping.key, version: 0 });
     expect(audits[1]!.after).toMatchObject({ key: f.mapping.key, version: 1 });
+});
+
+test("CX-12/PRB-AC-09 concurrent policy v2 publication and request submission commit complete v1 or v2 snapshot without mixing", async () =>
+{
+    const observed = new Set<"v1" | "v2">();
+    for (const mode of ["race-a", "race-b", "publish-holds-lock", "submit-holds-lock"] as const)
+    {
+        const f = await fixture();
+        const v1 = await f.createPublished();
+        const stage1V2 = await service.Assignment(f.admin, null, { key: `v2-s1-${randomUUID()}`, departmentId: f.departmentId, reviewerUserIds: [f.peer.account.id], isActive: true });
+        const stage2V2 = await service.Assignment(f.admin, null, { key: `v2-s2-${randomUUID()}`, departmentId: f.departmentId, reviewerUserIds: [f.reviewer.account.id, f.peer.account.id], isActive: true });
+        const branched = await service.PolicyAction(f.admin, v1.id, "branch", { expectedVersion: v1.version });
+        const patched = await service.PolicyAction(f.admin, v1.id, "patch", {
+            expectedVersion: branched.version,
+            priority: 25,
+            stages: [
+                { stageNumber: 1, reviewerAssignmentKeys: [stage1V2.key], slaBusinessMinutes: 240 },
+                { stageNumber: 2, reviewerAssignmentKeys: [stage2V2.key], slaBusinessMinutes: 360 },
+            ],
+        });
+        const draft = await f.draftRequest();
+        const publishKey = randomUUID();
+        const submitKey = randomUUID();
+
+        let v2: Awaited<ReturnType<ConfigurationService["PolicyAction"]>>;
+        let submitted: Awaited<ReturnType<RequestService["Mutate"]>>;
+        if (mode === "publish-holds-lock")
+        {
+            let releaseSubmit!: () => void;
+            const publishReady = new Promise<void>((resolve) =>
+            {
+                releaseSubmit = resolve;
+            });
+            const heldPublish = new ConfigurationService({
+                Run: (operation) => new ConfigurationUnitOfWork(observer.connection).Run(async (repository) =>
+                {
+                    const result = await operation(repository);
+                    releaseSubmit();
+                    await new Promise((resolve) => setTimeout(resolve, 25));
+                    return result;
+                }),
+            });
+            [v2, submitted] = await Promise.all([
+                heldPublish.PolicyAction(f.admin, v1.id, "publish", { expectedVersion: patched.version }, publishKey),
+                publishReady.then(() => requestService.Mutate(f.owner, "submit", draft.id, { expectedVersion: 0 }, submitKey)),
+            ]);
+        }
+        else if (mode === "submit-holds-lock")
+        {
+            let releasePublish!: () => void;
+            const submitReady = new Promise<void>((resolve) =>
+            {
+                releasePublish = resolve;
+            });
+            const heldSubmit = new RequestService({
+                Run: (operation) => new RequestUnitOfWork(db).Run(async (repository) =>
+                {
+                    releasePublish();
+                    await new Promise((resolve) => setTimeout(resolve, 25));
+                    return operation(repository);
+                }),
+            });
+            [submitted, v2] = await Promise.all([
+                heldSubmit.Mutate(f.owner, "submit", draft.id, { expectedVersion: 0 }, submitKey),
+                submitReady.then(() => otherService.PolicyAction(f.admin, v1.id, "publish", { expectedVersion: patched.version }, publishKey)),
+            ]);
+        }
+        else if (mode === "race-a")
+        {
+            [v2, submitted] = await Promise.all([
+                otherService.PolicyAction(f.admin, v1.id, "publish", { expectedVersion: patched.version }, publishKey),
+                requestService.Mutate(f.owner, "submit", draft.id, { expectedVersion: 0 }, submitKey),
+            ]);
+        }
+        else
+        {
+            [submitted, v2] = await Promise.all([
+                requestService.Mutate(f.owner, "submit", draft.id, { expectedVersion: 0 }, submitKey),
+                otherService.PolicyAction(f.admin, v1.id, "publish", { expectedVersion: patched.version }, publishKey),
+            ]);
+        }
+
+        expect(v2).toMatchObject({ id: v1.id, isPublished: true, versionNumber: 2 });
+        const versions = await db.select().from(approvalPolicyVersions).where(eq(approvalPolicyVersions.code, v1.code)).orderBy(asc(approvalPolicyVersions.versionNumber));
+        expect(versions.map((row) => ({ id: row.id, versionNumber: row.versionNumber, isActive: row.isActive }))).toEqual([
+            { id: v1.versionId, versionNumber: 1, isActive: false },
+            { id: v2.versionId, versionNumber: 2, isActive: true },
+        ]);
+        const policyAudits = await db.select().from(configurationAuditEvents).where(eq(configurationAuditEvents.resourceId, v1.id));
+        expect(policyAudits.filter((item) => item.action === "POLICY_PUBLISH")).toHaveLength(2);
+
+        const saved = await evidence(draft.id);
+        expect(submitted.status).toBe("PENDING");
+        expect(saved.request?.status).toBe("PENDING");
+        expect(saved.cycles).toHaveLength(1);
+        expect(saved.audit.filter((event) => event.eventType === "REQUEST_SUBMITTED")).toHaveLength(1);
+        expect(saved.outbox.filter((event) => event.eventType === "REQUEST_SUBMITTED")).toHaveLength(1);
+
+        const cycle = saved.cycles[0]!;
+        const stages = await db.select().from(approvalStages).where(eq(approvalStages.cycleId, cycle.id)).orderBy(asc(approvalStages.stageNumber));
+        const slots = await db.select().from(approvalSlots).where(inArray(approvalSlots.stageId, stages.map((stage) => stage.id))).orderBy(asc(approvalSlots.assignmentKey), asc(approvalSlots.reviewerId));
+        const snapshot = cycle.snapshot as {
+            policy: { id: string; priority: number; stages: Array<{ stageNumber: number; reviewerAssignmentKeys: string[]; slaBusinessMinutes: number }> };
+            assignments: Array<{ assignmentKey: string; reviewerId: string }>;
+        };
+
+        expect([v1.versionId, v2.versionId]).toContain(cycle.policyVersionId);
+        if (cycle.policyVersionId === v1.versionId)
+        {
+            observed.add("v1");
+            expect(snapshot.policy).toMatchObject({
+                id: v1.versionId,
+                priority: 10,
+                stages: [{ stageNumber: 1, reviewerAssignmentKeys: [f.mapping.key], slaBusinessMinutes: 480 }],
+            });
+            expect(snapshot.assignments.map((item) => ({ key: item.assignmentKey, reviewerId: item.reviewerId }))).toEqual([
+                { key: f.mapping.key, reviewerId: f.reviewer.account.id },
+            ]);
+            expect(stages.map((stage) => ({ stageNumber: stage.stageNumber, status: stage.status, slaBusinessMinutes: stage.slaBusinessMinutes }))).toEqual([
+                { stageNumber: 1, status: "ACTIVE", slaBusinessMinutes: 480 },
+            ]);
+            expect(slots.map((slot) => ({ key: slot.assignmentKey, reviewerId: slot.reviewerId, status: slot.status }))).toEqual([
+                { key: f.mapping.key, reviewerId: f.reviewer.account.id, status: "ACTIONABLE" },
+            ]);
+            expect(submitted.currentApprovers.map((slot) => ({ stageNumber: slot.stageNumber, reviewerId: slot.reviewer.id, status: slot.status }))).toEqual([
+                { stageNumber: 1, reviewerId: f.reviewer.account.id, status: "ACTIONABLE" },
+            ]);
+        }
+        else
+        {
+            observed.add("v2");
+            expect(snapshot.policy).toMatchObject({
+                id: v2.versionId,
+                priority: 25,
+                stages: [
+                    { stageNumber: 1, reviewerAssignmentKeys: [stage1V2.key], slaBusinessMinutes: 240 },
+                    { stageNumber: 2, reviewerAssignmentKeys: [stage2V2.key], slaBusinessMinutes: 360 },
+                ],
+            });
+            expect(snapshot.assignments.map((item) => ({ key: item.assignmentKey, reviewerId: item.reviewerId })).sort((a, b) => `${a.key}:${a.reviewerId}`.localeCompare(`${b.key}:${b.reviewerId}`))).toEqual(
+                [
+                    { key: stage1V2.key, reviewerId: f.peer.account.id },
+                    { key: stage2V2.key, reviewerId: f.reviewer.account.id },
+                    { key: stage2V2.key, reviewerId: f.peer.account.id },
+                ].sort((a, b) => `${a.key}:${a.reviewerId}`.localeCompare(`${b.key}:${b.reviewerId}`)),
+            );
+            expect(stages.map((stage) => ({ stageNumber: stage.stageNumber, status: stage.status, slaBusinessMinutes: stage.slaBusinessMinutes }))).toEqual([
+                { stageNumber: 1, status: "ACTIVE", slaBusinessMinutes: 240 },
+                { stageNumber: 2, status: "WAITING", slaBusinessMinutes: 360 },
+            ]);
+            expect(slots.map((slot) => ({ key: slot.assignmentKey, reviewerId: slot.reviewerId, status: slot.status }))).toEqual(
+                [
+                    { key: stage1V2.key, reviewerId: f.peer.account.id, status: "ACTIONABLE" },
+                    { key: stage2V2.key, reviewerId: f.reviewer.account.id, status: "WAITING" },
+                    { key: stage2V2.key, reviewerId: f.peer.account.id, status: "WAITING" },
+                ].sort((a, b) => `${a.key}:${a.reviewerId}`.localeCompare(`${b.key}:${b.reviewerId}`)),
+            );
+            expect(submitted.currentApprovers.map((slot) => ({ stageNumber: slot.stageNumber, reviewerId: slot.reviewer.id, status: slot.status })).sort((a, b) => `${a.stageNumber}:${a.reviewerId}`.localeCompare(`${b.stageNumber}:${b.reviewerId}`))).toEqual(
+                [
+                    { stageNumber: 1, reviewerId: f.peer.account.id, status: "ACTIONABLE" },
+                    { stageNumber: 2, reviewerId: f.reviewer.account.id, status: "WAITING" },
+                    { stageNumber: 2, reviewerId: f.peer.account.id, status: "WAITING" },
+                ].sort((a, b) => `${a.stageNumber}:${a.reviewerId}`.localeCompare(`${b.stageNumber}:${b.reviewerId}`)),
+            );
+        }
+    }
+    expect(observed).toEqual(new Set(["v1", "v2"]));
 });
