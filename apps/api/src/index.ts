@@ -1,3 +1,5 @@
+import { ReportingService } from "./Applications/Reporting/ReportingService";
+import { ReportingUnitOfWork } from "./Infrastructures/Database/Repositories/ReportingRepository";
 import { DecisionService } from "./Applications/Approvals/DecisionService";
 import { DecisionUnitOfWork } from "./Infrastructures/Database/Repositories/DecisionRepository";
 import { RequestService } from "./Applications/Requests/RequestService";
@@ -17,7 +19,7 @@ async function main(): Promise<void>
     try
     {
         const identity = await createIdentityComposition(environment, database);
-        const application = new Application(node(), identity, () => database.Close(), new RequestService(new RequestUnitOfWork(database.connection)), new ApprovalTaskService(new ApprovalTaskUnitOfWork(database.connection)), new DecisionService(new DecisionUnitOfWork(database.connection)), () => database.Check());
+        const application = new Application(node(), identity, () => database.Close(), new RequestService(new RequestUnitOfWork(database.connection)), new ApprovalTaskService(new ApprovalTaskUnitOfWork(database.connection)), new DecisionService(new DecisionUnitOfWork(database.connection)), () => database.Check(), new ReportingService(new ReportingUnitOfWork(database.connection)));
         application.Start(environment.PORT, environment.HOST);
         let shuttingDown = false;
         const shutdown = async () =>

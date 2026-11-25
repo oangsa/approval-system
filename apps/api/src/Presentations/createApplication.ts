@@ -1,3 +1,5 @@
+import type { ReportingService } from "../Applications/Reporting/ReportingService";
+import { registerReportingRoutes } from "./Routes/ReportingRoutes";
 import type { DecisionService } from "../Applications/Approvals/DecisionService";
 import { registerDecisionRoutes } from "./Routes/DecisionRoutes";
 import type { RequestService } from "../Applications/Requests/RequestService";
@@ -13,7 +15,7 @@ import { checkOrigin, corsHeaders, preflight } from "./cors";
 import { errorResponse, HttpError } from "./errors";
 import { authRouteDescriptors, registerAuthRoutes } from "./Routes/AuthRoutes";
 
-export function createApplication(adapter?: ElysiaAdapter, identity?: IIdentityHttpDependencies, requests?: RequestService, approvalTasks?: ApprovalTaskService, decisions?: DecisionService, checkHealth?: () => Promise<void>)
+export function createApplication(adapter?: ElysiaAdapter, identity?: IIdentityHttpDependencies, requests?: RequestService, approvalTasks?: ApprovalTaskService, decisions?: DecisionService, checkHealth?: () => Promise<void>, reporting?: ReportingService)
 {
     const ids = new WeakMap<Request, string>();
     const app = new Elysia({ adapter })
@@ -32,7 +34,7 @@ export function createApplication(adapter?: ElysiaAdapter, identity?: IIdentityH
                     if (request.method === "OPTIONS")
                     {
                         const method = request.headers.get("access-control-request-method")?.toUpperCase();
-                        if (!(decisions && (method === "POST" && /^\/api\/v1\/approval-tasks\/[^/]+\/decisions$/.test(path) || method === "GET" && /^\/api\/v1\/requests\/[^/]+\/timeline$/.test(path))) && !authRouteDescriptors.some((route) => route.path === path && route.method === method) && !(requests && /^(?:GET|POST|PATCH)$/.test(method ?? "") && /^\/api\/v1\/(?:requests|request-types)(?:\/|$)/.test(path)) && !(approvalTasks && (method === "POST" && path === "/api/v1/approval-tasks/search" || method === "GET" && /^\/api\/v1\/approval-tasks\/[^/]+$/.test(path) && path !== "/api/v1/approval-tasks/search"))) throw new HttpError("FORBIDDEN");
+                        if (!(reporting && (method === "GET" && path === "/api/v1/dashboard" || method === "POST" && path === "/api/v1/reports/requests/search")) && !(decisions && (method === "POST" && /^\/api\/v1\/approval-tasks\/[^/]+\/decisions$/.test(path) || method === "GET" && /^\/api\/v1\/requests\/[^/]+\/timeline$/.test(path))) && !authRouteDescriptors.some((route) => route.path === path && route.method === method) && !(requests && /^(?:GET|POST|PATCH)$/.test(method ?? "") && /^\/api\/v1\/(?:requests|request-types)(?:\/|$)/.test(path)) && !(approvalTasks && (method === "POST" && path === "/api/v1/approval-tasks/search" || method === "GET" && /^\/api\/v1\/approval-tasks\/[^/]+$/.test(path) && path !== "/api/v1/approval-tasks/search"))) throw new HttpError("FORBIDDEN");
                         return preflight(request, identity.allowedOrigins);
                     }
                     const required = ["/api/v1/auth/login", "/api/v1/auth/refresh", "/api/v1/auth/logout"].includes(path);
@@ -82,5 +84,6 @@ export function createApplication(adapter?: ElysiaAdapter, identity?: IIdentityH
     if (identity && requests) registerRequestRoutes(app, identity, requests);
     if (identity && approvalTasks) registerApprovalTaskRoutes(app, identity, approvalTasks);
     if (identity && decisions) registerDecisionRoutes(app, identity, decisions);
+    if (identity && reporting) registerReportingRoutes(app, identity, reporting);
     return app;
 }
