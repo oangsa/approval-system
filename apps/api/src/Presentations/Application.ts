@@ -1,5 +1,6 @@
 import type { DecisionService } from "../Applications/Approvals/DecisionService";
 import type { RequestService } from "../Applications/Requests/RequestService";
+import type { RequestTypeService } from "../Applications/RequestTypes/RequestTypeService";
 import type { ApprovalTaskService } from "../Applications/Approvals/ApprovalTaskService";
 import type { ElysiaAdapter } from "elysia";
 import type { IIdentityHttpDependencies } from "./composition";
@@ -9,9 +10,9 @@ export class Application
 {
     public readonly app;
     private closed = false;
-    constructor(adapter: ElysiaAdapter, identity?: IIdentityHttpDependencies, private readonly close?: () => Promise<void>, requests?: RequestService, approvalTasks?: ApprovalTaskService, decisions?: DecisionService, checkHealth?: () => Promise<void>)
+    constructor(adapter: ElysiaAdapter, identity?: IIdentityHttpDependencies, private readonly close?: () => Promise<void>, requests?: RequestService, approvalTasks?: ApprovalTaskService, decisions?: DecisionService, checkHealth?: () => Promise<void>, requestTypes?: RequestTypeService)
     {
-        this.app = createApplication(adapter, identity, requests, approvalTasks, decisions, checkHealth);
+        this.app = createApplication(adapter, identity, requests, approvalTasks, decisions, checkHealth, requestTypes);
     }
     public Start(port: number, hostname: string): void
     {
