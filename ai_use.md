@@ -764,3 +764,91 @@ reflection/output: Packaged the verified B05–B07 repairs, regressions, feature
 @oangsa
 prompt: do it
 reflection/output: Packaged the verified B05–B07 repairs, regressions, feature docs, and assistance records into scoped atomic commits on feature/6-draft-withdraw-lifecycle, pushed normally to PR #87, awaited the final GitHub Actions Verification CI run, and prepared/posted the final verification record (tested SHA, PR/CI links, actual results, and failures/skips disclosure) directly on Issue #6 for B08. No force push, merge, or release performed.
+
+## Issue #8 assistance
+
+@oangsa
+prompt: /karpathy-guidelines
+reflection/output: Applied supplied Karpathy coding discipline guidelines to Issue #8 planning, surgical implementation, and verification.
+
+## Issue #8 assistance
+
+@oangsa
+prompt: /caveman
+reflection/output: Applied concise communication style preference for user-facing responses while keeping source code, specifications, and documentation in standard prose.
+
+## Issue #8 assistance
+
+@oangsa
+prompt: implement
+
+## Type
+- Full-stack Feature
+
+## Sprint
+- Sprint 2
+- Planned primary owner: @oangsa — accountable for both API/DB and UI.
+- Planned PR reviewer: @kittipichcha — independent teammate review, never self-review.
+- Ownership allocation (2026-11-24): Balanced by existing issue estimates within each remaining sprint: 20 points per person in Sprint 2 and 20 points per person in Sprint 3, totaling 40 points each. #6 remains assigned to @oangsa at the owner's explicit request. The other teammate provides independent PR review. Estimates and frozen product/API/UI contracts are unchanged.
+- Rebalance unstarted work if actual effort diverges; estimates do not prove equal actual contributions.
+
+## Features
+- `R07` — Request Line Items
+- `O16` — Multiple Request Types (admin-configurable)
+- `O17` — Priority Levels
+
+## Depends on
+- #2
+
+## Scope
+- Implement complete backend Domain/Application/Infrastructure/Presentation behavior, Drizzle data changes, shared Zod contracts, and permission validation needed for these features.
+- Implement complete React Router 7 frontend routes, shadcn/ui + Tailwind-only UI, states and integration for the same features. Keep public SSR and authenticated client-loaded data isolated; use the owner-approved D-01 stack from #1: Node.js 24, npm Workspaces, root `package-lock.json`, Elysia through `@elysia/node`, TypeScript, Vitest for unit/API/contract/real-PostgreSQL integration tests and Playwright for browser E2E, with OOP/Clean Architecture, PostgreSQL/Drizzle and shared Zod contracts in `packages/contracts`. This runtime/toolchain amendment overrides obsolete engineering runtime wording only; all 54 features, frozen business/API/UI behavior, ownership and effort estimates remain unchanged.
+- Implement versioned administrator request-type draft/branch/publish/enable/disable services, shared PublishedRequestType/condition/field schemas, definition graph evaluator and immutable Drizzle version records.
+- Deliver `/admin/request-types` and editor with structured field list, up/down ordering, bounded all/any rule builder and shared-evaluator preview; integrate same metadata-driven rendering into requester wizard.
+- Add exact decimal line-item calculation/persistence, reusable LineItemsEditor and supported priority in wizard/list/details; retain original form pinning across all consumers.
+- Add/update applicable unit, API/contract, real-PostgreSQL integration, security, concurrency and Playwright/E2E tests. Version feature SDS, UI/API/data contract, numbered AC, STS and DoD before implementation; preserve feature traceability and record actual verification evidence in this issue.
+- Dependencies are integration prerequisites, not a ban on parallel implementation against the frozen shared contracts. Coordinate shared contract/schema changes and reuse earlier components; keep supporting consumer integrations separate from primary Feature ID ownership.
+
+## Acceptance criteria
+- [ ] Authenticated type lookup/search exposes active published metadata; authorized pinned-version GET works without draft leakage. Admin POST `/api/v1/admin/request-types` creates draft; PATCH `/:id/draft` requires expectedVersion; POST `/:id/draft` branches latest immutable publication.
+- [ ] POST `/api/v1/admin/request-types/:id/publish` requires expectedVersion/key, returns `201 PublishedRequestType`; concurrent/stale publish cannot create duplicate version. Enable/disable take expectedVersion, preserve history and allow legitimate returned pinned edits/resubmission.
+- [ ] Field vocabulary is TEXT/TEXTAREA/DECIMAL/DATE/SELECT/BOOLEAN with localized labels, typed options/bounds and unique keys. Reject unknown/duplicate references, incompatible operator/value, self-reference and cycles across visibility/requiredness before publish.
+- [ ] Conditions support EQ/NE/GT/GTE/LT/LTE/IN/PRESENT and bounded all/any; if both groups exist combine their results with AND. Empty provided groups are invalid, missing group contributes true, boolean false is PRESENT.
+- [ ] Evaluate dependency graph in order. Hidden field is unset for downstream evaluation and never required; visible field required when base required or requiredWhen true. Browser omits hidden keys; direct draft/submit hidden-key input returns `422 FORM_FIELD_NOT_APPLICABLE`.
+- [ ] Server validates stored published definition at runtime in addition to static Zod. New first submission checks active version (`409 FORM_DEFINITION_CHANGED` if stale); submitted/returned versions never silently migrate.
+- [ ] Admin field-list supports add/edit/remove/reorder, constrained rule editing, live preview and immutable publish confirmation; nonadmin mutation denied and 422/409 feedback preserves editable draft.
+- [ ] Line-item-enabled types accept `{description,quantity,unitAmount}` only as editable authority; server generates IDs, requires positive quantities/nonnegative valid unit amounts, computes exact per-row/total decimal strings and rejects attempted client total override.
+- [ ] Monetary types without items may use validated monetaryAmount; competing monetaryAmount and lineItems cannot supply two authorities. Nonmonetary types exclude monetary input; no float arithmetic or currency conversion.
+- [ ] Priority LOW/MEDIUM/HIGH/URGENT round-trips across API and wizard/details; unsupported values yield 422. Priority does not grant authorization or arbitrarily override routing.
+- [ ] Wizard renders dynamic conditions/labels with English fallback, item row errors and server-confirmed totals, is read-only after submit and supports busy/stale/configuration states. Execute evaluator/contract/real-PG publication and admin-to-requester E2E with recorded evidence.
+- [ ] Teammate reviews bounded implementation; feature PR targets `sprint-2-staging`, followed by reviewed promotion to `dev` then release-reviewed `main`. Run applicable typecheck, lint, build and planned tests; record actual commit/environment/results and disclose failures/skips. This planning issue asserts no implementation or passing tests.
+
+## Required branch
+`feature/8-configurable-forms-items-priority`
+
+## Traceability
+- Features: `R07`, `O16`, `O17`
+- Functional requirements: `FR-024`, `FR-033`, `FR-034`
+- Business rules: `BR-013`, `BR-014`, `BR-015`, `BR-016`, `BR-017`, `BR-018`, `BR-019`, `BR-020`, `BR-021`, `BR-022`, `BR-031`, `BR-032`, `BR-070`
+- Acceptance criteria: `AC-024`, `AC-033`, `AC-034`
+- Planned tests: `FT-024`, `FT-033`, `FT-034`; `EP-023`, `EP-024`, `EP-025`, `EP-026`, `EP-027`, `EP-028`, `EP-029`, `EP-030`, `EP-031`, `EP-033`, `EP-035`, `UT-03`, `UT-04`, `UT-05`, `UT-06`, `CT-02`, `CT-03`, `DB-13`, `CX-12`, `SEC-03`, `UI-05`, `UI-07`, `UI-08`, `UI-12`, `E2E-03`, `E2E-08`
+- Contracts: `docs/specs/specifications.md` (frozen product v1.0), `docs/specs/api-specs.md` (frozen v1.0.1), `docs/specs/ui-specs.md` (frozen v1.0), `docs/specs/test.md` (planned verification).
+- Supporting design/traceability: `docs/specs/srs.md`, `docs/specs/system-sds.md`, `docs/specs/traceability.md`, `docs/sprints/sprint-2.md`, root `AGENTS.md`.
+- API paths use `/api/v1` unless explicitly stated otherwise; suffixes within a named endpoint family share its prefix. Preserve frozen contracts over older non-frozen sprint suggestions or scaffold defaults; no additional product behavior is implied.
+
+## Estimated effort
+- 8 points (planning estimate, not hours)
+- Includes business rules, backend/API, frontend/UI, shared schemas, migrations/data integration, negative/race testing, documentation and integration review. Planned review workload mirrors the other teammate’s owned effort.
+reflection/output: Versioned Issue #8 SDS, numbered AC, STS, DoD, and traceability updates before implementation. Implemented shared Zod schemas, definition graph validator (3-color DFS cycle checks across visibility/requiredness), bounded condition/locale evaluator, and BigInt decimal line-item arithmetic in packages/contracts. Added Drizzle schema/migration 0010, migrator/runtime privilege SQL, Clean Architecture RequestType domain/application/repository/routes for draft/branch/publish/enable/disable, and preserved pinned RETURNED edits on disabled types and immutable TypeVersion snapshots. Delivered /admin/request-types list/editor UI with up/down field reordering, constrained rule builder, shared-evaluator live preview, LineItemsEditor/LineItemsSummary, PriorityBadge, wizard/detail integration, and /admin session bootstrap protection. Added unit, OpenAPI contract, real-PostgreSQL concurrency/security, component, and Playwright E2E tests. Recorded actual passing/skipped test counts and repaired failures in docs/features/configurable-forms-items-priority/verification.md; independent @kittipichcha review, PRs, commits, and pushes remain pending explicit authorization.
+
+## Issue #8 assistance
+
+@oangsa
+prompt: /scrutinize audit changes with specs, only major edge cases are blocker, only implementation mismatches are blocker
+reflection/output: Performed an end-to-end audit of Issue #8 implementation against frozen specifications, OpenAPI, schema constraints, and UI components, identifying blockers in ConditionBuilder IN input editing and GET /api/v1/request-types/:id polymorphic dual-role response handling plus major/nit findings across quantity bounds, cycle error reporting, list filtering, locale fallback, and dialog focus restoration.
+
+## Issue #8 assistance
+
+@oangsa
+prompt: fix
+reflection/output: Fixed all audit findings: tightened editableLineItemSchema integer bound to 17 digits for PostgreSQL numeric(24,6) roundtrip safety, tracked DFS stack for full 3+ node cycle reporting, removed the polymorphic admin fallback on default GET /api/v1/request-types/:id, aligned create/branch Location headers to ?view=admin, documented ?view=admin and union schemas in RequestRoutes OpenAPI, normalized UUID parameters in RequestService, fixed ConditionBuilder IN interactive editing and incompatible operator/option selectors, updated RequestTypesListPage Published-only filter and Reset filters recovery, preserved unsaved edits on editor Enable/Disable, restored dialog focus, added Thai description/help-text safeguards and shared preferredBrowserLocale helper, added unit/OpenAPI/PostgreSQL/component regression tests, updated SDS/verification docs, and re-verified full workspace checks.
