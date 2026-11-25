@@ -59,9 +59,14 @@ export class RequestService
             else
             {
                 const detail = await this.Owner(repository, actor, id!, true);
-                if (detail.status !== "DRAFT" || !detail.workingRevision) throw new RequestError("INVALID_REQUEST_TRANSITION");
+                const allowedStatus = operation === "patch" ? detail.status === "DRAFT" || detail.status === "RETURNED" : detail.status === "DRAFT";
+                if (!allowedStatus || !detail.workingRevision) throw new RequestError("INVALID_REQUEST_TRANSITION");
                 if (!("expectedVersion" in body) || detail.version !== body.expectedVersion) throw new RequestError("REQUEST_STALE");
-                const selectedVersionId = operation === "patch" ? (body as PatchDraft).formDefinitionVersionId ?? detail.workingRevision.formDefinitionVersionId : detail.workingRevision.formDefinitionVersionId;
+                if (detail.status === "RETURNED" && operation === "patch" && (body as PatchDraft).formDefinitionVersionId !== undefined && (body as PatchDraft).formDefinitionVersionId!.toLowerCase() !== detail.workingRevision.formDefinitionVersionId.toLowerCase())
+                {
+                    throw new RequestError("FORM_DEFINITION_CHANGED");
+                }
+                const selectedVersionId = operation === "patch" ? (body as PatchDraft).formDefinitionVersionId?.toLowerCase() ?? detail.workingRevision.formDefinitionVersionId : detail.workingRevision.formDefinitionVersionId;
                 const config = await repository.Configuration(detail.typeId, selectedVersionId, actor.account.id);
                 const originalDefinition = selectedVersionId === detail.workingRevision.formDefinitionVersionId ? config.definition : await repository.TypeVersion(detail.typeId, detail.workingRevision.formDefinitionVersionId);
                 if (!originalDefinition) throw new RequestError("NOT_FOUND");
@@ -91,6 +96,9 @@ export class RequestService
     }
     public async TypeVersion(actor: IActor, id: string, versionId: string, requestId?: string)
     {
+        id = id.toLowerCase();
+        versionId = versionId.toLowerCase();
+        requestId = requestId?.toLowerCase();
         return this.unit.Run(async (repository) =>
         {
             actor = await repository.CurrentActor(actor);
@@ -137,8 +145,9 @@ export class RequestService
     {
         return this.unit.Run(async (repository) =>
         {
-            await repository.CurrentActor(actor);
-            return repository.Types(query);
+            const current = await repository.CurrentActor(actor);
+            const allowDisabled = current.roles.includes("ADMINISTRATOR") && query.search.some((filter) => filter.name === "isEnabled");
+            return repository.Types(query, allowDisabled);
         });
     }
 }

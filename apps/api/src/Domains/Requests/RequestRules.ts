@@ -50,9 +50,9 @@ export function assertContent(definition: PublishedRequestType, content: CreateR
     if (issues.length) throw new RequestError(issues.some((issue) => issue.code === "FORM_FIELD_NOT_APPLICABLE") ? "FORM_FIELD_NOT_APPLICABLE" : "VALIDATION_ERROR", issues);
     return amount;
 }
-export function resolvePlan(config: IConfiguration, ownerId: string, amount: string | null): IPlan
+export function resolvePlan(config: IConfiguration, ownerId: string, amount: string | null, options: { allowDisabledType?: boolean } = {}): IPlan
 {
-    if (!config.isEnabled || !config.department?.isActive) throw new RequestError("CONFIGURATION_INCOMPLETE");
+    if ((!config.isEnabled && !options.allowDisabledType) || !config.department?.isActive) throw new RequestError("CONFIGURATION_INCOMPLETE");
     const department = config.department;
     const budgets = config.budgets.filter((budget) => budget.departmentId === null || budget.departmentId === department.id).sort((a, b) => Number(b.departmentId !== null) - Number(a.departmentId !== null));
     if (amount !== null && budgets[0] && compareDecimals(amount, budgets[0].maxAmount) > 0) throw new RequestError("BUDGET_LIMIT_EXCEEDED", [{ field: "monetaryAmount", code: "BUDGET_LIMIT_EXCEEDED", message: "Amount exceeds the configured limit." }]);
