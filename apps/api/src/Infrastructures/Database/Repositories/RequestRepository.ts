@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { and, asc, count, desc, eq, ilike, inArray, or, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, isNull, ilike, inArray, or, sql } from "drizzle-orm";
 import { itemTotal, requestDetailSchema, requestSummarySchema, type CreateRequest, type RequestRevision, type RequestTypeSearch, type RequestSearchQuery } from "@workflow/contracts";
 import { isCurrentIdentity, type IActor } from "../../../Domains/Identity/Identity";
 import type { IRequestRepository, IRequestUnitOfWork } from "../../../Domains/Requests/Ports";
@@ -112,21 +112,21 @@ export class RequestRepository implements IRequestRepository
         const totalPages = Math.ceil(total / query.pageSize);
         return { items, pagination: { currentPage: query.pageNumber, pageSize: query.pageSize, totalPages, totalCount: total, hasPrevious: query.pageNumber > 1, hasNext: query.pageNumber < totalPages } };
     }
-    public async Configuration(typeId: string, versionId: string, actorId: string): Promise<IConfiguration>
+    public async Configuration(typeId: string, versionId: string, actorId: string, historicalDepartment?: import("@workflow/contracts").DepartmentSummary): Promise<IConfiguration>
     {
         const type = (await this.db.select().from(requestTypes).where(eq(requestTypes.id, typeId)).for("share"))[0];
         const version = (await this.db.select().from(requestTypeVersions).where(and(eq(requestTypeVersions.id, versionId), eq(requestTypeVersions.typeId, typeId))).for("share"))[0];
         if (!type || !version) throw new RequestError("NOT_FOUND");
         const membership = (await this.db.select().from(departmentMemberships).where(and(eq(departmentMemberships.userId, actorId), eq(departmentMemberships.isActive, true), eq(departmentMemberships.isPrimary, true))).for("share"))[0];
-        const department = membership ? (await this.db.select().from(departments).where(eq(departments.id, membership.departmentId)).for("share"))[0] ?? null : null;
+        const department = historicalDepartment ?? (membership ? (await this.db.select().from(departments).where(eq(departments.id, membership.departmentId)).for("share"))[0] ?? null : null);
         const policies = await this.db.select().from(approvalPolicyVersions).where(and(eq(approvalPolicyVersions.typeId, typeId), eq(approvalPolicyVersions.isActive, true))).orderBy(asc(approvalPolicyVersions.id)).for("share");
-        const rules = department ? await this.db.select().from(reviewerAssignmentRules).where(and(eq(reviewerAssignmentRules.departmentId, department.id), eq(reviewerAssignmentRules.isActive, true))).orderBy(asc(reviewerAssignmentRules.id)).for("share") : [];
-        const reviewerIds = [...new Set(rules.map((rule) => rule.reviewerId))].sort();
+        const rules = department ? await this.db.select().from(reviewerAssignmentRules).where(and(or(eq(reviewerAssignmentRules.departmentId, department.id), isNull(reviewerAssignmentRules.departmentId)))).orderBy(asc(reviewerAssignmentRules.id)).for("share") : [];
+        const reviewerIds = [...new Set(rules.flatMap((rule) => rule.reviewerUserIds ?? [rule.reviewerId]))].sort();
         const reviewers = reviewerIds.length ? await this.db.select().from(users).where(inArray(users.id, reviewerIds)).orderBy(asc(users.id)).for("share") : [];
         const roles = reviewerIds.length ? await this.db.select().from(userRoles).where(inArray(userRoles.userId, reviewerIds)).for("share") : [];
         const budgets = await this.db.select().from(budgetPolicies).where(and(eq(budgetPolicies.typeId, typeId), eq(budgetPolicies.isActive, true))).for("share");
         return { definition: version.definition, activeVersionId: type.publishedVersionId, isEnabled: type.isEnabled, department, policies, budgets,
-            assignments: rules.map((rule) => ({ ...rule, displayName: reviewers.find((user) => user.id === rule.reviewerId)?.displayName ?? "", isEligible: !!reviewers.find((user) => user.id === rule.reviewerId)?.isActive && roles.some((role) => role.userId === rule.reviewerId && role.roleCode === "REVIEWER") })) };
+            assignments: rules.flatMap((rule) => (rule.reviewerUserIds ?? [rule.reviewerId]).map((reviewerId) => ({ id: rule.id, assignmentKey: rule.assignmentKey, departmentId: rule.departmentId, reviewerId, version: rule.version, displayName: reviewers.find((user) => user.id === reviewerId)?.displayName ?? "", isEligible: rule.isActive && !!reviewers.find((user) => user.id === reviewerId)?.isActive && roles.some((role) => role.userId === reviewerId && role.roleCode === "REVIEWER") }))) };
     }
     private async Items(revisionId: string, content: CreateRequest): Promise<void>
     {
@@ -191,8 +191,10 @@ export class RequestRepository implements IRequestRepository
             await this.db.insert(approvalStages).values({ id: stageId, cycleId, stageNumber: stage.stageNumber, status: active ? "ACTIVE" : "WAITING", slaBusinessMinutes: stage.slaBusinessMinutes });
             for (const key of stage.reviewerAssignmentKeys)
             {
-                const assignment = plan.assignments.find((item) => item.assignmentKey === key)!;
-                await this.db.insert(approvalSlots).values({ id: randomUUID(), stageId, assignmentKey: key, reviewerId: assignment.reviewerId, status: active ? "ACTIONABLE" : "WAITING", dueAt: active ? businessDueAt(now, stage.slaBusinessMinutes) : null });
+                for (const assignment of plan.assignments.filter((item, index, all) => item.assignmentKey === key && all.findIndex((other) => other.id === item.id && other.reviewerId === item.reviewerId) === index))
+                {
+                    await this.db.insert(approvalSlots).values({ id: randomUUID(), stageId, assignmentKey: key, reviewerId: assignment.reviewerId, status: active ? "ACTIONABLE" : "WAITING", dueAt: active ? businessDueAt(now, stage.slaBusinessMinutes) : null });
+                }
             }
         }
         await this.db.update(requests).set({ status: "PENDING", requestNumber: number, departmentId: plan.department.id, departmentSnapshot: plan.department, submittedAt: now, updatedAt: now, version: row.version + 1, workingRevisionId: null, submittedRevisionId: revisionId, currentCycleId: cycleId }).where(eq(requests.id, id));
@@ -237,6 +239,10 @@ export class RequestUnitOfWork implements IRequestUnitOfWork
     }
     public Run<T>(operation: (repository: IRequestRepository) => Promise<T>): Promise<T>
     {
-        return this.db.transaction((tx) => operation(new RequestRepository(tx)));
+        return this.db.transaction(async (tx) =>
+        {
+            await tx.execute(sql`select pg_advisory_xact_lock_shared(941309)`);
+            return operation(new RequestRepository(tx));
+        });
     }
 }

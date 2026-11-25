@@ -20,9 +20,10 @@ export function preflight(request: Request, allowed: readonly string[]): Respons
     const pathname = new URL(request.url).pathname;
     const requestResource = /^\/api\/v1\/(?:requests|request-types)(?:\/|$)/.test(pathname);
     const adminRequestTypeResource = /^\/api\/v1\/admin\/request-types(?:\/|$)/.test(pathname);
-    const methods = requestResource ? ["GET", "POST", "PATCH"] : adminRequestTypeResource ? ["POST", "PATCH"] : ["GET", "POST"];
+    const adminConfigurationResource = /^\/api\/v1\/admin\/(?:approval-policies|reviewer-assignments|budget-policies)(?:\/|$)/.test(pathname);
+    const methods = requestResource ? ["GET", "POST", "PATCH"] : (adminRequestTypeResource || adminConfigurationResource) ? ["POST", "PATCH"] : ["GET", "POST"];
     const decisionResource = /^\/api\/v1\/approval-tasks\/[^/]+\/decisions$/.test(pathname);
-    const supportsIdempotency = requestResource || adminRequestTypeResource || decisionResource;
+    const supportsIdempotency = requestResource || adminRequestTypeResource || adminConfigurationResource || decisionResource;
     const allowedHeaders = ["authorization", "content-type", "x-request-id", ...(supportsIdempotency ? ["idempotency-key"] : [])];
     const method = request.headers.get("access-control-request-method")?.toUpperCase();
     const headers = (request.headers.get("access-control-request-headers") ?? "").split(",").map((value) => value.trim().toLowerCase()).filter(Boolean);

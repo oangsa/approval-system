@@ -48,11 +48,13 @@ export const approvalPolicyVersions = pgTable("approval_policy_versions", {
     minAmount: numeric("min_amount", { precision: 24, scale: 2 }), maxAmount: numeric("max_amount", { precision: 24, scale: 2 }), stages: jsonb().$type<IStageDefinition[]>().notNull(),
 }, (t) => [unique().on(t.code, t.versionNumber)]);
 export const reviewerAssignmentRules = pgTable("reviewer_assignment_rules", {
-    id: uuid().primaryKey(), assignmentKey: text("assignment_key").notNull(), departmentId: uuid("department_id").notNull().references(() => departments.id),
+    id: uuid().primaryKey(), assignmentKey: text("assignment_key").notNull(), departmentId: uuid("department_id").references(() => departments.id),
+    reviewerUserIds: uuid("reviewer_user_ids").array(),
     reviewerId: uuid("reviewer_id").notNull().references(() => users.id), isActive: boolean("is_active").notNull().default(true), version: integer().notNull().default(0),
-}, (t) => [unique().on(t.assignmentKey, t.departmentId)]);
+}, (t) => [unique().on(t.assignmentKey, t.departmentId), uniqueIndex("one_global_assignment").on(t.assignmentKey).where(sql`${t.departmentId} IS NULL`)]);
 export const budgetPolicies = pgTable("budget_policies", {
     id: uuid().primaryKey(), typeId: uuid("type_id").notNull().references(() => requestTypes.id), departmentId: uuid("department_id").references(() => departments.id),
+    version: integer().notNull().default(0),
     maxAmount: numeric("max_amount", { precision: 24, scale: 2 }).notNull(), isActive: boolean("is_active").notNull().default(true),
 }, (t) => [check("budget_nonnegative", sql`${t.maxAmount} >= 0`), uniqueIndex("one_type_budget").on(t.typeId).where(sql`${t.isActive} AND ${t.departmentId} IS NULL`), uniqueIndex("one_department_budget").on(t.typeId, t.departmentId).where(sql`${t.isActive} AND ${t.departmentId} IS NOT NULL`)]);
 export const requestNumberSequence = pgSequence("request_number_sequence");
@@ -87,7 +89,7 @@ export const approvalStages = pgTable("approval_stages", {
 export const approvalSlots = pgTable("approval_slots", {
     id: uuid().primaryKey(), stageId: uuid("stage_id").notNull().references(() => approvalStages.id), reviewerId: uuid("reviewer_id").notNull().references(() => users.id),
     assignmentKey: text("assignment_key").notNull(), status: text().$type<import("@workflow/contracts").RequestDetail["currentApprovers"][number]["status"]>().notNull(), version: integer().notNull().default(0), dueAt: timestamp("due_at", { withTimezone: true }),
-}, (t) => [unique().on(t.stageId, t.assignmentKey), index("approval_slot_reviewer_status_idx").on(t.reviewerId, t.status)]);
+}, (t) => [unique().on(t.stageId, t.assignmentKey, t.reviewerId), index("approval_slot_reviewer_status_idx").on(t.reviewerId, t.status)]);
 export const requestAuditEvents = pgTable("audit_events", {
     note: text(),
     decisionId: uuid("decision_id").unique().references((): AnyPgColumn => approvalDecisions.id),
@@ -114,4 +116,22 @@ export const decisionIdempotencyRecords = pgTable("decision_idempotency_records"
 export const requestTypeIdempotencyRecords = pgTable("request_type_idempotency_records", {
     actorId: uuid("actor_id").notNull().references(() => users.id), scope: text().notNull(), key: uuid().notNull(), bodyHash: text("body_hash").notNull(),
     response: jsonb().$type<Record<string, unknown>>().notNull(), createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [primaryKey({ columns: [t.actorId, t.scope, t.key] })]);
+
+// Stable lifecycle identity is separate from immutable published policy versions.
+export const approvalPolicies = pgTable("approval_policies", {
+    id: uuid().primaryKey(), code: text().notNull().unique(), version: integer().notNull().default(0),
+    isEnabled: boolean("is_enabled").notNull().default(true),
+    publishedVersionId: uuid("published_version_id").references(() => approvalPolicyVersions.id),
+    draft: jsonb().$type<import("@workflow/contracts").PolicyContent | null>(),
+}, (t) => [check("approval_policy_version_nonnegative", sql`${t.version} >= 0`)]);
+export const configurationAuditEvents = pgTable("configuration_audit_events", {
+    id: uuid().primaryKey(), actorId: uuid("actor_id").notNull().references(() => users.id),
+    resourceId: uuid("resource_id").notNull(), action: text().notNull(),
+    before: jsonb().$type<Record<string, unknown> | null>(), after: jsonb().$type<Record<string, unknown>>().notNull(),
+    occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull().defaultNow(),
+});
+export const policyIdempotencyRecords = pgTable("policy_idempotency_records", {
+    actorId: uuid("actor_id").notNull().references(() => users.id), scope: text().notNull(), key: uuid().notNull(),
+    bodyHash: text("body_hash").notNull(), response: jsonb().$type<import("@workflow/contracts").ApprovalPolicyDTO>().notNull(),
 }, (t) => [primaryKey({ columns: [t.actorId, t.scope, t.key] })]);

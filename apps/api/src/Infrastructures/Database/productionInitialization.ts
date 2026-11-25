@@ -4,7 +4,7 @@ import { eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import type { Database } from "./Database";
 import { seededDefinition, seededPolicyId, seededTypeId, seededVersionId } from "./seedRequests";
-import { approvalPolicyVersions, departmentMemberships, departments, requestTypes, requestTypeVersions, reviewerAssignmentRules, roles, userRoles, users } from "./schema";
+import { approvalPolicies, approvalPolicyVersions, departmentMemberships, departments, requestTypes, requestTypeVersions, reviewerAssignmentRules, roles, userRoles, users } from "./schema";
 import { PasswordHasher } from "../Security/PasswordHasher";
 
 const accountSchema = z.object({ email: z.string().trim().toLowerCase().pipe(z.email()), displayName: z.string().trim().min(1).max(100), password: z.string().min(8).max(1024) });
@@ -82,6 +82,7 @@ export async function initializeProduction(database: { connection: Pick<Database
 
         const stages = [{ stageNumber: 1 as const, reviewerAssignmentKeys: ["general-review"], slaBusinessMinutes: 480 }];
         await tx.insert(approvalPolicyVersions).values({ id: seededPolicyId, code: "GENERAL_REVIEW", versionNumber: 1, typeId: seededTypeId, priority: 10, stages }).onConflictDoNothing();
+        await tx.insert(approvalPolicies).values({ id: seededPolicyId, code: "GENERAL_REVIEW", publishedVersionId: seededPolicyId }).onConflictDoNothing();
         const policy = (await tx.select().from(approvalPolicyVersions).where(eq(approvalPolicyVersions.id, seededPolicyId)))[0];
         requireCompatible(policy?.code === "GENERAL_REVIEW" && policy.versionNumber === 1 && policy.typeId === seededTypeId && policy.priority === 10 && policy.isActive && policy.departmentId === null && policy.minAmount === null && policy.maxAmount === null && isDeepStrictEqual(policy.stages, stages));
         await tx.insert(reviewerAssignmentRules).values({ id: assignmentId, assignmentKey: "general-review", departmentId, reviewerId }).onConflictDoNothing();
