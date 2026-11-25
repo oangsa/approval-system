@@ -101,3 +101,44 @@ Staging subsequently advanced to `a7cac0b58ec7066d22706a46fb2498e5fec710c5` thro
 | Linux PR CI | Completed successfully: typecheck, lint, web/API/contract tests, builds, release tests, all three container builds, migration, initialization, seed, PostgreSQL integration and browser tests passed |
 
 The Linux results are recorded by [Verification run 45548727760](https://github.com/oangsa/approval-system/actions/runs/45548727760). Local evidence is retained in the [combined check](evidence/pr88-check.log), [serial retry](evidence/pr88-tests-serial.log), [isolated retry](evidence/pr88-editor-isolated.log) and [build](evidence/pr88-build.log) logs. The Windows timeouts remain unresolved locally; no timeout, assertion or configuration was weakened. Full PostgreSQL and browser suites were not rerun locally after this second merge. Human teammate review and checks on the final PR head remain required before promotion. Subsequent evidence-only commits do not change the tested runtime.
+
+## PR #89 P1-01 local correction verification — 2026-11-25
+
+These results describe the uncommitted correction on baseline `7c55bfca43ae360c82f3c1d4cfa8dd2fd23c021c`, not a new published commit or CI run. The production change is limited to the timeline SQL ordering before pagination: ascending timestamp, exact event-type precedence, then ascending UUID. Persistence, timestamps, authorization and response contracts are unchanged. [Plan](plan.md) and [review](review.md) record the scope and independent review.
+
+| Check | Observed outcome |
+| --- | --- |
+| Planner's read-only PostgreSQL comparator reproduction | Equal timestamps and a smaller outcome UUID returned the outcome first under the old comparator; moving only the outcome timestamp later returned the decision first |
+| Initial regression-authoring attempt | Four failed and 13 passed; synthetic UUIDs failed shared UUID validation and the rejection reason was too short. These fixture defects were corrected; this run did not establish causal-order failure |
+| Pre-fix regression run after fixture validation corrections | Four expected ordering failures and 13 passes: all three synthetic decision/outcome pairs and a real rejection returned the wrong order. The different-timestamp control passed. Fixed fixture identifiers were subsequently made unique per request while retaining the adversarial ordering |
+| `npm run test:integration --workspace @workflow/api -- tests/postgres/reportingDashboard.test.ts` after the fix | Exit 0: all 17 passed in 25.65 seconds, including three tied pairs, one-item pages, timestamp priority, UUID ties, immutable source snapshots, real approval/rejection and existing historical access restrictions |
+| Initial `npm run test:integration --workspace @workflow/api -- tests/postgres/decisions.test.ts` after the fix | Exit 1: 37 passed, one skipped, one failed of 39. The real-HTTP decision/authorization/stale replay/timeline/CORS test hit its unchanged 15-second timeout. Duration 103.18 seconds. Broader checks were concurrent; any load contribution is unverified. A separate recovery planner was assigned rather than changing the test |
+| Unchanged serial rerun of the decisions command | Exit 0: 38 passed, one skipped of 39 in 46.98 seconds. The real-HTTP test passed. The existing skipped built-process smoke test requires `RUN_BUILT_HTTP_SMOKE=1`, which was not enabled. The recovery planner verified unchanged source/test/config hashes and returned NO_CHANGE; the exact cause of the earlier timeout remains unproven |
+| `npm run typecheck` | Exit 0, all workspaces and root |
+| `npm run lint` | Exit 0 |
+| `npm test` | Exit 1: 487 passed, two failed of 489 across 57 files. The unchanged UI-12 editor and ConditionBuilder tests in `adminRequestTypes.test.tsx` exceeded their existing five-second limits, matching the previously documented Windows failures; no assertion or timeout was changed |
+| `npx vitest run --project web apps/web/tests/components/adminRequestTypes.test.tsx` with other checks idle | Exit 1: five passed, one failed of six in 17.38 seconds. The editor test passed; the unchanged ConditionBuilder test still exceeded its existing five-second limit, matching the previously recorded isolated Windows limitation |
+| `npm run build` | Exit 0: API, web client/SSR and contracts production builds passed; existing React Router future-flag notices remain |
+| Independent correction review | No findings; static source/test/spec review and successful whitespace check, not independent full-suite execution |
+| `git diff --check` | Exit 0; informational CRLF normalization warnings only |
+
+Database checks used the existing guarded loopback PostgreSQL test database and synthetic fixtures. Required sandbox escalations resolved local database access and Vitest cache rename restrictions; no credentials were printed. RETURN regression coverage is persisted synthetic history, not an implemented RETURN producer. At this initial correction stage, browser tests, the full PostgreSQL suite, Linux CI, deployment and publication had not been run for the correction. Subsequent publication verification is recorded below. The two unrelated Windows component-test timeouts remain disclosed.
+
+Tested local source SHA-256 hashes (working-tree bytes):
+
+| File | SHA-256 |
+| --- | --- |
+| `apps/api/src/Infrastructures/Database/Repositories/DecisionRepository.ts` | `f81763776b5a97c7a20574d90de7abf9a4b67a4d209bab5cec4b66463919a13a` |
+| `apps/api/tests/postgres/reportingDashboard.test.ts` | `cf0f61d87faa6c154b02ff93e0648eba126ad2da72ae20ef9e6a90eaf502d717` |
+
+Earlier source manifests and CI links identify their recorded revisions and do not claim verification of this uncommitted correction. At this initial correction stage, no commit, push, merge or release was performed. Teammate approval and reviewed promotion remain separate gates.
+
+## Full review and authorized publication verification — 2026-11-25
+
+The user subsequently requested a full blocker review, correction, commit and normal push. Fresh reviewer `/root/full_pr89_review` inspected the full PR plus local correction against staging `a7cac0b58ec7066d22706a46fb2498e5fec710c5`. All mandatory sequential review passes completed with no open findings. An ambiguous current-status claim in `dod.md` and the historical verdict headline in `review.md` were qualified during review. No additional product correction was required.
+
+With other heavy checks idle, `$env:RUN_BUILT_HTTP_SMOKE = '1'` followed by `npm run test:integration` exited 0: **132 tests passed across 12 files, no skips**, in 158.80 seconds. This includes built-server smoke tests and supersedes the earlier focused-suite smoke skip for this publication check. Runtime and regression source hashes remain the values recorded above. Typecheck, lint and builds already passed on these unchanged sources; the known Windows component-test limitation remains disclosed rather than weakening checks. Browser and Linux checks for the new published revision must be established by its CI run.
+
+Remote branch checks confirmed both PR head `7c55bfca43ae360c82f3c1d4cfa8dd2fd23c021c` and staging `a7cac0b58ec7066d22706a46fb2498e5fec710c5` before publication. Commit/push authorization does not authorize merging, releasing or changing reviewer state.
+
+Runtime correction commit `168fedf` records the reviewed query, PostgreSQL regressions and matching design/test specification. Its working-tree runtime/test bytes are the tested hashes above; no runtime change followed verification. A separate documentation commit records the plan, review, actual verification limits and assistance history. GitHub checks on the new pushed head must be read from that revision's run; earlier successful CI does not establish their result.

@@ -2,7 +2,7 @@
 
 Original reviewed working tree: `feature/11-sprint-2-full-stack-reporting-dashboards-timeline`, based on `bdab39b115e39caec46da099ee9956cf47567423`, before commit/push/PR authorization. Publication integration is recorded at the end of this ledger. Human teammate review by @oangsa remains pending and is separate from agent review.
 
-**Final agent verdict — 2026-11-25: Approved for code acceptance, with no open findings.** Human teammate review and release approval remain pending.
+**Original prepublication agent verdict — 2026-11-25: Approved for code acceptance, with no open findings in that reviewed working tree.** Later integration reviews and the PR #89 correction are recorded below with their own scope and verification limits. Human teammate review and release approval remain pending.
 
 ## Round 1
 
@@ -44,3 +44,19 @@ After the user's separate commit/push/PR authorization, `/root/review_staging_sy
 ## Request-type integration review
 
 After staging incorporated PR #88, `/root/review_pr88_integration` independently reviewed the bounded integration at `2379f6f`. It reported no findings across service composition and positional callers, CORS, authenticated session/navigation, shared contracts, persistence and reporting queries. Its attempted focused Vitest run executed zero tests because the sandbox denied a temporary-cache rename; it did not claim executable verification. The implementation agent separately passed typecheck, focused lint and 17 focused tests. The orchestrator's Windows timeout results and the successful Linux CI steps are recorded in verification.md. This review does not substitute for the requested independent teammate review by @oangsa.
+
+## PR #89 P1-01 correction review
+
+The changes-requested review by @oangsa on baseline `7c55bfca43ae360c82f3c1d4cfa8dd2fd23c021c` identified an equal-timestamp causal ordering defect: random audit UUID order could place a resulting status before its decision. The planner reproduced the old PostgreSQL comparator with adversarial UUIDs; a timestamp-only control confirmed time remained the primary ordering dimension. The bounded correction plan is recorded in [plan](plan.md).
+
+Fresh reviewer `/root/review_pr89_fix` independently inspected the complete seven-file uncommitted correction against that baseline and reported **No findings**. It verified timestamp/semantic-rank/UUID ordering before SQL pagination, the exact three decision/outcome pairs, unchanged participant/historical authorization and persistence, independent expected-order assertions, one-item page boundaries, timestamp priority, same-rank UUID ties, unchanged source rows and real approval/rejection producer coverage. It also checked the matching design/test specification and append-only assistance records. The reviewer ran `git diff --check` successfully; CRLF normalization warnings were informational.
+
+This was a static correction review, not an independent database or full-suite execution. Implementation and orchestrator execution results, including fixture-authoring failures and expected red regressions, are recorded separately in [verification](verification.md). RETURN coverage uses synthetic persisted history and does not add a workflow producer. The explicitly non-blocking branch name, historical-type picker and WAITING reporting-policy observations remain unchanged. Agent review does not grant teammate approval or authorize commit, push, merge or release.
+
+## Full PR review before authorized correction publication
+
+After the user's separate commit/push request, fresh reviewer `/root/full_pr89_review` reviewed the entire PR and local correction against staging `a7cac0b58ec7066d22706a46fb2498e5fec710c5`, not only P1-01. It completed Scrutinize, defect review, Standards, Spec, thermo-nuclear maintainability and final review-pr passes sequentially. The forward/reverse traceability sweep covered C01–C27 and RDT-AC01–12: contracts and seven role combinations; identity reread; requester/reviewer/admin projections; report scope, deduplication, dimensions, date precision, pagination and repeatable snapshots; immutable safe timeline; frontend abort/session/navigation behavior; tests/evidence; and separate teammate/release gates. Relevant historical RDT-R1–R6 dispositions and unchanged callers were rechecked.
+
+The reviewer found no additional product blocker. It identified a non-blocking documentation ambiguity in the definition-of-done current status and original verdict headline; both were qualified and independently rechecked during the round. The final verdict was **Approved for bounded code acceptance, no open findings**, with merge and release approval explicitly excluded. The three earlier non-blocking observations remain unchanged because no frozen-contract evidence justified treating them as blockers.
+
+The reviewer independently checked current source hashes against verification.md, all 37 canonical manifest hashes against their historical revision `2379f6f`, and `git diff --check`. It inspected code, tests and saved evidence; it did not claim fresh browser replay or execution of the orchestrator's suites. The orchestrator subsequently completed the full PostgreSQL suite with 132 passing tests and no skips, including built-server smoke tests. Local Windows UI-12 timeouts and current-revision CI requirements remain explicit in [verification](verification.md). No review guarantees the absence of every conceivable defect.

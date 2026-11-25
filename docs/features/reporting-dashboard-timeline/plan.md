@@ -38,3 +38,14 @@ No migration is planned: this increment reads existing authoritative records. Ex
 | C27 | Root AGENTS branch/review workflow | 12 | Human teammate and owner | Pending independent @oangsa review; no unauthorized commit, push, merge or publication |
 
 Required test IDs are mapped in STS. Tests are evidence only for their exercised layers; API tests do not prove browser behavior, and mocked tests do not prove PostgreSQL truth. Full downstream PDF, return/resubmit and delegation journeys are excluded while their shared reporting/history seams remain covered here.
+
+## PR #89 causal timeline correction plan
+
+Review baseline: `7c55bfca43ae360c82f3c1d4cfa8dd2fd23c021c`. P1-01 requires a tied decision to precede its resulting request outcome across page boundaries (FR-030 / AC-030, RDT-AC08–09, C24). Read-only PostgreSQL reproduction with equal timestamps and an outcome UUID smaller than its decision UUID returned the outcome first under the old comparator; advancing only the outcome timestamp restored decision-first order.
+
+1. Clarify the feature design and test specification before implementation. Keep time ascending as the primary key; add exact event-type precedence (ordinary events, formal decisions, resulting outcomes), then ascending UUID as the final key.
+2. Add deterministic adversarial PostgreSQL regressions for approval, rejection and persisted return history. Assert explicit causal order, one-item page boundaries, timestamp priority, same-rank UUID ties and unchanged stored audit facts. Record the expected failure before changing the query. RETURN remains a synthetic history fixture because its producer is outside this increment.
+3. Change only `DecisionRepository.Timeline` ordering before SQL `LIMIT`/`OFFSET`. Preserve persistence, timestamps, scope predicates, count, locks, DTOs and frontend rendering. Update the old chronology test's obsolete timestamp/UUID-only expectation and retain historical access assertions. Verify real approval and rejection producers as well.
+4. Run focused reporting/decision PostgreSQL suites, typecheck, lint, unit/API/contract/component tests and builds. Record actual outcomes and limitations, then obtain a fresh independent agent review. Agent review does not replace teammate approval.
+
+The planner owns diagnosis, the implementation agent owns the bounded repository/test/design changes, and the orchestrator owns assistance records and verification/review evidence. The three explicitly non-blocking review observations remain unchanged. No schema migration, historical backfill or permission expansion is part of this correction. The initial correction request did not authorize commit or push; the user's subsequent publication request is recorded separately in [verification](verification.md), alongside actual results.
