@@ -1,0 +1,30 @@
+
+> test
+> vitest run --maxWorkers=1
+
+
+ RUN  v4.1.10 <workspace>
+
+ ❯ |web| tests/components/adminRequestTypes.test.tsx (6 tests | 1 failed) 10890ms
+   × UI-12 ConditionBuilder preserves IN typing, surfaces incompatible operators, and Disable keeps unsaved draft edits 5101ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  |web| tests/components/adminRequestTypes.test.tsx > UI-12 ConditionBuilder preserves IN typing, surfaces incompatible operators, and Disable keeps unsaved draft edits
+Error: Test timed out in 5000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ ❯ tests/components/adminRequestTypes.test.tsx:217:1
+    215| });
+    216|
+    217| test("UI-12 ConditionBuilder preserves IN typing, surfaces incompatibl…
+       | ^
+    218| {
+    219|     const detailWithDecimalAndSelect: AdminRequestTypeDetail = {
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed | 56 passed (57)
+      Tests  1 failed | 488 passed (489)
+   Start at  11:40:10
+   Duration  323.72s (transform 6.71s, setup 58.79s, import 59.45s, tests 71.09s, environment 93.93s)

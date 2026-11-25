@@ -92,7 +92,7 @@ export class DecisionRepository implements IDecisionRepository
         if (!current && !total) throw new ApprovalTaskError("NOT_FOUND");
         const rows = await this.db.select({ event: requestAuditEvents, actor: { id: users.id, displayName: users.displayName }, decision: approvalDecisions }).from(requestAuditEvents)
             .innerJoin(users, eq(requestAuditEvents.actorId, users.id)).leftJoin(approvalDecisions, eq(requestAuditEvents.decisionId, approvalDecisions.id))
-            .where(scope).orderBy(asc(requestAuditEvents.occurredAt), asc(requestAuditEvents.id)).limit(query.pageSize).offset((query.pageNumber - 1) * query.pageSize);
+            .where(scope).orderBy(asc(requestAuditEvents.occurredAt), sql`case when ${requestAuditEvents.eventType} in (${"DECISION_APPROVE"}, ${"DECISION_REJECT"}, ${"DECISION_RETURN"}) then 1 when ${requestAuditEvents.eventType} in (${"REQUEST_APPROVED"}, ${"REQUEST_REJECTED"}, ${"REQUEST_RETURNED"}) then 2 else 0 end`, asc(requestAuditEvents.id)).limit(query.pageSize).offset((query.pageNumber - 1) * query.pageSize);
         const items = rows.map(({ event, actor: eventActor, decision }) => auditTimelineItemSchema.parse({ id: event.id, requestId, cycleId: event.cycleId, revisionId: event.revisionId, eventType: event.eventType, actor: eventActor, occurredAt: event.occurredAt.toISOString(), note: decision?.reason ?? event.note ?? null,
             metadata: decision ? { decision: decision.decision, slotId: decision.slotId } : {} }));
         const totalPages = Math.ceil(total / query.pageSize);

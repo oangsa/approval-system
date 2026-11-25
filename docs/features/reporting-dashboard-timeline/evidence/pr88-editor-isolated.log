@@ -1,0 +1,26 @@
+
+ RUN  v4.1.10 <workspace>
+
+ ❯ |web| tests/components/adminRequestTypes.test.tsx (6 tests | 1 failed | 5 skipped) 5172ms
+   × UI-12 ConditionBuilder preserves IN typing, surfaces incompatible operators, and Disable keeps unsaved draft edits 5154ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  |web| tests/components/adminRequestTypes.test.tsx > UI-12 ConditionBuilder preserves IN typing, surfaces incompatible operators, and Disable keeps unsaved draft edits
+Error: Test timed out in 5000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ ❯ tests/components/adminRequestTypes.test.tsx:217:1
+    215| });
+    216|
+    217| test("UI-12 ConditionBuilder preserves IN typing, surfaces incompatibl…
+       | ^
+    218| {
+    219|     const detailWithDecimalAndSelect: AdminRequestTypeDetail = {
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 5 skipped (6)
+   Start at  11:46:31
+   Duration  15.08s (transform 1.38s, setup 2.49s, import 2.80s, tests 5.17s, environment 3.75s)

@@ -70,7 +70,7 @@ test("EP-022/049–060 admin HTTP lifecycle, direct DTOs, security, lookup pagin
     const tokens = new TokenProvider(environment.AUTH_JWT_SECRET, { Now: () => new Date() }, environment.AUTH_JWT_ISSUER, environment.AUTH_JWT_AUDIENCE);
     const adminToken = await tokens.Sign(f.admin.account.id, f.admin.family.id, 0);
     const ownerToken = await tokens.Sign(f.owner.account.id, f.owner.family.id, 0);
-    const app = createApplication(undefined, identity, requestService, undefined, undefined, undefined, undefined, service);
+    const app = createApplication(undefined, identity, requestService, undefined, undefined, undefined, undefined, undefined, service);
     const send = (method: string, path: string, body: unknown = {}, token: string | null = adminToken, key?: string) => app.handle(new Request(`http://localhost/api/v1${path}`, { method, headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}), ...(key ? { "Idempotency-Key": key } : {}) }, body: JSON.stringify(body) }));
     const policyPath = "/admin/approval-policies";
     for (const path of [policyPath, "/admin/reviewer-assignments", "/admin/budget-policies", "/reviewers/eligible/search", "/departments/search"])
@@ -301,7 +301,7 @@ test("PRB-AC-04/09 rejected assignment key rename preserves mapping identity, pu
     const identity = await createIdentityComposition(environment, database);
     const tokens = new TokenProvider(environment.AUTH_JWT_SECRET, { Now: () => new Date() }, environment.AUTH_JWT_ISSUER, environment.AUTH_JWT_AUDIENCE);
     const adminToken = await tokens.Sign(f.admin.account.id, f.admin.family.id, 0);
-    const app = createApplication(undefined, identity, requestService, undefined, undefined, undefined, undefined, service);
+    const app = createApplication(undefined, identity, requestService, undefined, undefined, undefined, undefined, undefined, service);
     const sendPatch = (body: unknown) => app.handle(new Request(`http://localhost/api/v1/admin/reviewer-assignments/${f.mapping.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${adminToken}` },
