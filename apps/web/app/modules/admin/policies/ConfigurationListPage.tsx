@@ -135,9 +135,12 @@ function ConfigurationRecordForm({ kind, initial, onSaved }: IConfigurationRecor
         setBusy(true); setError("");
         try
         {
-            const concurrency = existing ? { expectedVersion: existing.version } : {};
-            if (kind === "reviewer-assignments") await saveAssignment(existing?.id ?? null, { key, departmentId, reviewerUserIds, isActive, ...concurrency }, generation);
-            else await saveBudget(existing?.id ?? null, { typeId, departmentId, maxAmount, isActive, ...concurrency }, generation);
+            if (kind === "reviewer-assignments")
+            {
+                if (existing) await saveAssignment(existing.id, { expectedVersion: existing.version, departmentId, reviewerUserIds, isActive }, generation);
+                else await saveAssignment(null, { key, departmentId, reviewerUserIds, isActive }, generation);
+            }
+            else await saveBudget(existing?.id ?? null, { typeId, departmentId, maxAmount, isActive, ...(existing ? { expectedVersion: existing.version } : {}) }, generation);
             onSaved();
         }
         catch (failure)
@@ -154,7 +157,10 @@ function ConfigurationRecordForm({ kind, initial, onSaved }: IConfigurationRecor
         event.preventDefault(); void save();
     }}>
         {kind === "reviewer-assignments" ? <>
-            <label className="grid gap-2 text-sm">Assignment key<Input value={key} onChange={(event) => setKey(event.target.value)} /></label>
+            <label className="grid gap-2 text-sm">Assignment key<Input value={key} readOnly={!!existing} className={existing ? "bg-muted text-muted-foreground" : undefined} onChange={(event) =>
+            {
+                if (!existing) setKey(event.target.value);
+            }} /></label>
             <ConfigurationLookup kind="reviewers" label="Eligible reviewers" values={reviewerUserIds} multiple onChange={setReviewerUserIds} />
             <p className="text-sm text-muted-foreground">All selected reviewers receive required parallel slots. Active Reviewer role is checked again on submit; self-approval blocks the entire cycle.</p>
         </> : <>

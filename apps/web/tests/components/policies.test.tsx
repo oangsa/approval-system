@@ -1,13 +1,34 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { createMemoryRouter, RouterProvider } from "react-router";
-import { beforeEach, expect, test, vi } from "vitest";
-import type { ApprovalPolicyDTO, UserRole } from "@workflow/contracts";
+import { afterAll, beforeAll, beforeEach, expect, test, vi } from "vitest";
+import type { ApprovalPolicyDTO, AssignmentRuleDTO, UserRole } from "@workflow/contracts";
 import { ApprovalPolicyEditorPage } from "../../app/modules/admin/policies/ApprovalPolicyEditorPage";
 import { ConfigurationListPage } from "../../app/modules/admin/policies/ConfigurationListPage";
 import { ApiFailure } from "../../app/api/errors";
+import { configurationApi } from "../../app/api/configuration";
 import { searchConfiguration, policyAction, lookupSelection } from "../../app/services/configurationService";
 let roles: UserRole[] = ["ADMINISTRATOR"];
+const show = Object.getOwnPropertyDescriptor(HTMLDialogElement.prototype, "showModal");
+const close = Object.getOwnPropertyDescriptor(HTMLDialogElement.prototype, "close");
+beforeAll(() =>
+{
+    Object.defineProperty(HTMLDialogElement.prototype, "showModal", { configurable: true, value: function (this: HTMLDialogElement)
+    {
+        this.open = true;
+    } });
+    Object.defineProperty(HTMLDialogElement.prototype, "close", { configurable: true, value: function (this: HTMLDialogElement)
+    {
+        this.open = false;
+    } });
+});
+afterAll(() =>
+{
+    if (show) Object.defineProperty(HTMLDialogElement.prototype, "showModal", show);
+    else delete (HTMLDialogElement.prototype as Partial<HTMLDialogElement>).showModal;
+    if (close) Object.defineProperty(HTMLDialogElement.prototype, "close", close);
+    else delete (HTMLDialogElement.prototype as Partial<HTMLDialogElement>).close;
+});
 vi.mock("../../app/modules/auth/sessionContext", () => ({ useSession: () => ({ generation: 0, user: { id: "admin", roles } }) }));
 vi.mock("../../app/services/configurationService", async () =>
 {
@@ -81,4 +102,38 @@ test("PRB-AC-01 published form stays read-only without perpetual busy state", as
     expect(screen.getByLabelText("Sample amount")).toBeEnabled();
     expect(screen.getByRole("button", { name: "Branch new draft" })).toBeEnabled();
     expect(screen.queryByRole("button", { name: "Save draft" })).not.toBeInTheDocument();
+});
+test("PRB-AC-04 existing assignment key is read-only and omitted from PATCH payloads", async () =>
+{
+    const user = userEvent.setup();
+    const assignment: AssignmentRuleDTO = {
+        id: "44444444-4444-4444-8444-444444444444", key: "DEPT_REVIEW", departmentId: null,
+        reviewerUserIds: ["55555555-5555-4555-8555-555555555555"], isActive: true, version: 0,
+    };
+    const updated: AssignmentRuleDTO = { ...assignment, version: 1 };
+    vi.mocked(searchConfiguration).mockResolvedValue({ items: [assignment], pagination });
+    const spy = vi.spyOn(configurationApi, "assignment").mockResolvedValue(updated);
+    try
+    {
+        render(<ConfigurationListPage kind="reviewer-assignments" />);
+        const editButtons = await screen.findAllByRole("button", { name: "Edit DEPT_REVIEW" });
+        await user.click(editButtons[0]!);
+        const keyInput = screen.getByLabelText("Assignment key");
+        expect(keyInput).toHaveValue("DEPT_REVIEW");
+        expect(keyInput).toHaveAttribute("readonly");
+        await user.type(keyInput, "_RENAMED");
+        expect(keyInput).toHaveValue("DEPT_REVIEW");
+        await user.click(screen.getByRole("button", { name: "Save configuration" }));
+        await waitFor(() => expect(spy).toHaveBeenCalledTimes(1));
+        const [calledId, payload] = spy.mock.calls[0]!;
+        expect(calledId).toBe(assignment.id);
+        expect(payload).toEqual({ expectedVersion: 0, departmentId: null, reviewerUserIds: assignment.reviewerUserIds, isActive: true });
+        expect(payload).not.toHaveProperty("key");
+        await user.click(screen.getByRole("button", { name: "New assignment" }));
+        expect(screen.getByLabelText("Assignment key")).not.toHaveAttribute("readonly");
+    }
+    finally
+    {
+        spy.mockRestore();
+    }
 });

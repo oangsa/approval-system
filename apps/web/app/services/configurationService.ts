@@ -19,6 +19,8 @@ export function policyAction(id: string, action: "patch" | "branch" | "publish" 
     const parsed = action === "patch" ? patchApprovalPolicySchema.parse(body) : policyActionSchema.parse(body);
     return configurationApi.policyAction(id, action, parsed, attempts.Key(`${action}:${id}`, parsed), generation);
 }
+export function saveAssignment(id: null, body: CreateAssignmentRule, generation: number): Promise<AssignmentRuleDTO>;
+export function saveAssignment(id: string, body: PatchAssignmentRule, generation: number): Promise<AssignmentRuleDTO>;
 export function saveAssignment(id: string | null, body: CreateAssignmentRule | PatchAssignmentRule, generation: number)
 {
     return configurationApi.assignment(id, id ? patchAssignmentRuleSchema.parse(body) : createAssignmentRuleSchema.parse(body), generation);
