@@ -203,6 +203,71 @@ test("parallel assignments count tasks separately but reports count each request
     expect((await service.Search(fixture.reviewer, reportSearchSchema.parse({}))).items).toEqual([{ dimension: "STATUS", key: "DRAFT", label: "DRAFT", count: 1 }, { dimension: "STATUS", key: "PENDING", label: "PENDING", count: 1 }]);
 });
 
+test.each([["APPROVE", "APPROVED"], ["REJECT", "REJECTED"], ["RETURN", "RETURNED"]] as const)("timeline orders tied %s before %s across pages", async (decision, outcome) =>
+{
+    const fixture = await approvalReportingFixture(db);
+    const submitted = await fixture.submit();
+    const decisions = new DecisionService(new DecisionUnitOfWork(db));
+    const time = new Date("2100-01-01T00:00:00.000Z");
+    const suffix = fixture.ownerId.slice(-12);
+    const outcomeId = `00000000-0000-4000-8000-${suffix}`;
+    const decisionId = `ffffffff-ffff-4fff-8fff-${suffix}`;
+    const low = `11111111-1111-4111-8111-${suffix}`;
+    const high = `eeeeeeee-eeee-4eee-aeee-${suffix}`;
+    const base = { requestId: submitted.id, actorId: fixture.ownerId, revisionId: submitted.submittedRevision!.id, cycleId: submitted.currentCycleId!, occurredAt: time };
+    await db.insert(requestAuditEvents).values([
+        { ...base, id: outcomeId, eventType: `REQUEST_${outcome}` },
+        { ...base, id: decisionId, eventType: `DECISION_${decision}` },
+        { ...base, id: high, eventType: "SUBMITTED" },
+        { ...base, id: low, eventType: "SUBMITTED" },
+    ]);
+    const before = await db.select().from(requestAuditEvents).where(eq(requestAuditEvents.requestId, submitted.id)).orderBy(asc(requestAuditEvents.id));
+    const timeline = await decisions.Timeline(fixture.owner, submitted.id, { pageNumber: 1, pageSize: 100 });
+    expect(timeline.items.slice(-4).map(({ id, eventType }) => ({ id, eventType }))).toEqual([
+        { id: low, eventType: "SUBMITTED" }, { id: high, eventType: "SUBMITTED" },
+        { id: decisionId, eventType: `DECISION_${decision}` }, { id: outcomeId, eventType: `REQUEST_${outcome}` },
+    ]);
+    const pages = await Promise.all(before.map((_, index) => decisions.Timeline(fixture.owner, submitted.id, { pageNumber: index + 1, pageSize: 1 })));
+    expect(pages.flatMap((page) => page.items)).toEqual(timeline.items);
+    expect(pages.every((page) => page.pagination.totalCount === before.length && page.pagination.totalPages === before.length)).toBe(true);
+    expect(new Set(timeline.items.map((item) => item.id)).size).toBe(before.length);
+    expect(await db.select().from(requestAuditEvents).where(eq(requestAuditEvents.requestId, submitted.id)).orderBy(asc(requestAuditEvents.id))).toEqual(before);
+});
+
+test("timeline prioritizes different timestamps over event precedence", async () =>
+{
+    const fixture = await approvalReportingFixture(db);
+    const submitted = await fixture.submit();
+    const decisions = new DecisionService(new DecisionUnitOfWork(db));
+    const base = { requestId: submitted.id, actorId: fixture.ownerId, revisionId: submitted.submittedRevision!.id, cycleId: submitted.currentCycleId! };
+    const outcomeId = randomUUID(), decisionId = randomUUID();
+    await db.insert(requestAuditEvents).values([
+        { ...base, id: outcomeId, eventType: "REQUEST_APPROVED", occurredAt: new Date("2100-01-01T00:00:00.000Z") },
+        { ...base, id: decisionId, eventType: "DECISION_APPROVE", occurredAt: new Date("2100-01-01T00:00:01.000Z") },
+    ]);
+    const before = await db.select().from(requestAuditEvents).where(eq(requestAuditEvents.requestId, submitted.id)).orderBy(asc(requestAuditEvents.id));
+    const timeline = await decisions.Timeline(fixture.owner, submitted.id, { pageNumber: 1, pageSize: 100 });
+    expect(timeline.items.slice(-2).map((item) => item.id)).toEqual([outcomeId, decisionId]);
+    expect(await db.select().from(requestAuditEvents).where(eq(requestAuditEvents.requestId, submitted.id)).orderBy(asc(requestAuditEvents.id))).toEqual(before);
+});
+
+test.each(["APPROVE", "REJECT"] as const)("timeline preserves actual %s decision and outcome timestamps", async (decision) =>
+{
+    const fixture = await approvalReportingFixture(db);
+    const submitted = await fixture.submit();
+    const decisions = new DecisionService(new DecisionUnitOfWork(db));
+    await decisions.Decide(fixture.reviewer, submitted.currentApprovers[0]!.slotId, { decision, expectedVersion: 0, ...(decision === "REJECT" ? { reason: "Terminal rejection" } : {}) }, randomUUID());
+    const before = await db.select().from(requestAuditEvents).where(eq(requestAuditEvents.requestId, submitted.id)).orderBy(asc(requestAuditEvents.id));
+    const pair = before.filter((event) => event.eventType === `DECISION_${decision}` || event.eventType === `REQUEST_${decision === "APPROVE" ? "APPROVED" : "REJECTED"}`);
+    expect(pair).toHaveLength(2);
+    expect(pair[0]!.occurredAt).toEqual(pair[1]!.occurredAt);
+    const timeline = await decisions.Timeline(fixture.owner, submitted.id, { pageNumber: 1, pageSize: 100 });
+    const actual = timeline.items.filter((item) => pair.some((event) => event.id === item.id));
+    expect(actual.map((item) => item.eventType)).toEqual([`DECISION_${decision}`, `REQUEST_${decision === "APPROVE" ? "APPROVED" : "REJECTED"}`]);
+    expect(actual.every((item) => item.occurredAt === pair[0]!.occurredAt.toISOString())).toBe(true);
+    expect(await db.select().from(requestAuditEvents).where(eq(requestAuditEvents.requestId, submitted.id)).orderBy(asc(requestAuditEvents.id))).toEqual(before);
+});
+
 test("timeline persists ordered events across synthetic cycles with scoped historical access", async () =>
 {
     const fixture = await approvalReportingFixture(db);
@@ -222,10 +287,11 @@ test("timeline persists ordered events across synthetic cycles with scoped histo
     const expected = await db.select().from(requestAuditEvents).where(eq(requestAuditEvents.requestId, submitted.id)).orderBy(asc(requestAuditEvents.occurredAt), asc(requestAuditEvents.id));
     const query = { pageNumber: 1, pageSize: 100 };
     const timeline = await decisions.Timeline(fixture.owner, submitted.id, query);
-    expect(timeline.items.map((item) => item.id)).toEqual(expected.map((item) => item.id));
+    expect(timeline.items.map((item) => item.id).sort()).toEqual(expected.map((item) => item.id).sort());
+    expect(timeline.items.map((item) => item.occurredAt)).toEqual(timeline.items.map((item) => item.occurredAt).sort());
     expect(timeline.items.every((item) => Object.keys(item.metadata).every((key) => ["decision", "slotId"].includes(key)))).toBe(true);
     const pages = await Promise.all(expected.map((_, index) => decisions.Timeline(fixture.owner, submitted.id, { pageNumber: index + 1, pageSize: 1 })));
-    expect(pages.flatMap((page) => page.items.map((item) => item.id))).toEqual(expected.map((item) => item.id));
+    expect(pages.flatMap((page) => page.items)).toEqual(timeline.items);
     expect((await decisions.Timeline(fixture.reviewer, submitted.id, query)).items).toEqual(timeline.items);
     await db.update(approvalSlots).set({ status: "WAITING" }).where(eq(approvalSlots.stageId, stageId));
     await db.update(requests).set({ status: "APPROVED" }).where(eq(requests.id, submitted.id));
