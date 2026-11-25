@@ -883,3 +883,98 @@ reflection/output: Remediated PR #88 blocking findings B01–B06 without impleme
 @oangsa
 prompt: commit and push
 reflection/output: Fetched feature/8-configurable-forms-items-priority, verified HEAD matches origin, packaged the verified PR #88 B01–B06 fixes, regression tests, and merge-gate documentation into five scoped atomic commits, verified clean diff checks, and pushed normally to origin/feature/8-configurable-forms-items-priority without force-push, merge, or external issue posting.
+
+
+## Issue #9 assistance
+
+@oangsa
+prompt: $karpathy-guidelines $caveman
+reflection/output: Applied the requested minimal-change, explicit-assumption and verification guidelines with concise communication throughout Issue #9 implementation.
+
+## Issue #9 assistance
+
+@oangsa
+prompt: ## Type
+- Full-stack Feature
+
+## Sprint
+- Sprint 2
+- Planned primary owner: @oangsa — accountable for both API/DB and UI.
+- Planned PR reviewer: @kittipichcha — independent teammate review, never self-review.
+- Ownership allocation (2026-11-24): Balanced by existing issue estimates within each remaining sprint: 20 points per person in Sprint 2 and 20 points per person in Sprint 3, totaling 40 points each. #6 remains assigned to @oangsa at the owner's explicit request. The other teammate provides independent PR review. Estimates and frozen product/API/UI contracts are unchanged.
+- Rebalance unstarted work if actual effort diverges; estimates do not prove equal actual contributions.
+
+## Features
+- `R09` — Conditional Approval Rules
+- `O10` — Reviewer Assignment Management
+- `O18` — Budget Limit Validation
+- `O19` — Department-based Routing
+
+## Depends on
+- #4
+- #8
+
+## Scope
+- Implement complete backend Domain/Application/Infrastructure/Presentation behavior, Drizzle data changes, shared Zod contracts, and permission validation needed for these features.
+- Implement complete React Router 7 frontend routes, shadcn/ui + Tailwind-only UI, states and integration for the same features. Keep public SSR and authenticated client-loaded data isolated; use the owner-approved D-01 stack from #1: Node.js 24, npm Workspaces, root `package-lock.json`, Elysia through `@elysia/node`, TypeScript, Vitest for unit/API/contract/real-PostgreSQL integration tests and Playwright for browser E2E, with OOP/Clean Architecture, PostgreSQL/Drizzle and shared Zod contracts in `packages/contracts`. This runtime/toolchain amendment overrides obsolete engineering runtime wording only; all 54 features, frozen business/API/UI behavior, ownership and effort estimates remain unchanged.
+- Implement conditional published policy resolution by type/trusted department/exact amount, versioned reviewer assignment mappings and hard monetary ceiling services/contracts/migrations integrated with submit/resubmit transaction.
+- Deliver admin approval-policy, reviewer-assignment and budget-policy pages with eligible lookups, draft/publish/version controls, explicit priority and routing explanation; reuse shared forms/collections.
+- Use seeded users/departments before general account management arrives. Own configuration and selection; staged execution/approver display remains with two-stage issue and no balance ledger is added.
+- Add/update applicable unit, API/contract, real-PostgreSQL integration, security, concurrency and Playwright/E2E tests. Version feature SDS, UI/API/data contract, numbered AC, STS and DoD before implementation; preserve feature traceability and record actual verification evidence in this issue.
+- Dependencies are integration prerequisites, not a ban on parallel implementation against the frozen shared contracts. Coordinate shared contract/schema changes and reuse earlier components; keep supporting consumer integrations separate from primary Feature ID ownership.
+
+## Acceptance criteria
+- [ ] Admin POST `/api/v1/admin/approval-policies` creates draft; PATCH `/:id/draft` uses expectedVersion; POST `/:id/draft` branches published version; POST `/:id/publish` takes expectedVersion/key and returns `201` immutable ApprovalPolicyDTO; disable affects future cycles only.
+- [ ] Policy defines code, numeric priority, typeId, optional departmentId/minAmount/maxAmount and 1–2 stages with reviewerAssignmentKeys and business-minute SLA default 480. Third stage or ANY/quorum policy is rejected.
+- [ ] Resolver evaluates applicable published type/department/amount predicates and chooses highest numeric priority. Equal highest tie returns `409 AMBIGUOUS_APPROVAL_POLICY`; no route returns `409 CONFIGURATION_INCOMPLETE`; neither partially submits.
+- [ ] POST/search/PATCH `/api/v1/admin/reviewer-assignments` expose AssignmentRuleDTO with stable key, optional department, reviewerUserIds, isActive/version; validate active eligible non-self reviewers at resolution and snapshot actual cycle slots.
+- [ ] `POST /api/v1/reviewers/eligible/search` is admin-only lookup; admin config permission provides minimum identity/routing metadata and never grants confidential request read/vote authority.
+- [ ] POST/search/PATCH `/api/v1/admin/budget-policies` manage BudgetPolicyDTO with exact maxAmount, type/department and active/version. Resolve one most-specific active limit: department-specific overrides type-wide.
+- [ ] Amount below/at ceiling accepted when other rules pass; above ceiling returns `422 BUDGET_LIMIT_EXCEEDED`. Additional stages derive from approval thresholds, with no remaining balance, funds mutation or payment accounting.
+- [ ] Initial submit uses trusted admin-assigned department; returned resubmit keeps historical department/form and resolves current policy for new amount. Mapping/policy updates do not retroactively rewrite in-flight snapshots.
+- [ ] Missing/inactive/self-only reviewer in any required slot returns `409 CONFIGURATION_INCOMPLETE`, leaving DRAFT/RETURNED and no orphan cycle/audit/notification; first stage cannot hide an invalid later-stage mapping.
+- [ ] Admin UI provides eligible lookup, stage/ALL labels, priority/tie warning, clear ceiling explanation and 422/409 feedback; previews are local explanation without inventing a backend simulation endpoint.
+- [ ] Verify nonadmin denial, stale/concurrent publication and resolver/amount boundaries with shared/API/real-PostgreSQL tests and full admin configure-to-submit E2E; retain audit/traceability/evidence in issue.
+- [ ] Teammate reviews bounded implementation; feature PR targets `sprint-2-staging`, followed by reviewed promotion to `dev` then release-reviewed `main`. Run applicable typecheck, lint, build and planned tests; record actual commit/environment/results and disclose failures/skips. This planning issue asserts no implementation or passing tests.
+
+## Required branch
+`feature/9-policies-routing-budget`
+
+## Traceability
+- Features: `R09`, `O10`, `O18`, `O19`
+- Functional requirements: `FR-026`, `FR-031`, `FR-035`, `FR-036`
+- Business rules: `BR-018`, `BR-021`, `BR-023`, `BR-024`, `BR-025`, `BR-031`, `BR-035`, `BR-036`, `BR-045`, `BR-048`, `BR-054`
+- Acceptance criteria: `AC-026`, `AC-031`, `AC-035`, `AC-036`
+- Planned tests: `FT-026`, `FT-031`, `FT-035`, `FT-036`; `EP-022`, `EP-049`, `EP-050`, `EP-051`, `EP-052`, `EP-053`, `EP-054`, `EP-055`, `EP-056`, `EP-057`, `EP-058`, `EP-059`, `EP-060`, `UT-06`, `UT-07`, `API-08`, `DB-03`, `DB-04`, `DB-07`, `DB-13`, `CX-12`, `SEC-04`, `UI-13`, `E2E-08`
+- Contracts: `docs/specs/specifications.md` (frozen product v1.0), `docs/specs/api-specs.md` (frozen v1.0.1), `docs/specs/ui-specs.md` (frozen v1.0), `docs/specs/test.md` (planned verification).
+- Supporting design/traceability: `docs/specs/srs.md`, `docs/specs/system-sds.md`, `docs/specs/traceability.md`, `docs/sprints/sprint-2.md`, root `AGENTS.md`.
+- API paths use `/api/v1` unless explicitly stated otherwise; suffixes within a named endpoint family share its prefix. Preserve frozen contracts over older non-frozen sprint suggestions or scaffold defaults; no additional product behavior is implied.
+
+## Estimated effort
+- 8 points (planning estimate, not hours)
+- Includes business rules, backend/API, frontend/UI, shared schemas, migrations/data integration, negative/race testing, documentation and integration review. Planned review workload mirrors the other teammate’s owned effort.
+reflection/output: Versioned Issue #9 feature SDS/API/UI/data design, numbered PRB acceptance criteria, STS and DoD before implementation. Implemented strict shared Zod schemas; Clean Architecture admin configuration endpoints; policy draft/branch/publish/disable with expectedVersion, durable idempotency and immutable published content; versioned reviewer groups and hard ceilings with transactional audit; Drizzle migrations 0011–0013 and runtime/migrator grants; all-stage non-self reviewer validation and exact conditional/ceiling resolution integrated with initial submission. Added React Router admin policy/mapping/ceiling pages with paged eligible lookups, filters, local routing explanation, ALL labels, 409/422 feedback and mobile layouts. Preserved per-stage accepted snapshots and added the owner-selected Issue #7 historical department/form integration seam without implementing its lifecycle. Verified 479 unit/API/contract/component tests, 124 real-PostgreSQL tests including HTTP smoke, fresh migrations/initialization (1 test), all 45 Chromium E2E tests and 13 release tests, plus typecheck/lint/build; repaired development failures and documented actual evidence. Changes remain uncommitted; independent teammate review and authorized commits/PRs/promotions are pending.
+
+## Issue #9 assistance
+
+@oangsa
+prompt: what you asked again?
+reflection/output: Restated the scope choice between a bounded Issue #9 integration seam and implementing the missing Issue #7 return/resubmit lifecycle; recommended preserving Issue #9 ownership.
+
+## Issue #9 assistance
+
+@oangsa
+prompt: 1
+reflection/output: Honored option 1: kept Issue #9 scoped and implemented/tested current-policy resolution using the persisted historical department and pinned form. Full return/resubmit lifecycle remains Issue #7. Continued UI, testing and evidence work for Issue #9.
+
+## Issue #9 assistance
+
+@oangsa
+prompt: 1
+reflection/output: Finalized the selected bounded Issue #9 scope. Final npm run check passed with 479 tests and all typecheck/lint/build checks; fresh CI-order PostgreSQL tests passed 124/124 and full Chromium passed 45/45; initialization passed 1/1 and release tests 13/13. Final targeted Chromium follow-up passed actual dark-token and reduced-motion checks. Recorded actual evidence in Issue #9 at https://github.com/oangsa/approval-system/issues/9#issuecomment-7153135001 as requested in the implementation scope. No commit, push, PR, merge, release or teammate self-review was performed.
+
+## Issue #9 assistance
+
+@oangsa
+prompt: $caveman commit push and open pr to sprint-2-staging with issue 9 closing in the pr body.
+reflection/output: Reviewed the pending Issue #9 changes, ran workspace verification, and organized scoped commits for specifications, shared contracts, backend configuration and routing, frontend administration, and verification records. User authorized commits, push, and a PR targeting sprint-2-staging with Closes #9; independent teammate review and later promotions remain required.
