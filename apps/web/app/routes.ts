@@ -11,6 +11,7 @@ export default [
         route("requests/new", "routes/requests/new.tsx"),
         route("requests/:id", "routes/requests/detail.tsx"),
         route("dashboard", "routes/dashboard/index.tsx"),
+        route("reports", "routes/reports/index.tsx"),
         route("settings", "routes/settings/index.tsx"),
     ]),
 ] satisfies RouteConfig;

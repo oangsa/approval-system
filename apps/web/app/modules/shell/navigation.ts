@@ -13,6 +13,7 @@ export const navigationItems: readonly INavigationItem[] = [
     { to: "/dashboard", label: "Dashboard", roles: [] },
     { to: "/requests", label: "My Requests", roles: ["REQUESTER"] },
     { to: "/reviews", label: "My Reviews", roles: ["REVIEWER"] },
+    { to: "/reports", label: "Reports", roles: [] },
     { to: "/settings", label: "Settings", roles: [] },
 ];
 
