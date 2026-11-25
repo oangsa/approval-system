@@ -116,3 +116,5 @@
 **Assigned IDs (20):** `M11`, `M16`, `R01`, `R02`, `R03`, `R04`, `R05`, `R07`, `R08`, `R09`, `R10`, `R11`, `R15`, `R16`, `O10`, `O13`, `O16`, `O17`, `O18`, `O19`
 
 **Feature status:** planned; no implementation or verification asserted.
+
+Issue #11 preimplementation design for M16, R15 and R16 is in [the feature design](../features/reporting-dashboard-timeline/sds.md); implementation, execution evidence and pending teammate review are tracked in [verification](../features/reporting-dashboard-timeline/verification.md).

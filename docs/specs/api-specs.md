@@ -1193,3 +1193,5 @@ The feature implementation details and supporting evidence plan for M01–M03 ar
 For NEW REJECT requests on POST /api/v1/approval-tasks/:id/decisions, require 10–4000 UTF-16 code units after ECMAScript String.trim(). Invalid new reasons return 422 VALIDATION_ERROR without durable writes. Retain the old transport shape/cap to recognize authenticated accepted historical short-reason replay; enforce the new-write minimum after replay lookup and before new mutation. Keep the existing semantic hash, key scope, stale/conflict/auth responses, DTOs and APPROVE/RETURN rules. Read projections do not apply new-write reason validation.
 
 Approval evidence: [record](../labs/lab-07/approval-record.md). Original sections remain historical baseline wording where superseded above; no unrelated behavior is changed.
+
+API implementation details for issue #11 are defined in [the feature API contract](../features/reporting-dashboard-timeline/api-contract.md); actual working-tree results and review status are recorded in [verification](../features/reporting-dashboard-timeline/verification.md).

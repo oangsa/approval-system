@@ -1,0 +1,23 @@
+[WebServer] (node:30568) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+[WebServer] (node:28544) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+[WebServer]
+[WebServer]   dist\index.js  167.5kb
+[WebServer]
+[WebServer] Done in 68ms
+[WebServer] (node:10732) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+
+Running 4 tests using 1 worker
+
+(node:8880) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:8880) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ok 1 [chromium] › e2e\reporting-dashboard-timeline.spec.ts:38:1 › requester dashboard and reports use live scoped data and URL filters (4.9s)
+  ok 2 [chromium] › e2e\reporting-dashboard-timeline.spec.ts:99:1 › dashboard role sections and private SSR (1.7s)
+  ok 3 [chromium] › e2e\reporting-dashboard-timeline.spec.ts:120:1 › persisted decision updates dashboard and owner history without historic detail fetch (11.2s)
+  ok 4 [chromium] › e2e\reporting-dashboard-timeline.spec.ts:253:1 › report error can be retried against the live API (1.4s)
+
+  4 passed (51.8s)

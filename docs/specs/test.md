@@ -646,3 +646,5 @@ The [bounded specification](../features/request-search-polish/spec.md) defines A
 Retain FT-010 and existing DEC-AC identifiers. Add AC-L7-01–07 and STS-L7-01–13 as specified in docs/labs/lab-07/contract-draft.md and sts-draft.md: 9/10, missing/blank, 11/4000/4001, trim/UTF-16, unchanged APPROVE/RETURN, permissions/state/rollback/races, readable short history and accepted short-body replay, real browser feedback and persisted rejection. Record actual RED/GREEN and distinct full-suite outcomes; filtered skips are not regression passes.
 
 Approval evidence: [record](../labs/lab-07/approval-record.md). Original sections remain historical baseline wording where superseded above; no unrelated behavior is changed.
+
+Issue #11 test mapping and actual execution status are in [the feature STS](../features/reporting-dashboard-timeline/sts.md) and [verification](../features/reporting-dashboard-timeline/verification.md).

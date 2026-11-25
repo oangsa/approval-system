@@ -350,3 +350,5 @@ assets; the sequential rerun passed.
 M10 → FR-010 → AC-010 / DEC-AC-03,07 → additive AC-L7-01–07 → STS-L7-01–13 → shared decisions schemas, DecisionRules/DecisionService/DecisionRoutes, DecisionDialog and existing persistence. Supporting M03/M09/M12/M13/M14/M17 guards and history remain unchanged. The original reviewed contract/STS revision is 332a2b3; PR #79 approved head 5d2e8d8. See docs/labs/lab-07 for approval and actual execution records.
 
 Approval evidence: [record](../labs/lab-07/approval-record.md). Original sections remain historical baseline wording where superseded above; no unrelated behavior is changed.
+
+Issue #11 child criteria and clause ledger are in [acceptance criteria](../features/reporting-dashboard-timeline/acceptance-criteria.md) and [plan](../features/reporting-dashboard-timeline/plan.md); actual working-tree execution and review results are recorded in [verification](../features/reporting-dashboard-timeline/verification.md).
