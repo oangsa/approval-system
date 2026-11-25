@@ -33,6 +33,7 @@ ALTER TABLE public.requests OWNER TO approval_migrator;
 ALTER TABLE public.reviewer_assignment_rules OWNER TO approval_migrator;
 ALTER TABLE public.approval_decisions OWNER TO approval_migrator;
 ALTER TABLE public.decision_idempotency_records OWNER TO approval_migrator;
+ALTER TABLE public.request_type_idempotency_records OWNER TO approval_migrator;
 -- PostgreSQL also transfers sequences owned by this table's serial columns.
 ALTER TABLE drizzle.__drizzle_migrations OWNER TO approval_migrator;
 ALTER TYPE public.role_code OWNER TO approval_migrator;
