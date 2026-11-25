@@ -21,6 +21,8 @@ test("PRB-AC-01/04/06 partial patches preserve omitted optional scopes and bound
 {
     expect(patchApprovalPolicySchema.parse({ expectedVersion: 0, priority: 20 })).toEqual({ expectedVersion: 0, priority: 20 });
     expect(patchAssignmentRuleSchema.parse({ expectedVersion: 0, isActive: false })).toEqual({ expectedVersion: 0, isActive: false });
+    expect(patchAssignmentRuleSchema.safeParse({ expectedVersion: 0, key: "DEPT_REVIEW" }).success).toBe(false);
+    expect(patchAssignmentRuleSchema.safeParse({ expectedVersion: 0, key: "RENAMED" }).success).toBe(false);
     expect(patchBudgetPolicySchema.parse({ expectedVersion: 0, maxAmount: "10.10" })).toEqual({ expectedVersion: 0, maxAmount: "10.10" });
     expect(patchApprovalPolicySchema.parse({ expectedVersion: 0, departmentId: null })).toHaveProperty("departmentId", null);
 });

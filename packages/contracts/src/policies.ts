@@ -32,8 +32,9 @@ export const approvalPolicySchema = policyContentSchema.safeExtend({
     isPublished: z.boolean(), isEnabled: z.boolean(), version,
 });
 const reviewerIds = z.array(identity).min(1).max(50).refine((values) => new Set(values).size === values.length, "Duplicate reviewer IDs");
-export const createAssignmentRuleSchema = z.strictObject({ key, departmentId: identity.nullable().default(null), reviewerUserIds: reviewerIds, isActive: z.boolean() });
-export const patchAssignmentRuleSchema = createAssignmentRuleSchema.partial().extend({ expectedVersion: version, departmentId: identity.nullable().optional() });
+const assignmentContent = z.strictObject({ departmentId: identity.nullable().default(null), reviewerUserIds: reviewerIds, isActive: z.boolean() });
+export const createAssignmentRuleSchema = assignmentContent.extend({ key });
+export const patchAssignmentRuleSchema = assignmentContent.partial().extend({ expectedVersion: version, departmentId: identity.nullable().optional() });
 export const assignmentRuleSchema = createAssignmentRuleSchema.extend({ id: identity, version });
 const positiveMoney = moneySchema.refine((value) => compareDecimals(value, "0.00") > 0, "Ceiling must be positive");
 export const createBudgetPolicySchema = z.strictObject({ typeId: identity, departmentId: identity.nullable().default(null), maxAmount: positiveMoney, isActive: z.boolean() });
