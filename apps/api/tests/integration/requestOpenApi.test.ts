@@ -35,3 +35,12 @@ test("pinned definition OpenAPI declares version and request context with the sh
         responses: { "200": { content: { "application/json": { schema: { required: expect.arrayContaining(["versionId", "fields"]) } } } } },
     });
 });
+
+test("withdraw OpenAPI requires UUID key and version while reason remains optional", () =>
+{
+    expect(createRequestOpenApi().paths["/api/v1/requests/{id}/withdraw"]?.post).toMatchObject({
+        parameters: expect.arrayContaining([{ name: "Idempotency-Key", in: "header", required: true, schema: { type: "string", format: "uuid" } }]),
+        requestBody: { content: { "application/json": { schema: { additionalProperties: false, required: ["expectedVersion"], properties: { reason: { type: "string" } } } } } },
+        responses: { "200": { description: "Success" } },
+    });
+});

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { publishedRequestTypeSchema, requestDetailSchema, requestSummarySchema, type RequestTypeSearch, type RequestSearchQuery, type CreateRequest, type PatchDraft } from "@workflow/contracts";
+import { publishedRequestTypeSchema, requestDetailSchema, requestSummarySchema, type RequestTypeSearch, type RequestSearchQuery, type CreateRequest, type PatchDraft, type WithdrawRequest } from "@workflow/contracts";
 import { httpFor, httpPageFor } from "./http";
 
 export const requestApi = {
@@ -11,5 +11,6 @@ export const requestApi = {
     read: (id: string, signal?: AbortSignal, generation?: number) => httpFor(`/v1/requests/${id}`, requestDetailSchema, { signal, generation }),
     create: (body: CreateRequest, key: string) => httpFor("/v1/requests", requestDetailSchema, { method: "POST", body, headers: { "Idempotency-Key": key } }),
     patch: (id: string, body: PatchDraft, key: string) => httpFor(`/v1/requests/${id}/draft`, requestDetailSchema, { method: "PATCH", body, headers: { "Idempotency-Key": key } }),
+    withdraw: (id: string, body: WithdrawRequest, key: string, generation?: number) => httpFor(`/v1/requests/${id}/withdraw`, requestDetailSchema, { method: "POST", body, headers: { "Idempotency-Key": key }, generation }),
     submit: (id: string, expectedVersion: number, key: string) => httpFor(`/v1/requests/${id}/submit`, requestDetailSchema, { method: "POST", body: { expectedVersion }, headers: { "Idempotency-Key": key } }),
 };

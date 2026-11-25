@@ -1,0 +1,25 @@
+# Test specification — v1
+
+Planned before implementation; not passing assertions. FT-019/EP-033/035/API-08/SEC-02: strict draft/withdraw contracts, required UUID keys, direct DTO/status, auth/owner/state/version gates. DW-AC-01–03: incomplete content, omission/map replacement, hidden-key rejection, durable reconnect, private queue isolation. FT-023/EP-038/DB-08/CX-04/14: persisted cancellation of active/waiting work, immutable submitted snapshots/votes, actor/time/note audit, no duplicate same-key effects, changed-body conflict, real simultaneous withdraw/approve and withdraw/reject, injected rollback including key/outbox. DB-02: close connection and restart service before reading saved draft. UI-05/06/E2E-01/06: real browser save/reload/resume/edit, incomplete saves, optional withdrawal confirmation, cancellation/focus, stale reviewer dialog and queue refresh. Unit/component tests cover session changes-only PATCH, hydration, retry key reuse, input retention and failure handling. Run typecheck, lint, build, Vitest, guarded real PostgreSQL suite and Playwright. Actual environment/commands/results recorded separately.
+
+## Review regression additions — v2
+
+Malformed quantity transport must return field-level 422 rather than throw; completed-step forward navigation validates before monetary rendering. Partial title-only PATCH retains existing item DTO identities; resource UUID spelling shares idempotency scope. Draft version regression saves rendered published version, rejects stale first submit without mutation, and succeeds after explicit current-version review. UI cases cover forbidden editor removal, confirmed stale-draft reload/cancellation/version reset, support Request ID retention, obsolete monetary authority removal after explicit review, request-only withdrawal reload, Escape parent refresh and lost permission during reload. Two new real browser flows verify concurrent edit/reload/save and competing withdrawal/reload/Escape. Actual evidence belongs in verification follow-up.
+
+## PR #87 regressions — v3
+
+- B01 / DW-AC-02: real PostgreSQL covers direct amount to item authority and reverse migration, rejection and rollback for omitted incompatible values, explicit clearing/replacement, ordinary omission preservation, and historical-version save/active-version submit boundaries.
+- B02 / DW-AC-03–04: component and browser checks open A, cancel then confirm type change, save B, assert replaced URL/current step and reload B, unchanged retry without duplicate creation, and unchanged A.
+- B03 / DW-AC-04: session/component and browser checks unchanged saves against unchanged, peer-edited, submitted and permission-revoked records; assert authoritative reads, no no-op writes, recovery without false success, recoverable input retention, and stable changed-content/lost-response retries.
+
+## B04 regressions — v4
+
+Component tests reproduce obsolete review items, then cover canonical review rendering independent of migration, cancellation without content loss, compatible money/items retention, incompatible clearing and no reappearance after a later definition restores support. Assert actual PATCH contents and resumed saved values. Browser regression uses real published-version fixtures, stale initial-submit recovery, cancelled/confirmed migration, review-summary comparison, draft PATCH and browser reload. Run typecheck, lint, unit/API/contracts, workspace build and applicable browser checks; record actual results and skipped checks separately.
+
+Fresh-database browser execution also requires B02 to create its own alternate published type rather than depending on earlier PostgreSQL-suite fixtures. Keep all URL, reload, original-preservation and duplicate-prevention assertions intact.
+
+## B05–B07 regressions — v5
+
+- B05 / DW-AC-02/04: unit tests verify key-order-independent `Save`, `PATCH` changed-field diffing, `Submit` without extra `PATCH`, and actual value updates; Playwright browser regression creates a draft with PostgreSQL `jsonb`-reordered `fields` (`["reason", "category"]`) and verifies unchanged Save triggers `GET` with zero `PATCH` calls, unchanged version and unchanged audit rows.
+- B06 / DW-AC-04: unit, PostgreSQL HTTP and component tests verify canonical bracket paths (`lineItems[0].description`, `lineItems[0].quantity`, `lineItems[1].unitAmount`) on both `POST` and `PATCH` and wizard focus/step mapping; Playwright verifies real API 422 `lineItems[0].quantity` responses and wizard navigation/focus on `Quantity (item 1)`.
+- B07 / DW-AC-08: component tests (`RequestOwnerActions`, `RequestDetailTabs`, `RequestListPage`) and Playwright tests across detail, conflict-reload Escape, desktop list and mobile filtered list verify trigger focus restoration when `Withdraw` survives and fallback focus on the `Withdrawn` status badge or list search input when `Withdraw` disappears.

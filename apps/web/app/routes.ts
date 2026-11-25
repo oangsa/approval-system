@@ -9,6 +9,7 @@ export default [
         route("reviews/:taskId", "routes/reviews/task.tsx"),
         route("requests", "routes/requests/index.tsx"),
         route("requests/new", "routes/requests/new.tsx"),
+        route("requests/:id/edit", "routes/requests/edit.tsx"),
         route("requests/:id", "routes/requests/detail.tsx"),
         route("dashboard", "routes/dashboard/index.tsx"),
         route("reports", "routes/reports/index.tsx"),

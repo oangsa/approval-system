@@ -11,11 +11,12 @@ export interface IRequestRepository
     Search(ownerId: string, query: RequestSearchQuery): Promise<IPageResult<RequestSummary>>;
     Configuration(typeId: string, versionId: string, actorId: string): Promise<IConfiguration>;
     Create(actor: IActor, content: CreateRequest, amount: string | null): Promise<string>;
-    Patch(id: string, actorId: string, content: CreateRequest, amount: string | null): Promise<void>;
+    Patch(id: string, actorId: string, content: CreateRequest, amount: string | null, replaceLineItems: boolean): Promise<void>;
+    Withdraw(detail: RequestDetail, actorId: string, reason?: string): Promise<void>;
     Submit(id: string, actorId: string, plan: IPlan): Promise<void>;
     Types(query: RequestTypeSearch): Promise<IRequestTypeSearchResult>;
     TypeVersion(id: string, versionId: string): Promise<PublishedRequestType | null>;
     Type(id: string): Promise<PublishedRequestType | null>;
 }
 export interface IRequestUnitOfWork { Run<T>(operation: (repository: IRequestRepository) => Promise<T>): Promise<T>; }
-export type RequestMutation = CreateRequest | PatchDraft | { expectedVersion: number };
+export type RequestMutation = CreateRequest | PatchDraft | import("@workflow/contracts").WithdrawRequest;

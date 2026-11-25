@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { createRequestSchema, errorResponseSchema, paginationSchema, patchDraftSchema, publishedRequestTypeSchema, requestDetailSchema, requestTypeSearchSchema, requestSearchSchema, requestSummarySchema, submitRequestSchema } from "@workflow/contracts";
+import { createRequestSchema, errorResponseSchema, paginationSchema, patchDraftSchema, publishedRequestTypeSchema, requestDetailSchema, requestTypeSearchSchema, requestSearchSchema, requestSummarySchema, submitRequestSchema, withdrawRequestSchema } from "@workflow/contracts";
 import type { RequestService } from "../../Applications/Requests/RequestService";
 import { RequestError } from "../../Domains/Requests/RequestRules";
 import type { IIdentityHttpDependencies } from "../composition";
@@ -9,7 +9,7 @@ import { HttpError } from "../errors";
 const requestRoutes = [
         ["GET", "/api/v1/request-types/:id/versions/:versionId", "typeVersion"],
         ["POST", "/api/v1/requests/search", "search"], ["POST", "/api/v1/requests", "create"], ["PATCH", "/api/v1/requests/:id/draft", "patch"], ["POST", "/api/v1/requests/:id/submit", "submit"],
-        ["GET", "/api/v1/requests/:id", "read"], ["POST", "/api/v1/request-types/search", "types"], ["GET", "/api/v1/request-types/:id", "type"],
+        ["POST", "/api/v1/requests/:id/withdraw", "withdraw"], ["GET", "/api/v1/requests/:id", "read"], ["POST", "/api/v1/request-types/search", "types"], ["GET", "/api/v1/request-types/:id", "type"],
     ] as const;
 
 export function createRequestOpenApi()
@@ -17,9 +17,9 @@ export function createRequestOpenApi()
     const paths: Record<string, Record<string, unknown>> = {};
     for (const [method, path, action] of requestRoutes)
     {
-        const body = action === "create" ? createRequestSchema : action === "patch" ? patchDraftSchema : action === "submit" ? submitRequestSchema : action === "types" ? requestTypeSearchSchema : action === "search" ? requestSearchSchema : null;
+        const body = action === "create" ? createRequestSchema : action === "patch" ? patchDraftSchema : action === "submit" ? submitRequestSchema : action === "withdraw" ? withdrawRequestSchema : action === "types" ? requestTypeSearchSchema : action === "search" ? requestSearchSchema : null;
         const response = action === "types" ? z.array(publishedRequestTypeSchema) : action === "search" ? z.array(requestSummarySchema) : ["type", "typeVersion"].includes(action) ? publishedRequestTypeSchema : requestDetailSchema;
-        const keyRequired = action === "create" || action === "submit";
+        const keyRequired = action === "create" || action === "submit" || action === "withdraw";
         paths[path.replace(":id", "{id}").replace(":versionId", "{versionId}")] ??= {};
         paths[path.replace(":id", "{id}").replace(":versionId", "{versionId}")]![method.toLowerCase()] = {
             security: [{ bearerAuth: [] }],
@@ -36,6 +36,17 @@ export function createRequestOpenApi()
         };
     }
     return { openapi: "3.1.0", info: { title: "Request submission API", version: "1.0.0" }, paths, components: { securitySchemes: { bearerAuth: { type: "http", scheme: "bearer" } } } };
+}
+
+function formatIssuePath(path: readonly PropertyKey[]): string
+{
+    let result = "";
+    for (const segment of path)
+    {
+        if (typeof segment === "number") result += `[${segment}]`;
+        else result += result ? `.${String(segment)}` : String(segment);
+    }
+    return result || "body";
 }
 
 export function registerRequestRoutes(app: {
@@ -78,13 +89,13 @@ export function registerRequestRoutes(app: {
             if (action === "search")
             {
                 const query = requestSearchSchema.safeParse(value);
-                if (!query.success) throw new RequestError("VALIDATION_ERROR", query.error.issues.map((issue) => ({ field: issue.path.join(".") || "body", code: "VALIDATION_ERROR", message: issue.message })));
+                if (!query.success) throw new RequestError("VALIDATION_ERROR", query.error.issues.map((issue) => ({ field: formatIssuePath(issue.path), code: "VALIDATION_ERROR", message: issue.message })));
                 const result = await service.Search(actor, query.data);
                 return Response.json(z.array(requestSummarySchema).parse(result.items), { headers: { "X-Pagination": JSON.stringify(result.pagination) } });
             }
-            const schema = action === "create" ? createRequestSchema : action === "patch" ? patchDraftSchema : submitRequestSchema;
+            const schema = action === "create" ? createRequestSchema : action === "patch" ? patchDraftSchema : action === "withdraw" ? withdrawRequestSchema : submitRequestSchema;
             const parsed = schema.safeParse(value);
-            if (!parsed.success) throw new RequestError("VALIDATION_ERROR", parsed.error.issues.map((issue) => ({ field: issue.path.join(".") || "body", code: "VALIDATION_ERROR", message: issue.message })));
+            if (!parsed.success) throw new RequestError("VALIDATION_ERROR", parsed.error.issues.map((issue) => ({ field: formatIssuePath(issue.path), code: "VALIDATION_ERROR", message: issue.message })));
             const key = request.headers.get("idempotency-key");
             if ((action !== "patch" || key !== null) && !z.uuid().safeParse(key).success) throw new HttpError("VALIDATION_ERROR");
             const result = requestDetailSchema.parse(await service.Mutate(actor, action, params.id ?? null, parsed.data, key?.toLowerCase()));

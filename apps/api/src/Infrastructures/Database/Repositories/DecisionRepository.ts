@@ -93,7 +93,7 @@ export class DecisionRepository implements IDecisionRepository
         const rows = await this.db.select({ event: requestAuditEvents, actor: { id: users.id, displayName: users.displayName }, decision: approvalDecisions }).from(requestAuditEvents)
             .innerJoin(users, eq(requestAuditEvents.actorId, users.id)).leftJoin(approvalDecisions, eq(requestAuditEvents.decisionId, approvalDecisions.id))
             .where(scope).orderBy(asc(requestAuditEvents.occurredAt), asc(requestAuditEvents.id)).limit(query.pageSize).offset((query.pageNumber - 1) * query.pageSize);
-        const items = rows.map(({ event, actor: eventActor, decision }) => auditTimelineItemSchema.parse({ id: event.id, requestId, cycleId: event.cycleId, revisionId: event.revisionId, eventType: event.eventType, actor: eventActor, occurredAt: event.occurredAt.toISOString(), note: decision?.reason ?? null,
+        const items = rows.map(({ event, actor: eventActor, decision }) => auditTimelineItemSchema.parse({ id: event.id, requestId, cycleId: event.cycleId, revisionId: event.revisionId, eventType: event.eventType, actor: eventActor, occurredAt: event.occurredAt.toISOString(), note: decision?.reason ?? event.note ?? null,
             metadata: decision ? { decision: decision.decision, slotId: decision.slotId } : {} }));
         const totalPages = Math.ceil(total / query.pageSize);
         return { items, pagination: { currentPage: query.pageNumber, pageSize: query.pageSize, totalPages, totalCount: total, hasPrevious: query.pageNumber > 1, hasNext: query.pageNumber < totalPages } };
