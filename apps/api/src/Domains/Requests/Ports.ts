@@ -14,7 +14,7 @@ export interface IRequestRepository
     Patch(id: string, actorId: string, content: CreateRequest, amount: string | null, replaceLineItems: boolean): Promise<void>;
     Withdraw(detail: RequestDetail, actorId: string, reason?: string): Promise<void>;
     Submit(id: string, actorId: string, plan: IPlan): Promise<void>;
-    Types(query: RequestTypeSearch): Promise<IRequestTypeSearchResult>;
+    Types(query: RequestTypeSearch, allowDisabled?: boolean): Promise<IRequestTypeSearchResult>;
     TypeVersion(id: string, versionId: string): Promise<PublishedRequestType | null>;
     Type(id: string): Promise<PublishedRequestType | null>;
 }

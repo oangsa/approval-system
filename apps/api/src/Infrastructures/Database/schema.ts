@@ -33,7 +33,11 @@ export const refreshTokens = pgTable("refresh_tokens", {
 export const requestTypes = pgTable("request_types", {
     id: uuid().primaryKey(), code: text().notNull().unique(), isEnabled: boolean("is_enabled").notNull().default(true),
     publishedVersionId: uuid("published_version_id").references((): AnyPgColumn => requestTypeVersions.id),
-});
+    version: integer("version").notNull().default(0),
+    draft: jsonb("draft").$type<import("@workflow/contracts").RequestTypeDraftContent | null>(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [check("request_type_version_nonnegative", sql`${t.version} >= 0`)]);
 export const requestTypeVersions = pgTable("request_type_versions", {
     id: uuid().primaryKey(), typeId: uuid("type_id").notNull().references(() => requestTypes.id), versionNumber: integer("version_number").notNull(),
     definition: jsonb().$type<import("@workflow/contracts").PublishedRequestType>().notNull(),
@@ -69,6 +73,7 @@ export const requestRevisions = pgTable("request_revisions", {
 export const requestItems = pgTable("request_items", {
     id: uuid().primaryKey(), revisionId: uuid("revision_id").notNull().references(() => requestRevisions.id), description: text().notNull(),
     quantity: numeric({ precision: 24, scale: 6 }).notNull(), unitAmount: numeric("unit_amount", { precision: 24, scale: 2 }).notNull(), totalAmount: numeric("total_amount", { precision: 24, scale: 2 }).notNull(),
+    sortOrder: integer("sort_order").notNull().default(0),
 }, (t) => [check("item_quantity_positive", sql`${t.quantity} > 0`), check("item_amount_nonnegative", sql`${t.unitAmount} >= 0 AND ${t.totalAmount} >= 0`)]);
 export const approvalCycles = pgTable("approval_cycles", {
     id: uuid().primaryKey(), requestId: uuid("request_id").notNull().references(() => requests.id), revisionId: uuid("revision_id").notNull().unique().references(() => requestRevisions.id),
@@ -105,4 +110,8 @@ export const approvalDecisions = pgTable("approval_decisions", {
 export const decisionIdempotencyRecords = pgTable("decision_idempotency_records", {
     actorId: uuid("actor_id").notNull().references(() => users.id), scope: text().notNull(), key: uuid().notNull(), bodyHash: text("body_hash").notNull(),
     response: jsonb().$type<import("@workflow/contracts").DecisionResult>().notNull(), createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [primaryKey({ columns: [t.actorId, t.scope, t.key] })]);
+export const requestTypeIdempotencyRecords = pgTable("request_type_idempotency_records", {
+    actorId: uuid("actor_id").notNull().references(() => users.id), scope: text().notNull(), key: uuid().notNull(), bodyHash: text("body_hash").notNull(),
+    response: jsonb().$type<Record<string, unknown>>().notNull(), createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [primaryKey({ columns: [t.actorId, t.scope, t.key] })]);

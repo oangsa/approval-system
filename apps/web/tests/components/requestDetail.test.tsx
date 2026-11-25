@@ -212,3 +212,27 @@ test("B07 detail withdrawal restores focus to Withdraw on cancel and moves focus
     await waitFor(() => expect(status).toHaveFocus());
     expect(screen.queryByRole("button", { name: "Withdraw" })).not.toBeInTheDocument();
 });
+
+test("RequestDetailTabs uses browser locale for type name with English fallback", async () =>
+{
+    vi.stubEnv("VITE_API_BASE_URL", "http://localhost/api");
+    const langsSpy = vi.spyOn(navigator, "languages", "get").mockReturnValue(["th-TH", "en-US"]);
+    const localizedDef: PublishedRequestType = {
+        ...definition,
+        name: { en: "Operations", th: "งานปฏิบัติการ" },
+    };
+    server.use(
+        http.get(`http://localhost/api/v1/requests/${id}`, () => HttpResponse.json(detail)),
+        http.get(`http://localhost/api/v1/request-types/${id}/versions/${versionId}`, () => HttpResponse.json(localizedDef)),
+    );
+    const { unmount } = render(<MemoryRouter initialEntries={[`/requests/${id}`]}><Routes><Route path="/requests/:id" element={<RequestDetailPage />} /></Routes></MemoryRouter>);
+    expect(await screen.findByText("งานปฏิบัติการ")).toBeVisible();
+    unmount();
+
+    langsSpy.mockReturnValue(["th-TH"]);
+    server.use(
+        http.get(`http://localhost/api/v1/request-types/${id}/versions/${versionId}`, () => HttpResponse.json(definition)),
+    );
+    render(<MemoryRouter initialEntries={[`/requests/${id}`]}><Routes><Route path="/requests/:id" element={<RequestDetailPage />} /></Routes></MemoryRouter>);
+    expect(await screen.findByText("Operations", { selector: "dd" })).toBeVisible();
+});

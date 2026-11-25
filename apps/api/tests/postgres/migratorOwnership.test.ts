@@ -27,7 +27,7 @@ test("migrator owns only application objects and can change schema while runtime
                 count(*) FILTER (WHERE tableowner = 'approval_migrator')::int AS owned
             FROM pg_tables WHERE schemaname IN ('public', 'drizzle')
         `);
-        expect(tables[0]).toEqual({ total: 24, owned: 24 });
+        expect(tables[0]).toEqual({ total: 25, owned: 25 });
         const objects = await tx.execute<{ functions: number; enumOwner: string; sequenceOwner: string; journalSequenceOwner: string; schemaOwner: string }>(sql`
             SELECT (SELECT count(*)::int FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
                 WHERE n.nspname = 'public' AND pg_get_userbyid(p.proowner) = 'approval_migrator') AS functions,

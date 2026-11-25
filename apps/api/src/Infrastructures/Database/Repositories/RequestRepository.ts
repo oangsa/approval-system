@@ -39,7 +39,7 @@ export class RequestRepository implements IRequestRepository
     {
         if (!id) return null;
         const revision = (await this.db.select().from(requestRevisions).where(eq(requestRevisions.id, id)))[0]!;
-        const items = await this.db.select().from(requestItems).where(eq(requestItems.revisionId, id)).orderBy(asc(requestItems.id));
+        const items = await this.db.select().from(requestItems).where(eq(requestItems.revisionId, id)).orderBy(asc(requestItems.sortOrder), asc(requestItems.id));
         return { id, revisionNumber: revision.revisionNumber, formDefinitionVersionId: revision.formDefinitionVersionId, fields: revision.fields, amount: revision.amount, currency: revision.currency,
             submittedAt: revision.submittedAt?.toISOString() ?? null, submittedBy: revision.submittedBy,
             lineItems: items.map(({ id, description, quantity, unitAmount, totalAmount }) => ({ id, description, quantity, unitAmount, totalAmount })) };
@@ -62,7 +62,7 @@ export class RequestRepository implements IRequestRepository
             department: row.departmentSnapshot, revisionNumber: submittedRevision?.revisionNumber ?? null, currentCycleId: row.currentCycleId,
             createdAt: row.createdAt.toISOString(), updatedAt: row.updatedAt.toISOString(), submittedAt: row.submittedAt?.toISOString() ?? null, version: row.version,
             workingRevision, submittedRevision, currentStageNumber: slots.find((item) => item.stage.status === "ACTIVE")?.stage.stageNumber ?? null,
-            currentApprovers: slots.map(({ slot, stage, reviewer }) => ({ slotId: slot.id, stageNumber: stage.stageNumber, reviewer, status: slot.status })), availableActions: row.status === "DRAFT" ? ["EDIT_DRAFT", "SUBMIT"] : row.status === "PENDING" ? ["WITHDRAW"] : [],
+            currentApprovers: slots.map(({ slot, stage, reviewer }) => ({ slotId: slot.id, stageNumber: stage.stageNumber, reviewer, status: slot.status })), availableActions: row.status === "DRAFT" ? ["EDIT_DRAFT", "SUBMIT"] : row.status === "RETURNED" ? ["EDIT_DRAFT"] : row.status === "PENDING" ? ["WITHDRAW"] : [],
         });
     }
     public async Search(ownerId: string, query: RequestSearchQuery)
@@ -130,7 +130,7 @@ export class RequestRepository implements IRequestRepository
     }
     private async Items(revisionId: string, content: CreateRequest): Promise<void>
     {
-        const items = (content.lineItems ?? []).map((item) => ({ ...item, id: randomUUID(), revisionId, totalAmount: itemTotal(item.quantity, item.unitAmount) }));
+        const items = (content.lineItems ?? []).map((item, sortOrder) => ({ ...item, id: randomUUID(), revisionId, sortOrder, totalAmount: itemTotal(item.quantity, item.unitAmount) }));
         if (items.length) await this.db.insert(requestItems).values(items);
     }
     public async Create(actor: IActor, content: CreateRequest, amount: string | null): Promise<string>
@@ -138,7 +138,7 @@ export class RequestRepository implements IRequestRepository
         const id = randomUUID();
         const revisionId = randomUUID();
         await this.db.insert(requests).values({ id, requesterId: actor.account.id, typeId: content.typeId, title: content.title ?? "", justification: content.justification ?? "", priority: content.priority ?? "MEDIUM" });
-        await this.db.insert(requestRevisions).values({ id: revisionId, requestId: id, typeId: content.typeId, formDefinitionVersionId: content.formDefinitionVersionId, revisionNumber: 1, fields: content.fields ?? {}, amount, currency: amount === null ? null : "THB" });
+        await this.db.insert(requestRevisions).values({ id: revisionId, requestId: id, typeId: content.typeId, formDefinitionVersionId: content.formDefinitionVersionId, revisionNumber: 1, fields: Object.fromEntries(Object.entries(content.fields ?? {})), amount, currency: amount === null ? null : "THB" });
         await this.Items(revisionId, content);
         await this.db.update(requests).set({ workingRevisionId: revisionId }).where(eq(requests.id, id));
         await this.db.insert(requestAuditEvents).values({ id: randomUUID(), requestId: id, actorId: actor.account.id, eventType: "REQUEST_CREATED", revisionId });
@@ -147,7 +147,7 @@ export class RequestRepository implements IRequestRepository
     public async Patch(id: string, actorId: string, content: CreateRequest, amount: string | null, replaceLineItems: boolean): Promise<void>
     {
         const row = (await this.db.select().from(requests).where(eq(requests.id, id)))[0]!;
-        await this.db.update(requestRevisions).set({ fields: content.fields ?? {}, formDefinitionVersionId: content.formDefinitionVersionId, amount, currency: amount === null ? null : "THB" }).where(eq(requestRevisions.id, row.workingRevisionId!));
+        await this.db.update(requestRevisions).set({ fields: Object.fromEntries(Object.entries(content.fields ?? {})), formDefinitionVersionId: content.formDefinitionVersionId, amount, currency: amount === null ? null : "THB" }).where(eq(requestRevisions.id, row.workingRevisionId!));
         if (replaceLineItems)
         {
             await this.db.delete(requestItems).where(eq(requestItems.revisionId, row.workingRevisionId!));
@@ -201,17 +201,16 @@ export class RequestRepository implements IRequestRepository
     }
     public async TypeVersion(id: string, versionId: string)
     {
-        const row = (await this.db.select({ definition: requestTypeVersions.definition }).from(requestTypeVersions).where(and(eq(requestTypeVersions.typeId, id), eq(requestTypeVersions.id, versionId))))[0];
-        return row?.definition ?? null;
+        return (await this.db.select().from(requestTypeVersions).where(and(eq(requestTypeVersions.typeId, id), eq(requestTypeVersions.id, versionId))))[0]?.definition ?? null;
     }
     public async Type(id: string)
     {
-        const row = (await this.db.select({ definition: requestTypeVersions.definition }).from(requestTypes).innerJoin(requestTypeVersions, eq(requestTypes.publishedVersionId, requestTypeVersions.id)).where(and(eq(requestTypes.id, id), eq(requestTypes.isEnabled, true))))[0];
-        return row?.definition ?? null;
+        const row = (await this.db.select({ definition: requestTypeVersions.definition, isEnabled: requestTypes.isEnabled }).from(requestTypes).innerJoin(requestTypeVersions, eq(requestTypes.publishedVersionId, requestTypeVersions.id)).where(and(eq(requestTypes.id, id), eq(requestTypes.isEnabled, true))))[0];
+        return row ? { ...row.definition, isEnabled: row.isEnabled } : null;
     }
-    public async Types(query: RequestTypeSearch)
+    public async Types(query: RequestTypeSearch, allowDisabled = false)
     {
-        const predicates = [eq(requestTypes.isEnabled, true)];
+        const predicates = allowDisabled ? [] : [eq(requestTypes.isEnabled, true)];
         for (const filter of query.search)
         {
             predicates.push(filter.name === "code" ? eq(requestTypes.code, String(filter.value)) : eq(requestTypes.isEnabled, filter.value === true));
@@ -222,13 +221,13 @@ export class RequestRepository implements IRequestRepository
             const columns = query.searchTerm.name.split(",");
             predicates.push(or(...columns.map((column) => column === "code" ? ilike(requestTypes.code, term) : or(ilike(sql`${requestTypeVersions.definition}->'name'->>'en'`, term), ilike(sql`${requestTypeVersions.definition}->'name'->>'th'`, term))))!);
         }
-        const where = and(...predicates);
+        const where = predicates.length ? and(...predicates) : undefined;
         const order = query.orderBy.endsWith("desc") ? desc : asc;
         const field = query.orderBy.startsWith("name") ? sql`${requestTypeVersions.definition}->'name'->>'en'` : requestTypes.code;
         const total = (await this.db.select({ count: count() }).from(requestTypes).innerJoin(requestTypeVersions, eq(requestTypes.publishedVersionId, requestTypeVersions.id)).where(where))[0]!.count;
-        const rows = await this.db.select({ definition: requestTypeVersions.definition }).from(requestTypes).innerJoin(requestTypeVersions, eq(requestTypes.publishedVersionId, requestTypeVersions.id)).where(where).orderBy(order(field), asc(requestTypes.id)).limit(query.pageSize).offset((query.pageNumber - 1) * query.pageSize);
+        const rows = await this.db.select({ definition: requestTypeVersions.definition, isEnabled: requestTypes.isEnabled }).from(requestTypes).innerJoin(requestTypeVersions, eq(requestTypes.publishedVersionId, requestTypeVersions.id)).where(where).orderBy(order(field), asc(requestTypes.id)).limit(query.pageSize).offset((query.pageNumber - 1) * query.pageSize);
         const totalPages = Math.ceil(total / query.pageSize);
-        return { items: rows.map((row) => row.definition), pagination: { currentPage: query.pageNumber, pageSize: query.pageSize, totalPages, totalCount: total, hasPrevious: query.pageNumber > 1, hasNext: query.pageNumber < totalPages } };
+        return { items: rows.map((row) => ({ ...row.definition, isEnabled: row.isEnabled })), pagination: { currentPage: query.pageNumber, pageSize: query.pageSize, totalPages, totalCount: total, hasPrevious: query.pageNumber > 1, hasNext: query.pageNumber < totalPages } };
     }
 }
 export class RequestUnitOfWork implements IRequestUnitOfWork

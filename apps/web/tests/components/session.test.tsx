@@ -647,3 +647,16 @@ test.each([
         endSession();
     }
 });
+
+test("direct /admin/request-types navigation bootstraps session", async () =>
+{
+    vi.stubEnv("VITE_API_BASE_URL", "http://localhost/api");
+    endSession();
+    server.use(
+        mockHttp.post("http://localhost/api/v1/auth/refresh", () => HttpResponse.json({ accessToken: "admin-token" })),
+        mockHttp.get("http://localhost/api/v1/auth/me", () => HttpResponse.json(identity)),
+    );
+    render(<MemoryRouter initialEntries={["/admin/request-types"]}><SessionProvider><Probe /></SessionProvider></MemoryRouter>);
+    await screen.findByText("authenticated:Test User");
+    endSession();
+});

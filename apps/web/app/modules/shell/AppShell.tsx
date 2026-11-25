@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router";
-import { ClipboardCheck, Files, ChevronDown, UserRound, LayoutDashboard, LogOut, Menu, Settings, X } from "lucide-react";
+import { ClipboardCheck, Files, ChevronDown, UserRound, LayoutDashboard, LogOut, Menu, Settings, SlidersHorizontal, X } from "lucide-react";
 import type { UserRole } from "@workflow/contracts";
 import { ActionButton } from "~/components/actions/ActionButton";
 import { ProductIdentity } from "~/components/layout/ProductIdentity";
@@ -8,7 +8,13 @@ import { useSession } from "~/modules/auth/sessionContext";
 import { navigationItems, visibleNavigation } from "~/modules/shell/navigation";
 import { cn } from "~/lib/utils";
 
-const itemIcons: Record<string, typeof LayoutDashboard> = { "/requests": Files, "/reviews": ClipboardCheck, "/dashboard": LayoutDashboard, "/settings": Settings };
+const itemIcons: Record<string, typeof LayoutDashboard> = {
+    "/requests": Files,
+    "/reviews": ClipboardCheck,
+    "/dashboard": LayoutDashboard,
+    "/settings": Settings,
+    "/admin/request-types": SlidersHorizontal,
+};
 function roleLabel(roles: readonly UserRole[]): string
 {
     return roles.join(", ");
@@ -29,8 +35,15 @@ export function AppShell({ children }: IAppShellProps)
     const accountTrigger = useRef<HTMLButtonElement>(null);
     const accountPanel = useRef<HTMLDivElement>(null);
     const items = user ? visibleNavigation(navigationItems, user.roles) : [];
+    const workspaceItems = items.filter((item) => item.to !== "/settings" && item.section !== "administration");
+    const adminItems = items.filter((item) => item.section === "administration");
+    const settingsItems = items.filter((item) => item.to === "/settings");
 
-    const pageTitle = pathname === "/requests/new" ? "New request" : items.find((item) => pathname === item.to || pathname.startsWith(`${item.to}/`))?.label ?? "Workspace";
+    const pageTitle = pathname === "/requests/new"
+        ? "New request"
+        : pathname === "/admin/request-types/new"
+            ? "New request type"
+            : items.find((item) => pathname === item.to || pathname.startsWith(`${item.to}/`))?.label ?? "Workspace";
 
     useEffect(() =>
     {
@@ -116,12 +129,18 @@ export function AppShell({ children }: IAppShellProps)
             <a href="#main-content" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-md focus:bg-primary focus:px-4 focus:py-3 focus:text-primary-foreground">Skip to content</a>
             <nav id="desktop-navigation" aria-label="Primary" className="sticky top-0 hidden h-svh w-52 shrink-0 flex-col border-r bg-background md:flex lg:w-64">
                 <div className="flex h-16 shrink-0 items-center border-b px-5"><ProductIdentity /></div>
-                <div className="min-h-0 flex-1 px-3 py-6">
-                    <p className="mb-3 px-3 text-xs font-medium text-muted-foreground">Workspace</p>
-                    <ul className="space-y-1.5">{items.filter((item) => item.to !== "/settings").map((item) => <li key={item.to}>{renderLink(item)}</li>)}</ul>
+                <div className="min-h-0 flex-1 space-y-6 overflow-y-auto px-3 py-6">
+                    <div>
+                        <p className="mb-3 px-3 text-xs font-medium text-muted-foreground">Workspace</p>
+                        <ul className="space-y-1.5">{workspaceItems.map((item) => <li key={item.to}>{renderLink(item)}</li>)}</ul>
+                    </div>
+                    {adminItems.length > 0 && <div>
+                        <p className="mb-3 px-3 text-xs font-medium text-muted-foreground">Administration</p>
+                        <ul className="space-y-1.5">{adminItems.map((item) => <li key={item.to}>{renderLink(item)}</li>)}</ul>
+                    </div>}
                 </div>
                 <div className="space-y-1.5 border-t p-3">
-                    {items.filter((item) => item.to === "/settings").map((item) => <div key={item.to}>{renderLink(item)}</div>)}
+                    {settingsItems.map((item) => <div key={item.to}>{renderLink(item)}</div>)}
                 </div>
                 <div className="flex items-center gap-3 border-t px-5 py-4">
                     <span className="flex size-8 shrink-0 items-center justify-center rounded-md border bg-muted/60 text-muted-foreground"><UserRound aria-hidden="true" className="size-4" /></span>
@@ -131,7 +150,7 @@ export function AppShell({ children }: IAppShellProps)
             <div className="flex min-w-0 flex-1 flex-col">
                 <header className="sticky top-0 z-30 flex h-16 shrink-0 items-center gap-3 border-b bg-background px-4 sm:px-6 lg:px-8">
                     <ActionButton ref={drawerTrigger} variant="ghost" size="icon" type="button" className="-ml-2 md:hidden" aria-label="Open navigation menu" aria-expanded={drawerOpen} aria-controls="app-drawer" onClick={() => setDrawerOpen(true)}><Menu aria-hidden="true" className="size-5" /></ActionButton>
-                    <div className="min-w-0"><p className="text-xs text-muted-foreground">Workspace</p><p className="truncate text-sm font-medium">{pageTitle}</p></div>
+                    <div className="min-w-0"><p className="text-xs text-muted-foreground">{pathname.startsWith("/admin/") ? "Administration" : "Workspace"}</p><p className="truncate text-sm font-medium">{pageTitle}</p></div>
                     <div className="relative ml-auto min-w-0">
                         <ActionButton ref={accountTrigger} variant="ghost" type="button" aria-label={user?.displayName ?? "Account"} className="max-w-36 gap-2 px-2 sm:max-w-64 sm:px-3" aria-expanded={accountOpen} aria-controls="account-details" onClick={() => setAccountOpen((open) => !open)}><UserRound aria-hidden="true" className="size-4 shrink-0" /><span className="truncate">{user?.displayName ?? "Account"}</span><ChevronDown aria-hidden="true" className="hidden size-3.5 shrink-0 sm:block" /></ActionButton>
                         {accountOpen && user && <div ref={accountPanel} id="account-details" role="region" aria-label="Account details" className="absolute right-0 top-full mt-2 w-64 max-w-[calc(100vw-2rem)] rounded-lg border bg-popover p-2 text-popover-foreground shadow-md">
@@ -150,7 +169,7 @@ export function AppShell({ children }: IAppShellProps)
                 }} className="fixed inset-y-0 left-0 right-auto m-0 h-dvh max-h-none w-72 max-w-[calc(100vw-2rem)] overflow-y-auto overscroll-contain border-r bg-background p-4 text-foreground shadow-lg backdrop:bg-foreground/40 motion-safe:animate-in motion-safe:slide-in-from-left-4 motion-safe:duration-150 md:hidden">
                     <div className="mb-6 flex items-center justify-between gap-3 border-b pb-4"><ProductIdentity /><ActionButton variant="ghost" size="icon" type="button" aria-label="Close navigation menu" onClick={() => setDrawerOpen(false)}><X aria-hidden="true" className="size-5" /></ActionButton></div>
                     <p className="mb-3 px-3 text-xs font-medium text-muted-foreground">Menu</p>
-                    <ul className="space-y-1.5">{items.map((item) => <li key={item.to}>{renderLink(item)}</li>)}</ul>
+                    <ul className="space-y-1.5">{[...workspaceItems, ...adminItems, ...settingsItems].map((item) => <li key={item.to}>{renderLink(item)}</li>)}</ul>
                 </dialog>}
                 <main id="main-content" tabIndex={-1} className="min-w-0 flex-1 px-4 py-6 focus-visible:outline-2 focus-visible:outline-ring sm:px-6 lg:px-8 lg:py-8">{children}</main>
             </div>

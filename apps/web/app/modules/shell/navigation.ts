@@ -6,14 +6,16 @@ export interface INavigationItem
     label: string;
     /** Roles allowed to see this link; empty means every authenticated role. */
     roles: readonly UserRole[];
+    section?: "workspace" | "administration";
 }
 
 /** Only links to routes that actually ship in this feature are declared here. */
 export const navigationItems: readonly INavigationItem[] = [
-    { to: "/dashboard", label: "Dashboard", roles: [] },
-    { to: "/requests", label: "My Requests", roles: ["REQUESTER"] },
-    { to: "/reviews", label: "My Reviews", roles: ["REVIEWER"] },
-    { to: "/settings", label: "Settings", roles: [] },
+    { to: "/dashboard", label: "Dashboard", roles: [], section: "workspace" },
+    { to: "/requests", label: "My Requests", roles: ["REQUESTER"], section: "workspace" },
+    { to: "/reviews", label: "My Reviews", roles: ["REVIEWER"], section: "workspace" },
+    { to: "/admin/request-types", label: "Request Types", roles: ["ADMINISTRATOR"], section: "administration" },
+    { to: "/settings", label: "Settings", roles: [], section: "workspace" },
 ];
 
 /** Role-aware filtering: an item is visible only when its role grant matches the current union. */

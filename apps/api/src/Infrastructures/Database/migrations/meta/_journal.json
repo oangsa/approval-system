@@ -71,6 +71,13 @@
       "when": 1795499660602,
       "tag": "0009_withdrawal-audit-note",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1795570926956,
+      "tag": "0010_fine_dreaming_celestial",
+      "breakpoints": true
     }
   ]
 }
