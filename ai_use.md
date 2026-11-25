@@ -852,3 +852,34 @@ reflection/output: Performed an end-to-end audit of Issue #8 implementation agai
 @oangsa
 prompt: fix
 reflection/output: Fixed all audit findings: tightened editableLineItemSchema integer bound to 17 digits for PostgreSQL numeric(24,6) roundtrip safety, tracked DFS stack for full 3+ node cycle reporting, removed the polymorphic admin fallback on default GET /api/v1/request-types/:id, aligned create/branch Location headers to ?view=admin, documented ?view=admin and union schemas in RequestRoutes OpenAPI, normalized UUID parameters in RequestService, fixed ConditionBuilder IN interactive editing and incompatible operator/option selectors, updated RequestTypesListPage Published-only filter and Reset filters recovery, preserved unsaved edits on editor Enable/Disable, restored dialog focus, added Thai description/help-text safeguards and shared preferredBrowserLocale helper, added unit/OpenAPI/PostgreSQL/component regression tests, updated SDS/verification docs, and re-verified full workspace checks.
+
+## Issue #8 assistance
+
+@oangsa
+prompt: <html>
+reflection/output: Received an incomplete split HTML wrapper prompt before PR #88 blocking findings arrived; read existing branch context and awaited the full blocking-findings message.
+
+## Issue #8 assistance
+
+@oangsa
+prompt: <body>
+<!--StartFragment--><div><div></div><div><div><h2><span><strong>PR #88 — Blocking Findings</strong></span></h2><div><div>
+ID | Blocking finding | Requirement | Required fix
+-- | -- | -- | --
+B01 — P1 | Stored published definitions are not fully validated at runtime. | CF-AC-06, BR-016/017 | Apply Zod and semantic graph validation before using stored definitions in requester operations. Reject invalid configurations without mutation.
+B02 — P1 | Explicit null, empty or whitespace values can bypass field-type validation. | CF-AC-03/05, BR-017, API §6.4 | Distinguish omitted fields from supplied invalid values. Return 422 for incompatible values while preserving incomplete draft support.
+B03 — P1 | Inherited JavaScript properties such as constructor can incorrectly activate conditional fields. | CF-AC-04/05, BR-015/018 | Use own-property-safe access and prototype-free value storage. Ensure hidden dependencies are always treated as unset.
+B04 — P2 | The IN condition builder incorrectly splits valid values containing commas and cannot preserve all supported literals. | CF-AC-04/07, UI §11.3 | Replace comma-separated input with typed membership controls for each field kind.
+B05 — P2 | Monetary values lack the required localized currency formatting. | R07, UI §8.4 | Implement locale-aware currency formatting without converting canonical decimal strings to floating-point numbers.
+B06 — P2 | E2E tests do not verify rejection of missing conditionally required fields. | CF-AC-11, AC-033, E2E-03, UI-07 | Extend existing E2E tests to verify validation errors, focus behavior, server rejection and absence of database mutation.
+
+</div></div><p><span><span><strong>Merge decision:</strong></span></span><span> Changes requested — 3 P1 and 3 P2 blockers.</span></p><p><span><span><strong>Additional merge gate:</strong></span></span><span> Update STS, DoD, traceability, verification evidence and Issue #8 after remediation.</span></p><p><span><span><strong>Scope restriction:</strong></span></span><span> Do not implement the complete resubmission lifecycle in this PR; it belongs to Issue #7.</span></p><p><span><span><strong>Review limitation:</strong></span></span><span> These findings are based on the inspected source code and CI evidence. An exhaustive local review remains unverified.</span></p></div></div></div><div></div><!--EndFragment-->
+</body>
+</html>
+reflection/output: Remediated PR #88 blocking findings B01–B06 without implementing Issue #7's full resubmission lifecycle or committing/pushing/posting externally: added assertPublishedDefinition runtime Zod + semantic graph validation across requester reads and mutations (409 CONFIGURATION_INCOMPLETE, zero mutation), distinguished omitted draft keys from explicit null/empty/whitespace field inputs (422 VALIDATION_ERROR / INVALID_VALUE), added own-property-safe helpers and prototype-free Object.create(null) field storage across contracts/backend/wizard/preview (with plain own-property conversion at Drizzle persistence boundaries), replaced comma-splitting IN inputs in ConditionBuilder with typed membership controls per field kind, added BigInt + Intl.NumberFormat.formatToParts locale-aware currency formatting in formatMoney across LineItemsEditor/LineItemsSummary/RequestWizard/RequestResult, and extended unit/contract/PostgreSQL/component/E2E regressions (including client focus, aria-invalid, server 422 rejection, and zero DB mutation on missing conditionally required fields). Updated feature SDS, STS, DoD, traceability, verification.md, and prepared issue-comment.md. Verified npm run check (51 files / 468 tests, typecheck, lint, builds), fresh test:initialization (1/1), seeded RUN_BUILT_HTTP_SMOKE=1 test:integration (11 files / 115 tests), test:e2e (44 Chromium tests), test:release (13/13), and git diff --check all passed with zero skips.
+
+## Issue #8 assistance
+
+@oangsa
+prompt: commit and push
+reflection/output: Fetched feature/8-configurable-forms-items-priority, verified HEAD matches origin, packaged the verified PR #88 B01–B06 fixes, regression tests, and merge-gate documentation into five scoped atomic commits, verified clean diff checks, and pushed normally to origin/feature/8-configurable-forms-items-priority without force-push, merge, or external issue posting.
