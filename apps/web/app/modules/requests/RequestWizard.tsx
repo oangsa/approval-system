@@ -1,18 +1,20 @@
 import { ZodError } from "zod";
 import { useEffect, useRef, useState } from "react";
 import { Link, useBeforeUnload, useBlocker, useLocation, useNavigate } from "react-router";
-import { AlertCircle, CheckCircle2, ChevronLeft, ChevronRight, LoaderCircle, Plus, Trash2 } from "lucide-react";
-import { applicableFields, createRequestSchema, isPresent, itemTotal, sumAmounts, validateFields, type IRequestTypeSearchResult, type CreateRequest, type IFieldIssue, type PublishedRequestType, type RequestDetail } from "@workflow/contracts";
+import { AlertCircle, CheckCircle2, ChevronLeft, ChevronRight, LoaderCircle } from "lucide-react";
+import { applicableFields, createRequestSchema, isPresent, itemTotal, resolveLocalizedText, safeItemTotal, sumAmounts, validateFields, type IRequestTypeSearchResult, type CreateRequest, type IFieldIssue, type PublishedRequestType, type RequestDetail } from "@workflow/contracts";
 import { requestApi } from "~/api/requests";
 import { isApiFailure } from "~/api/errors";
 import { ActionButton } from "~/components/actions/ActionButton";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
+import { LineItemsEditor } from "~/components/forms/LineItemsEditor";
 import { ManagedForm } from "~/components/forms/ManagedForm";
 import { FieldRenderer, fieldClassName } from "~/components/forms/FieldRenderer";
+import { PriorityBadge } from "~/components/status/PriorityBadge";
 import { useSession } from "~/modules/auth/sessionContext";
 import { RequestEditingSession } from "~/services/requestService";
-import { presentFailure, requestPriorityLabel } from "./requestPresentation";
+import { preferredBrowserLocale, presentFailure, requestPriorityLabel } from "./requestPresentation";
 import { RequestResult } from "./RequestResult";
 
 const baseSteps = ["Request Type", "Basic Information", "Request Details", "Review & Submit"];
@@ -58,6 +60,7 @@ export function RequestWizard({ initial }: IRequestWizardProps = {})
     const submitButton = useRef<HTMLButtonElement>(null);
     const steps = type?.supportsLineItems ? [...baseSteps.slice(0, 3), "Items & Attachments", baseSteps[3]!] : baseSteps;
     const visible = type ? applicableFields(type.fields, content.fields ?? {}) : [];
+    const locale = preferredBrowserLocale();
     const blocker = useBlocker(dirty && !result);
     useEffect(() =>
     {
@@ -338,11 +341,11 @@ export function RequestWizard({ initial }: IRequestWizardProps = {})
                                     <label htmlFor="typeId" className="text-sm font-medium">Request type (required)</label>
                                     <select id="typeId" className={fieldClassName} value={type?.id ?? ""} onChange={(event) => selectType(event.target.value)} aria-invalid={!!errorFor("typeId")}>
                                         <option value="">Choose a published type</option>
-                                        {type && !types.some((item) => item.id === type.id) && <option value={type.id}>{type.name.en}</option>}
-                                        {types.map((item) => <option key={item.id} value={item.id}>{item.name.en}</option>)}
+                                        {type && !types.some((item) => item.id === type.id) && <option value={type.id}>{resolveLocalizedText(type.name, locale)}</option>}
+                                        {types.map((item) => <option key={item.id} value={item.id}>{resolveLocalizedText(item.name, locale)}</option>)}
                                     </select>
                                     {type && <div className="space-y-1 pt-1 text-sm text-muted-foreground">
-                                        {type.description?.en && <p>{type.description.en}</p>}
+                                        {type.description && <p>{resolveLocalizedText(type.description, locale)}</p>}
                                         <p>Definition version {type.versionNumber}</p>
                                     </div>}
                                 </div>
@@ -370,38 +373,34 @@ export function RequestWizard({ initial }: IRequestWizardProps = {})
                                 </div>
                             </>}
                             {step === 2 && <>
-                                {visible.map((field) => <FieldRenderer key={field.key} field={field} value={content.fields?.[field.key]} error={errorFor(`fields.${field.key}`)} onChange={(value) => update({ fields: { ...content.fields, [field.key]: value } })} />)}
+                                {visible.map((field) => <FieldRenderer key={field.key} field={field} locale={locale} value={content.fields?.[field.key]} error={errorFor(`fields.${field.key}`)} onChange={(value) => update({ fields: { ...content.fields, [field.key]: value } })} />)}
                                 {type?.monetary && !type.supportsLineItems ? <div className="grid gap-2">
                                     <label htmlFor="monetaryAmount" className="text-sm font-medium">Amount (THB, required)</label>
-                                    <Input id="monetaryAmount" inputMode="decimal" value={content.monetaryAmount ?? ""} onChange={(event) => update({ monetaryAmount: event.target.value || null })} aria-invalid={!!errorFor("monetaryAmount")} />
+                                    <Input id="monetaryAmount" inputMode="decimal" value={content.monetaryAmount ?? ""} onChange={(event) => update({ monetaryAmount: event.target.value || null })} aria-invalid={!!errorFor("monetaryAmount")} aria-describedby="monetaryAmount.error" />
+                                    <p id="monetaryAmount.error" className="text-sm text-destructive">{errorFor("monetaryAmount")}</p>
                                 </div> : !visible.length && <p className="text-sm text-muted-foreground">No additional fields are required.</p>}
                             </>}
-                            {type?.supportsLineItems && step === 3 && <>
-                                <p className="text-sm text-muted-foreground">Enter item quantities and amounts. Totals are confirmed by the server.</p>
-                                {(content.lineItems ?? []).map((item, index) => <div key={index} className="space-y-4 rounded-lg border p-4">
-                                    <div className="flex flex-wrap items-center justify-between gap-2">
-                                        <h3 className="text-sm font-semibold">Item {index + 1}</h3>
-                                        <ActionButton type="button" variant="danger" onClick={() => update({ lineItems: content.lineItems!.filter((_, itemIndex) => itemIndex !== index) })}><Trash2 aria-hidden="true" className="size-4" />Remove item {index + 1}</ActionButton>
-                                    </div>
-                                    <div className="grid gap-4 sm:grid-cols-2">
-                                        {(["description", "quantity", "unitAmount"] as const).map((key) => <div key={key} className={key === "description" ? "grid gap-2 sm:col-span-2" : "grid gap-2"}>
-                                            <label className="text-sm font-medium" htmlFor={`lineItems.${index}.${key}`}>{key === "unitAmount" ? "Unit amount" : key === "quantity" ? "Quantity" : "Description"} (item {index + 1})</label>
-                                            <Input id={`lineItems.${index}.${key}`} value={item[key]} inputMode={key === "description" ? "text" : "decimal"} aria-invalid={!!errorFor(`lineItems.${index}.${key}`)} onChange={(event) => update({ lineItems: content.lineItems!.map((row, itemIndex) => itemIndex === index ? { ...row, [key]: event.target.value } : row) })} />
-                                        </div>)}
-                                    </div>
-                                </div>)}
-                                <ActionButton id="lineItems" type="button" onClick={() => update({ lineItems: [...content.lineItems ?? [], { description: "", quantity: "1", unitAmount: "0.00" }] })}><Plus aria-hidden="true" className="size-4" />Add item</ActionButton>
-                            </>}
+                            {type?.supportsLineItems && step === 3 && <LineItemsEditor items={content.lineItems ?? []} onChange={(lineItems) => update({ lineItems })} errorFor={errorFor} disabled={busy} />}
                             {step === steps.length - 1 && <div className="space-y-5 wrap-anywhere">
-                                <p className="text-sm text-muted-foreground">{type?.name.en} · Version {type?.versionNumber}</p>
+                                <p className="text-sm text-muted-foreground">{type ? resolveLocalizedText(type.name, locale) : ""} · Version {type?.versionNumber}</p>
                                 <dl className="grid gap-4 sm:grid-cols-2 [&_dt]:text-sm [&_dt]:text-muted-foreground">
                                     <div className="sm:col-span-2"><dt>Title</dt><dd className="font-medium">{review.title}</dd></div>
                                     <div className="sm:col-span-2"><dt>Justification</dt><dd className="whitespace-pre-wrap">{review.justification}</dd></div>
-                                    <div><dt>Priority</dt><dd>{requestPriorityLabel(review.priority ?? "MEDIUM")}</dd></div>
+                                    <div><dt>Priority</dt><dd><PriorityBadge priority={review.priority ?? "MEDIUM"} /></dd></div>
                                     <div><dt>Department</dt><dd>{user.department?.name ?? "Not assigned"}</dd></div>
-                                    {visible.map((field) => <div key={field.key}><dt>{field.label.en}</dt><dd>{typeof review.fields?.[field.key] === "boolean" ? review.fields[field.key] ? "Yes" : "No" : field.constraints?.options?.find((option) => option.value === review.fields?.[field.key])?.label.en ?? String(review.fields?.[field.key] ?? "—")}</dd></div>)}
+                                    {visible.map((field) =>
+                                    {
+                                        const raw = review.fields?.[field.key];
+                                        const option = field.constraints?.options?.find((candidate) => candidate.value === raw);
+                                        const display = typeof raw === "boolean" ? (raw ? "Yes" : "No") : option ? resolveLocalizedText(option.label, locale) : String(raw ?? "—");
+                                        return <div key={field.key}><dt>{resolveLocalizedText(field.label, locale)}</dt><dd>{display}</dd></div>;
+                                    })}
                                 </dl>
-                                {!!review.lineItems?.length && <ul className="divide-y border-y">{review.lineItems.map((item, index) => <li key={index} className="flex flex-wrap justify-between gap-x-4 gap-y-1 py-3"><span>{item.description}</span><span className="tabular-nums text-muted-foreground">{item.quantity} × {item.unitAmount}</span></li>)}</ul>}
+                                {!!review.lineItems?.length && <ul className="divide-y border-y">{review.lineItems.map((item, index) =>
+                                {
+                                    const rowTotal = safeItemTotal(item.quantity, item.unitAmount);
+                                    return <li key={index} className="flex flex-wrap justify-between gap-x-4 gap-y-1 py-3"><span>{item.description}</span><span className="tabular-nums text-muted-foreground">{item.quantity} × {item.unitAmount}{rowTotal ? ` = ${rowTotal}` : ""}</span></li>;
+                                })}</ul>}
                                 {type?.monetary && <p className="font-medium tabular-nums">Total: {type.supportsLineItems ? sumAmounts((review.lineItems ?? []).map((item) => itemTotal(item.quantity, item.unitAmount))) : review.monetaryAmount} THB</p>}
                                 <p className="rounded-lg bg-muted/60 p-4 text-sm leading-relaxed text-muted-foreground">Submission locks this revision. The server checks the active department, policy and eligible reviewers before assigning a request number.</p>
                             </div>}

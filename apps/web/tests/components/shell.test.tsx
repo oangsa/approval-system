@@ -65,7 +65,17 @@ test("navigation items are filtered by the current role union", () =>
     expect(visibleNavigation(navigationItems, ["REQUESTER"]).map((item) => item.to)).toEqual(["/dashboard", "/requests", "/settings"]);
     expect(visibleNavigation(navigationItems, ["REQUESTER", "REVIEWER"]).map((item) => item.to)).toEqual(["/dashboard", "/requests", "/reviews", "/settings"]);
     expect(visibleNavigation(navigationItems, ["REVIEWER"]).map((item) => item.to)).toEqual(["/dashboard", "/reviews", "/settings"]);
+    expect(visibleNavigation(navigationItems, ["ADMINISTRATOR"]).map((item) => item.to)).toEqual(["/dashboard", "/admin/request-types", "/settings"]);
     expect(visibleNavigation([], ["ADMINISTRATOR"])).toEqual([]);
+});
+
+test("administrator navigation shows Administration section and hides it for non-admins", () =>
+{
+    currentUser = identity({ roles: ["ADMINISTRATOR"] });
+    renderShell();
+    const nav = screen.getByRole("navigation", { name: "Primary" });
+    expect(within(nav).getByText("Administration")).toBeVisible();
+    expect(within(nav).getByRole("link", { name: "Request Types" })).toHaveAttribute("href", "/admin/request-types");
 });
 
 test("the shell renders the current account and only routes that ship in this feature", () =>
