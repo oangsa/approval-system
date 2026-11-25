@@ -1,6 +1,6 @@
 # Issue #11 agent review
 
-Reviewed working tree: `feature/11-sprint-2-full-stack-reporting-dashboards-timeline`, based on `bdab39b115e39caec46da099ee9956cf47567423`. No published PR or commit is claimed. Human teammate review by @oangsa remains pending and is separate from this agent review.
+Original reviewed working tree: `feature/11-sprint-2-full-stack-reporting-dashboards-timeline`, based on `bdab39b115e39caec46da099ee9956cf47567423`, before commit/push/PR authorization. Publication integration is recorded at the end of this ledger. Human teammate review by @oangsa remains pending and is separate from agent review.
 
 **Final agent verdict — 2026-11-25: Approved for code acceptance, with no open findings.** Human teammate review and release approval remain pending.
 
@@ -36,3 +36,7 @@ The focused browser rerun then exposed **RDT-R6**, a further test defect: it req
 The final fresh reviewer, `/root/review_final_test_corrections`, completed Scrutinize, defect review, Standards, Spec, maintainability and final requirements/traceability checks, repeating affected checks after R6. It independently verified all 37 source/test hashes, exactly two test-only changes since the prior completed source review, root TypeScript compilation, focused lint and whitespace checks. It inspected the saved final PostgreSQL, focused browser and full browser logs, and reported no blocking or non-blocking findings. All RDT-R1–R6 dispositions are closed.
 
 The full repository check (typecheck, lint, 418 tests and builds) is directly observed orchestrator evidence. The final reviewer independently inspected logs for the 106 PostgreSQL and 35 browser tests; it did not claim to have run those full suites itself. Representative screenshot inspection is recorded separately as orchestrator evidence. C01–C26 are covered by the implementation/test/evidence mappings; C27 remains the separate human-review and release gate. No commit, push, PR, merge or publication was performed.
+
+## Publication integration review
+
+After the user's separate commit/push/PR authorization, `/root/review_staging_sync` independently reviewed synchronization merge `9e8235b`, its feature parent and staging at `cecf33e`. It reported no findings after checking shared repository contracts, reporting scopes, withdrawal audit notes, timeline refresh, route coexistence and both documentation append resolutions. This was a bounded static review; the reviewer did not claim to rerun tests. The orchestrator subsequently passed typecheck, lint, all 469 unit/API/contract/component tests, builds, all 120 PostgreSQL tests and all 47 browser tests on the combined revision. Actual logs are linked in verification.md. Prior no-publication statements above describe the earlier review stage; reviewed staging promotion and release remain separate gates.

@@ -2,7 +2,7 @@
 
 Baseline supplied by orchestrator: `bdab39b115e39caec46da099ee9956cf47567423`; main baseline typecheck and lint passed, 397 tests passed, Docker PostgreSQL migrated and seeded. These are baseline reports, not evidence for issue #11. Product implementation was unimplemented at baseline.
 
-Issue #11 is implemented in the uncommitted working tree. Final code checks, PostgreSQL verification, all browser tests and fresh agent review have passed with no open findings. Independent teammate review: **Pending** (@oangsa). No release acceptance is claimed.
+Issue #11 is recorded in scoped feature commits. The original working-tree verification and agent review passed with no open findings. The later staging synchronization and publication verification are recorded in the final section below. Independent teammate review: **Pending** (@oangsa). No release acceptance is claimed.
 
 ## Execution ledger
 
@@ -59,7 +59,7 @@ All commands run from the repository root. The reviewed implementation is identi
 | RDT-AC08–09 / C24 | Persisted synthetic multi-cycle chronology, tied ordering and pages, fresh-connection durability, explicit safe metadata, owner/current/former/foreign/admin history restrictions |
 | RDT-AC10 / C25 | Session/role abort guards, request-scoped timeline reset, accessible state labels, filters, empty/error/retry and private SSR; all four expanded focused browser journeys and all 35 full browser tests passed |
 | RDT-AC11 / C26 | Actual command outcomes, failure dispositions, reviewed source hashes and linked logs recorded here |
-| RDT-AC12 / C27 | Human @oangsa review and reviewed promotion to sprint staging, dev and main remain pending; no commit, push, merge or publication performed |
+| RDT-AC12 / C27 | Human @oangsa review and reviewed promotion to sprint staging, dev and main remain pending. This original review preceded the user's separate commit/push/PR authorization, recorded below |
 
 The synthetic later-cycle fixture proves persisted history projection; it does not implement or claim a full return/resubmit producer. Delegation, notifications, PDF/CSV, chart analytics and deployment remain outside this increment. Agent review does not satisfy the independent teammate release gate.
 
@@ -68,3 +68,20 @@ Representative mobile report and desktop timeline screenshots were visually insp
 The linked portable logs preserve the recorded results with local workspace path prefixes replaced by `<workspace>` and trailing whitespace removed. Screenshots and browser traces remain local ignored artifacts; no credentials, environment files or database dumps are included in this change.
 
 Publication preparation retained the original [reviewed working-tree hashes](source-manifest-reviewed.sha256). The primary [source manifest](source-manifest.sha256) uses committed Git blob bytes after whitespace-only cleanup and Git LF normalization; functional behavior is unchanged. Integration with current sprint staging is verified separately before publication.
+
+## Staging integration and publication
+
+The user subsequently authorized commits, normal push and a pull request. Seven scoped commits record design, shared contracts, backend behavior, frontend behavior, timeline presentation, browser tests and verification evidence. Merge `9e8235bf7c104b2aae19aa2bc8a2fadf81e52942` synchronizes `sprint-2-staging` at `cecf33e` without rewriting history. Its only conflicts were overlapping append sections in `docs/specs/test.md` and `traceability.md`; both issues' records were retained. Draft editing, owner withdrawal, withdrawal audit notes and the reports route coexist.
+
+The committed runtime at `9e8235b` is the source for the following publication checks. The source manifest now identifies its canonical Git blobs; the final evidence/assistance commit changes documentation only. New staging assistance-record requirements are followed by appending Issue #11 records to `ai_use.md`, preserving existing content.
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Bounded staging synchronization review | No findings; static review of shared repositories/contracts, withdrawal notes, timeline, routes and conflict resolutions | Recorded in [review](review.md) |
+| `npm run check` | Exit 0: typecheck, lint, 469 tests across 52 files and all production builds passed | [Merged revision check log](evidence/staging-check.log) |
+| `RUN_BUILT_HTTP_SMOKE=1` PostgreSQL suite | Exit 0: all 120 tests across 11 files passed, no skips | [Merged revision PostgreSQL log](evidence/staging-postgres.log) |
+| Full browser suite | Exit 0: all 47 tests passed, no skips | [Merged revision browser log](evidence/staging-e2e.log) |
+
+These results supersede the smaller pre-integration suite totals above for publication. Human teammate review and reviewed promotion from sprint staging to dev and main remain pending; syncing staging into this feature branch is not a release promotion.
+
+Publication verification is complete: the combined code check, PostgreSQL suite and browser suite all passed without source changes after synchronization. The bounded integration review reported no findings. The PR is ready for independent teammate review; it is not approved for merge or release by this record.
