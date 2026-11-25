@@ -60,6 +60,19 @@ test("E2E-08 admin configures mappings, immutable policy versions and ceiling; r
     await expect(page.getByText("Configuration saved.", { exact: true })).toBeVisible();
     await page.getByLabel("Search key", { exact: true }).fill(assignmentKey);
     await expect(page.getByRole("cell", { name: assignmentKey, exact: false }).first()).toBeVisible();
+    await page.getByRole("button", { name: `Edit ${assignmentKey}`, exact: true }).first().click();
+    const keyInput = page.getByLabel("Assignment key", { exact: true });
+    await expect(keyInput).toHaveValue(assignmentKey);
+    await expect(keyInput).toHaveAttribute("readonly", "");
+    await expect(keyInput).not.toBeEditable();
+    await page.getByRole("button", { name: "Save configuration", exact: true }).click();
+    await expect(page.getByText("Configuration saved.", { exact: true })).toBeVisible();
+    await expect(page.getByText("Active · version 1", { exact: false }).first()).toBeVisible();
+    const assignmentSearch = await request.post(`${apiUrl.origin}/api/v1/admin/reviewer-assignments/search`, { headers, data: { search: [{ name: "key", condition: "EQUAL", value: assignmentKey }], pageSize: 1 } });
+    expect(assignmentSearch.status()).toBe(200);
+    const assignmentRecord = (await assignmentSearch.json() as Array<{ id: string; version: number }>)[0]!;
+    const rejectedRename = await request.patch(`${apiUrl.origin}/api/v1/admin/reviewer-assignments/${assignmentRecord.id}`, { headers, data: { expectedVersion: assignmentRecord.version, key: `${assignmentKey}_RENAMED` } });
+    expect(rejectedRename.status()).toBe(422);
 
     await page.goto("/admin/approval-policies/new");
     await page.getByLabel("Policy code", { exact: true }).fill(code);
