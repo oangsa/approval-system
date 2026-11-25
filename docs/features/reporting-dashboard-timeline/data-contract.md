@@ -1,0 +1,9 @@
+# Issue #11 data contract
+
+Use existing requests, current revision/cycle, stages, slots, decisions and append-only audit records. Scope is owner OR qualifying current reviewer excluding self, deduplicated; admin has aggregate-only organization scope. Historic-only handlers do not acquire reporting scope. OUTCOME counts current terminal request state once, not decision rows; RETURNED is STATUS only. Query group totals and rows from the same authorized snapshot. Dashboard queries share a repeatable-read snapshot and one captured server time for due boundaries. Project only explicitly allowed fields and metadata. Existing immutable history is the source of timeline; no migration expected.
+
+## Query and index integration
+
+`ReportingService` selects the domain role scope after rereading the active database identity. `ReportingRepository` translates that scope and the shared allowlisted query into parameterized PostgreSQL predicates. Reviewer visibility uses `EXISTS`, so matching parallel slots do not multiply source requests. Grouping precedes label search, sorting and paging; a total-row CTE drives the left join so totals survive an empty page. Dashboard projections and report identity/query reads run in read-only repeatable-read transactions. The captured dashboard instant is bound as a UTC ISO string cast to `timestamptz` for due comparisons.
+
+The existing `request_owner_idx` and `request_owner_updated_id_idx` support requester scope/recent queries; `approval_slot_reviewer_status_idx` supports reviewer assignment/status predicates; cycle/stage primary and foreign-key joins retain current-cycle qualification. Timeline reads retain `audit_request_time_id_idx` for request/time/ID ordering. Organization-wide grouping is an intentional aggregate over all permitted source requests. No new index, migration or performance benchmark claim is made; query-plan tuning needs representative measured data before changing schema.
