@@ -388,14 +388,14 @@ test("B04 confirmed form migration clears obsolete review items and persists thr
         await expect(page.getByLabel("Title (required)", { exact: true })).toHaveValue(draft.title);
         for (let step = 0; step < 3; step++) await page.getByRole("button", { name: "Next", exact: true }).click();
         await expect(page.getByText("B04 obsolete part", { exact: true })).toBeVisible();
-        await expect(page.getByText("Total: 10.00 THB")).toBeVisible();
+        await expect(page.getByText("Total: THB 10.00")).toBeVisible();
         await page.getByRole("button", { name: "Submit request", exact: true }).click();
         await page.getByRole("button", { name: "Confirm submission", exact: true }).click();
         const review = page.getByRole("button", { name: "Review updated form" });
         await expect(review).toBeVisible();
         await respondToConfirmation(page, review, "dismiss");
         await expect(page.getByText("B04 obsolete part", { exact: true })).toBeVisible();
-        await expect(page.getByText("Total: 10.00 THB")).toBeVisible();
+        await expect(page.getByText("Total: THB 10.00")).toBeVisible();
         const untouched = await page.request.get(`${apiUrl.origin}/api/v1/requests/${draft.id}`, { headers });
         expect(requestDetailSchema.parse(await untouched.json())).toEqual(draft);
         await respondToConfirmation(page, review, "accept");

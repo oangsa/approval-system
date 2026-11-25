@@ -1,4 +1,3 @@
-import { useEffect, useRef, useState } from "react";
 import { Plus, Trash2 } from "lucide-react";
 import type { Condition, ConditionAtom, RequestField } from "@workflow/contracts";
 import { ActionButton } from "~/components/actions/ActionButton";
@@ -33,52 +32,140 @@ function defaultAtom(target: RequestField): ConditionAtom
     };
 }
 
-interface IInValueInputProps
+interface IInValueControlProps
 {
-    id: string;
+    baseId: string;
+    title: string;
+    group: ConditionGroup;
+    index: number;
     target: RequestField | undefined;
     value: ConditionAtom["value"];
     disabled: boolean;
     onChange(next: (string | boolean)[]): void;
 }
 
-function formatInValue(value: ConditionAtom["value"]): string
+function InValueControl({ baseId, title, group, index, target, value, disabled, onChange }: IInValueControlProps)
 {
-    return Array.isArray(value) ? value.map(String).join(", ") : "";
-}
+    const entries = Array.isArray(value) ? value : value !== undefined ? [value] : [];
 
-function InValueInput({ id, target, value, disabled, onChange }: IInValueInputProps)
-{
-    const [text, setText] = useState(() => formatInValue(value));
-    const lastEmitted = useRef(JSON.stringify(value));
-
-    useEffect(() =>
+    if (target?.kind === "BOOLEAN")
     {
-        const serialized = JSON.stringify(value);
-        if (serialized !== lastEmitted.current)
+        const invalidEntries = entries.filter((entry) => typeof entry !== "boolean");
+        const toggleBoolean = (literal: boolean, checked: boolean) =>
         {
-            lastEmitted.current = serialized;
-            setText(formatInValue(value));
-        }
-    }, [value]);
+            const remaining = entries.filter((entry) => entry !== literal);
+            onChange(checked ? [...remaining, literal] : remaining);
+        };
+        return <div role="group" aria-labelledby={`${baseId}.value.label`} className="space-y-1.5 rounded-md border p-2">
+            <label htmlFor={`${baseId}.value.true`} className="flex items-center gap-2 text-xs">
+                <input
+                    id={`${baseId}.value.true`}
+                    type="checkbox"
+                    className="size-4 rounded border"
+                    disabled={disabled}
+                    checked={entries.includes(true)}
+                    onChange={(event) => toggleBoolean(true, event.target.checked)}
+                />
+                Yes (true)
+            </label>
+            <label htmlFor={`${baseId}.value.false`} className="flex items-center gap-2 text-xs">
+                <input
+                    id={`${baseId}.value.false`}
+                    type="checkbox"
+                    className="size-4 rounded border"
+                    disabled={disabled}
+                    checked={entries.includes(false)}
+                    onChange={(event) => toggleBoolean(false, event.target.checked)}
+                />
+                No (false)
+            </label>
+            {invalidEntries.map((entry, invalidIndex) => <div key={`invalid-${invalidIndex}`} className="flex items-center justify-between gap-2 text-xs text-destructive">
+                <span>{String(entry)} (incompatible)</span>
+                <ActionButton
+                    type="button"
+                    size="small"
+                    variant="danger"
+                    disabled={disabled}
+                    onClick={() => onChange(entries.filter((item) => item !== entry))}
+                >
+                    Remove
+                </ActionButton>
+            </div>)}
+        </div>;
+    }
 
-    return <Input
-        id={id}
-        disabled={disabled}
-        placeholder={target?.kind === "BOOLEAN" ? "true, false" : "Comma-separated values"}
-        value={text}
-        onChange={(event) =>
+    if (target?.kind === "SELECT")
+    {
+        const options = target.constraints?.options ?? [];
+        const optionValues = new Set(options.map((option) => option.value));
+        const unknownEntries = entries.filter((entry) => typeof entry !== "string" || !optionValues.has(entry));
+        const toggleOption = (optionValue: string, checked: boolean) =>
         {
-            const raw = event.target.value;
-            setText(raw);
-            const parts = raw.split(",").map((part) => part.trim()).filter(Boolean);
-            const values: (string | boolean)[] = target?.kind === "BOOLEAN"
-                ? parts.map((part) => part === "true" ? true : part === "false" ? false : part)
-                : parts;
-            lastEmitted.current = JSON.stringify(values);
-            onChange(values);
-        }}
-    />;
+            const remaining = entries.filter((entry) => entry !== optionValue);
+            onChange(checked ? [...remaining, optionValue] : remaining);
+        };
+        return <div role="group" aria-labelledby={`${baseId}.value.label`} className="space-y-1.5 rounded-md border p-2">
+            {options.length === 0 ? <p className="text-xs text-muted-foreground">No options defined.</p> : options.map((option, optionIndex) => (
+                <label key={option.value} htmlFor={`${baseId}.value.opt.${optionIndex}`} className="flex items-center gap-2 text-xs">
+                    <input
+                        id={`${baseId}.value.opt.${optionIndex}`}
+                        type="checkbox"
+                        className="size-4 rounded border"
+                        disabled={disabled}
+                        checked={entries.includes(option.value)}
+                        onChange={(event) => toggleOption(option.value, event.target.checked)}
+                    />
+                    {option.label.en || option.value}
+                </label>
+            ))}
+            {unknownEntries.map((entry, unknownIndex) => <div key={`unknown-${unknownIndex}`} className="flex items-center justify-between gap-2 text-xs text-destructive">
+                <span>{String(entry)} (unknown option)</span>
+                <ActionButton
+                    type="button"
+                    size="small"
+                    variant="danger"
+                    disabled={disabled}
+                    onClick={() => onChange(entries.filter((item) => item !== entry))}
+                >
+                    Remove
+                </ActionButton>
+            </div>)}
+        </div>;
+    }
+
+    const rows = entries.length > 0 ? entries : [""];
+    return <div className="space-y-1.5">
+        {rows.map((entry, valueIndex) => <div key={valueIndex} className="flex items-center gap-1.5">
+            <Input
+                id={valueIndex === 0 ? `${baseId}.value` : `${baseId}.value.${valueIndex}`}
+                aria-label={valueIndex === 0 ? undefined : `${title} ${group} rule ${index + 1} value ${valueIndex + 1}`}
+                disabled={disabled}
+                type={target?.kind === "DATE" ? "date" : "text"}
+                inputMode={target?.kind === "DECIMAL" ? "decimal" : undefined}
+                value={typeof entry === "string" ? entry : String(entry)}
+                onChange={(event) => onChange(rows.map((item, idx) => idx === valueIndex ? event.target.value : item))}
+            />
+            {typeof entry !== "string" && <span className="shrink-0 text-xs text-destructive">(incompatible)</span>}
+            <ActionButton
+                type="button"
+                variant="danger"
+                size="small"
+                disabled={disabled || (rows.length <= 1 && typeof entry === "string")}
+                aria-label={`Remove ${title} ${group} rule ${index + 1} value ${valueIndex + 1}`}
+                onClick={() => onChange(rows.filter((_, idx) => idx !== valueIndex))}
+            >
+                <Trash2 aria-hidden="true" className="size-3.5" />
+            </ActionButton>
+        </div>)}
+        <ActionButton
+            type="button"
+            size="small"
+            disabled={disabled || rows.length >= 20}
+            onClick={() => onChange([...rows, ""])}
+        >
+            <Plus aria-hidden="true" className="size-3.5" />Add value
+        </ActionButton>
+    </div>;
 }
 
 export interface IConditionBuilderProps
@@ -185,9 +272,11 @@ export function ConditionBuilder({ idPrefix, title, condition, availableFields, 
                                     {
                                         const initial = Array.isArray(atom.value)
                                             ? atom.value
-                                            : target?.kind === "SELECT" && target.constraints?.options?.[0]
-                                                ? [target.constraints.options[0].value]
-                                                : [defaultScalarValue(target)];
+                                            : atom.value !== undefined && atom.value !== ""
+                                                ? [atom.value]
+                                                : target?.kind === "SELECT" && target.constraints?.options?.[0]
+                                                    ? [target.constraints.options[0].value]
+                                                    : [defaultScalarValue(target)];
                                         updateAtom(group, index, { fieldKey: atom.fieldKey, operator, value: initial });
                                         return;
                                     }
@@ -200,12 +289,21 @@ export function ConditionBuilder({ idPrefix, title, condition, availableFields, 
                             </select>
                         </div>
                         <div className="grid gap-1">
-                            <label htmlFor={`${baseId}.value`} className="text-xs font-medium text-muted-foreground">Value</label>
+                            {atom.operator === "PRESENT" ? (
+                                <span className="text-xs font-medium text-muted-foreground">Value</span>
+                            ) : atom.operator === "IN" && (target?.kind === "BOOLEAN" || target?.kind === "SELECT") ? (
+                                <span id={`${baseId}.value.label`} className="text-xs font-medium text-muted-foreground">Values</span>
+                            ) : (
+                                <label htmlFor={`${baseId}.value`} className="text-xs font-medium text-muted-foreground">Value</label>
+                            )}
                             {atom.operator === "PRESENT" ? (
                                 <p id={`${baseId}.value`} className="rounded-md border border-dashed px-3 py-2 text-xs text-muted-foreground">Checks non-empty value (false counts as present)</p>
                             ) : atom.operator === "IN" ? (
-                                <InValueInput
-                                    id={`${baseId}.value`}
+                                <InValueControl
+                                    baseId={baseId}
+                                    title={title}
+                                    group={group}
+                                    index={index}
                                     target={target}
                                     value={atom.value}
                                     disabled={disabled}

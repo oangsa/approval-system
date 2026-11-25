@@ -318,7 +318,7 @@ test.each([false, true])("B04 confirmed migration clears incompatible values per
     }
     else expect(screen.getByLabelText("Amount (THB, required)")).toHaveValue("10.00");
     await user.click(screen.getByRole("button", { name: /^Next$/ }));
-    expect(screen.getByText("Total: 10.00 THB")).toBeVisible();
+    expect(screen.getByText("Total: THB 10.00")).toBeVisible();
     confirm.mockReturnValue(true);
     await user.click(screen.getByRole("button", { name: "Review updated form" }));
     await user.click(screen.getByRole("button", { name: /^Next$/ }));
@@ -360,7 +360,7 @@ test.each([false, true])("B04 compatible form migration preserves monetary value
     await user.click(await screen.findByRole("button", { name: "Review updated form" }));
     await user.click(screen.getByRole("button", { name: /^Next$/ }));
     if (items) await user.click(screen.getByRole("button", { name: /^Next$/ }));
-    expect(screen.getByText("Total: 10.00 THB")).toBeVisible();
+    expect(screen.getByText("Total: THB 10.00")).toBeVisible();
     if (items) expect(screen.getByText("Retained part")).toBeVisible();
     await user.click(screen.getByRole("button", { name: "Save Draft" }));
     expect(requestApi.patch).toHaveBeenLastCalledWith(id, { expectedVersion: 2, formDefinitionVersionId: latest.versionId, title: `${original.title} retained` }, expect.any(String));

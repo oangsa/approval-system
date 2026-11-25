@@ -47,7 +47,7 @@ export function RequestResult({ detail, definition, showSummary = true }: IReque
         </div>}
         {revision && (revision.lineItems.length > 0 || revision.amount !== null) && <div className="space-y-3 py-5 sm:py-6">
             <SectionHeading className="font-semibold">{revision.lineItems.length ? "Line items" : "Amount"}</SectionHeading>
-            <LineItemsSummary items={revision.lineItems} amount={revision.amount} currency={revision.currency} />
+            <LineItemsSummary items={revision.lineItems} amount={revision.amount} currency={revision.currency} locale={locale} />
         </div>}
     </section>;
 }

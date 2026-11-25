@@ -2,7 +2,7 @@ import { ZodError } from "zod";
 import { useEffect, useRef, useState } from "react";
 import { Link, useBeforeUnload, useBlocker, useLocation, useNavigate } from "react-router";
 import { AlertCircle, CheckCircle2, ChevronLeft, ChevronRight, LoaderCircle } from "lucide-react";
-import { applicableFields, createRequestSchema, isPresent, itemTotal, resolveLocalizedText, safeItemTotal, sumAmounts, validateFields, type IRequestTypeSearchResult, type CreateRequest, type IFieldIssue, type PublishedRequestType, type RequestDetail } from "@workflow/contracts";
+import { applicableFields, createFieldRecord, createRequestSchema, formatMoney, getFieldValue, isPresent, resolveLocalizedText, safeItemTotal, setFieldValue, sumAmounts, validateFields, type IRequestTypeSearchResult, type CreateRequest, type IFieldIssue, type PublishedRequestType, type RequestDetail } from "@workflow/contracts";
 import { requestApi } from "~/api/requests";
 import { isApiFailure } from "~/api/errors";
 import { ActionButton } from "~/components/actions/ActionButton";
@@ -37,7 +37,7 @@ export function RequestWizard({ initial }: IRequestWizardProps = {})
     const [loading, setLoading] = useState(true);
     const [loadVersion, setLoadVersion] = useState(0);
     const [type, setType] = useState<PublishedRequestType | null>(initial?.definition ?? null);
-    const [content, setContent] = useState<CreateRequest>(initial?.content ?? { typeId: "", formDefinitionVersionId: "", title: "", justification: "", priority: "MEDIUM", fields: {}, lineItems: [] });
+    const [content, setContent] = useState<CreateRequest>(initial?.content ? { ...initial.content, fields: createFieldRecord(initial.content.fields) } : { typeId: "", formDefinitionVersionId: "", title: "", justification: "", priority: "MEDIUM", fields: createFieldRecord(), lineItems: [] });
     const [step, setStep] = useState(initial ? routeState?.requestWizardStep ?? 1 : 0);
     const [issues, setIssues] = useState<IFieldIssue[]>([]);
     const [error, setError] = useState("");
@@ -139,7 +139,7 @@ export function RequestWizard({ initial }: IRequestWizardProps = {})
     }
     function payload(): CreateRequest
     {
-        return { ...content, lineItems: type?.supportsLineItems ? content.lineItems : [], monetaryAmount: type?.monetary && !type.supportsLineItems ? content.monetaryAmount : null, fields: Object.fromEntries(visible.filter((field) => isPresent(content.fields?.[field.key])).map((field) => [field.key, content.fields![field.key]])) };
+        return { ...content, lineItems: type?.supportsLineItems ? content.lineItems : [], monetaryAmount: type?.monetary && !type.supportsLineItems ? content.monetaryAmount : null, fields: createFieldRecord(visible.filter((field) => isPresent(getFieldValue(content.fields, field.key))).map((field) => [field.key, getFieldValue(content.fields, field.key)] as const)) };
     }
     function issueStep(field: string): number
     {
@@ -232,7 +232,7 @@ export function RequestWizard({ initial }: IRequestWizardProps = {})
         completedStep.current = 0;
         setType(selected);
         session.current = new RequestEditingSession();
-        setContent({ typeId: selected?.id ?? "", formDefinitionVersionId: selected?.versionId ?? "", title: "", justification: "", priority: "MEDIUM", fields: Object.fromEntries(selected?.fields.filter((field) => field.defaultValue !== undefined).map((field) => [field.key, field.defaultValue]) ?? []), lineItems: [] });
+        setContent({ typeId: selected?.id ?? "", formDefinitionVersionId: selected?.versionId ?? "", title: "", justification: "", priority: "MEDIUM", fields: createFieldRecord(selected?.fields.filter((field) => field.defaultValue !== undefined).map((field) => [field.key, field.defaultValue] as const)), lineItems: [] });
         setDirty(true);
         setIssues([]);
         setSavedMessage("");
@@ -295,6 +295,10 @@ export function RequestWizard({ initial }: IRequestWizardProps = {})
         }
     }
     const review = payload();
+    const reviewRowTotals = (review.lineItems ?? []).map((item) => safeItemTotal(item.quantity, item.unitAmount));
+    const reviewTotal = type?.supportsLineItems
+        ? (reviewRowTotals.every((total): total is string => total !== null) ? sumAmounts(reviewRowTotals) : null)
+        : (review.monetaryAmount ?? null);
     const errorFor = (field: string) => issues.find((issue) => fieldInputId(issue.field) === field)?.message;
     if (!user?.roles.includes("REQUESTER")) return <p role="alert">A Requester role is required to create requests.</p>;
     if (unavailable) return <div role="alert" className="space-y-3"><p>{error}</p><Link className="underline" to="/requests">My Requests</Link></div>;
@@ -373,14 +377,14 @@ export function RequestWizard({ initial }: IRequestWizardProps = {})
                                 </div>
                             </>}
                             {step === 2 && <>
-                                {visible.map((field) => <FieldRenderer key={field.key} field={field} locale={locale} value={content.fields?.[field.key]} error={errorFor(`fields.${field.key}`)} onChange={(value) => update({ fields: { ...content.fields, [field.key]: value } })} />)}
+                                {visible.map((field) => <FieldRenderer key={field.key} field={field} locale={locale} value={getFieldValue(content.fields, field.key)} error={errorFor(`fields.${field.key}`)} onChange={(value) => update({ fields: setFieldValue(content.fields, field.key, value) })} />)}
                                 {type?.monetary && !type.supportsLineItems ? <div className="grid gap-2">
                                     <label htmlFor="monetaryAmount" className="text-sm font-medium">Amount (THB, required)</label>
                                     <Input id="monetaryAmount" inputMode="decimal" value={content.monetaryAmount ?? ""} onChange={(event) => update({ monetaryAmount: event.target.value || null })} aria-invalid={!!errorFor("monetaryAmount")} aria-describedby="monetaryAmount.error" />
                                     <p id="monetaryAmount.error" className="text-sm text-destructive">{errorFor("monetaryAmount")}</p>
                                 </div> : !visible.length && <p className="text-sm text-muted-foreground">No additional fields are required.</p>}
                             </>}
-                            {type?.supportsLineItems && step === 3 && <LineItemsEditor items={content.lineItems ?? []} onChange={(lineItems) => update({ lineItems })} errorFor={errorFor} disabled={busy} />}
+                            {type?.supportsLineItems && step === 3 && <LineItemsEditor items={content.lineItems ?? []} onChange={(lineItems) => update({ lineItems })} errorFor={errorFor} disabled={busy} locale={locale} />}
                             {step === steps.length - 1 && <div className="space-y-5 wrap-anywhere">
                                 <p className="text-sm text-muted-foreground">{type ? resolveLocalizedText(type.name, locale) : ""} · Version {type?.versionNumber}</p>
                                 <dl className="grid gap-4 sm:grid-cols-2 [&_dt]:text-sm [&_dt]:text-muted-foreground">
@@ -390,7 +394,7 @@ export function RequestWizard({ initial }: IRequestWizardProps = {})
                                     <div><dt>Department</dt><dd>{user.department?.name ?? "Not assigned"}</dd></div>
                                     {visible.map((field) =>
                                     {
-                                        const raw = review.fields?.[field.key];
+                                        const raw = getFieldValue(review.fields, field.key);
                                         const option = field.constraints?.options?.find((candidate) => candidate.value === raw);
                                         const display = typeof raw === "boolean" ? (raw ? "Yes" : "No") : option ? resolveLocalizedText(option.label, locale) : String(raw ?? "—");
                                         return <div key={field.key}><dt>{resolveLocalizedText(field.label, locale)}</dt><dd>{display}</dd></div>;
@@ -398,10 +402,10 @@ export function RequestWizard({ initial }: IRequestWizardProps = {})
                                 </dl>
                                 {!!review.lineItems?.length && <ul className="divide-y border-y">{review.lineItems.map((item, index) =>
                                 {
-                                    const rowTotal = safeItemTotal(item.quantity, item.unitAmount);
-                                    return <li key={index} className="flex flex-wrap justify-between gap-x-4 gap-y-1 py-3"><span>{item.description}</span><span className="tabular-nums text-muted-foreground">{item.quantity} × {item.unitAmount}{rowTotal ? ` = ${rowTotal}` : ""}</span></li>;
+                                    const rowTotal = reviewRowTotals[index];
+                                    return <li key={index} className="flex flex-wrap justify-between gap-x-4 gap-y-1 py-3"><span>{item.description}</span><span className="tabular-nums text-muted-foreground">{item.quantity} × {formatMoney(item.unitAmount, "THB", locale)}{rowTotal ? ` = ${formatMoney(rowTotal, "THB", locale)}` : ""}</span></li>;
                                 })}</ul>}
-                                {type?.monetary && <p className="font-medium tabular-nums">Total: {type.supportsLineItems ? sumAmounts((review.lineItems ?? []).map((item) => itemTotal(item.quantity, item.unitAmount))) : review.monetaryAmount} THB</p>}
+                                {type?.monetary && <p className="font-medium tabular-nums">Total: {reviewTotal ? formatMoney(reviewTotal, "THB", locale) : "—"}</p>}
                                 <p className="rounded-lg bg-muted/60 p-4 text-sm leading-relaxed text-muted-foreground">Submission locks this revision. The server checks the active department, policy and eligible reviewers before assigning a request number.</p>
                             </div>}
                         </>}

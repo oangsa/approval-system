@@ -5,6 +5,7 @@ import { afterAll, beforeAll, beforeEach, expect, test, vi } from "vitest";
 import type { AdminRequestTypeDetail, AdminRequestTypeSummary, PublishedRequestType, RequestTypeDraftDto, UserRole } from "@workflow/contracts";
 import { RequestTypesListPage } from "../../app/modules/admin/requestTypes/RequestTypesListPage";
 import { RequestTypeEditorPage } from "../../app/modules/admin/requestTypes/RequestTypeEditorPage";
+import { RequestTypePreview } from "../../app/modules/admin/requestTypes/RequestTypePreview";
 import { requestTypeApi } from "../../app/api/requestTypes";
 import { ApiFailure } from "../../app/api/errors";
 
@@ -286,14 +287,16 @@ test("UI-12 ConditionBuilder preserves IN typing, surfaces incompatible operator
     expect(noteOperator.value).toBe("GT");
     expect(within(noteOperator).getByRole("option", { name: "GT (incompatible)" })).toBeInTheDocument();
 
-    // Typing comma-separated IN values for SELECT and BOOLEAN does not strip commas or partial booleans.
+    // B04: typed IN membership controls for SELECT checkboxes, BOOLEAN checkboxes, and TEXT items preserving commas.
     const noteTarget = document.getElementById("fields[3].visibleWhen.all.0.field") as HTMLSelectElement;
     await user.selectOptions(noteTarget, "category");
     await user.selectOptions(noteOperator, "IN");
-    const selectInInput = document.getElementById("fields[3].visibleWhen.all.0.value") as HTMLInputElement;
-    await user.clear(selectInInput);
-    await user.type(selectInInput, "IT, OTHER");
-    expect(selectInInput).toHaveValue("IT, OTHER");
+    const itCheckbox = document.getElementById("fields[3].visibleWhen.all.0.value.opt.0") as HTMLInputElement;
+    const otherCheckbox = document.getElementById("fields[3].visibleWhen.all.0.value.opt.1") as HTMLInputElement;
+    expect(itCheckbox).toBeChecked();
+    expect(otherCheckbox).not.toBeChecked();
+    await user.click(otherCheckbox);
+    expect(otherCheckbox).toBeChecked();
 
     const noteSection = screen.getByRole("region", { name: "Field 4: Note" });
     await user.click(within(noteSection).getAllByRole("button", { name: "Add AND rule" })[1]!);
@@ -301,10 +304,23 @@ test("UI-12 ConditionBuilder preserves IN typing, surfaces incompatible operator
     const reqOperator = document.getElementById("fields[3].requiredWhen.all.0.operator") as HTMLSelectElement;
     await user.selectOptions(reqTarget, "urgentFlag");
     await user.selectOptions(reqOperator, "IN");
-    const boolInInput = document.getElementById("fields[3].requiredWhen.all.0.value") as HTMLInputElement;
-    await user.clear(boolInInput);
-    await user.type(boolInInput, "true, false");
-    expect(boolInInput).toHaveValue("true, false");
+    const trueCheckbox = document.getElementById("fields[3].requiredWhen.all.0.value.true") as HTMLInputElement;
+    const falseCheckbox = document.getElementById("fields[3].requiredWhen.all.0.value.false") as HTMLInputElement;
+    expect(trueCheckbox).toBeChecked();
+    await user.click(falseCheckbox);
+    expect(falseCheckbox).toBeChecked();
+
+    // Also add a TEXT IN rule with comma-containing values via Add value.
+    await user.click(within(noteSection).getAllByRole("button", { name: "Add AND rule" })[0]!);
+    const textTarget = document.getElementById("fields[3].visibleWhen.all.1.field") as HTMLSelectElement;
+    const textOperator = document.getElementById("fields[3].visibleWhen.all.1.operator") as HTMLSelectElement;
+    await user.selectOptions(textTarget, "amountCap");
+    await user.selectOptions(textOperator, "IN");
+    const firstTextValue = document.getElementById("fields[3].visibleWhen.all.1.value") as HTMLInputElement;
+    await user.type(firstTextValue, "Bangkok, Thailand");
+    await user.click(within(noteSection).getByRole("button", { name: "Add value" }));
+    const secondTextValue = document.getElementById("fields[3].visibleWhen.all.1.value.1") as HTMLInputElement;
+    await user.type(secondTextValue, "Chiang Mai, Thailand");
 
     // Disable preserves unsaved edits and updates version in place.
     await user.clear(nameInput);
@@ -324,7 +340,12 @@ test("UI-12 ConditionBuilder preserves IN typing, surfaces incompatible operator
             fields: expect.arrayContaining([
                 expect.objectContaining({
                     key: "note",
-                    visibleWhen: { all: [{ fieldKey: "category", operator: "IN", value: ["IT", "OTHER"] }] },
+                    visibleWhen: {
+                        all: [
+                            { fieldKey: "category", operator: "IN", value: ["IT", "OTHER"] },
+                            { fieldKey: "amountCap", operator: "IN", value: ["Bangkok, Thailand", "Chiang Mai, Thailand"] },
+                        ],
+                    },
                     requiredWhen: { all: [{ fieldKey: "urgentFlag", operator: "IN", value: [true, false] }] },
                 }),
             ]),
@@ -332,6 +353,32 @@ test("UI-12 ConditionBuilder preserves IN typing, surfaces incompatible operator
         expect.any(String),
         1,
     ));
+});
+
+test("B03 RequestTypePreview treats inherited Object.prototype field keys such as constructor as unset", async () =>
+{
+    const user = userEvent.setup();
+    render(
+        <RequestTypePreview
+            code="PROTO"
+            definition={{
+                name: { en: "Prototype safety" },
+                monetary: false,
+                supportsLineItems: false,
+                fields: [
+                    { key: "constructor", kind: "TEXT", label: { en: "Constructor" }, required: false },
+                    { key: "dependent", kind: "TEXT", label: { en: "Dependent" }, required: true, visibleWhen: { all: [{ fieldKey: "constructor", operator: "PRESENT" }] } },
+                ],
+            }}
+        />,
+    );
+
+    const constructorInput = screen.getByLabelText("Constructor");
+    expect(constructorInput).toHaveValue("");
+    expect(screen.queryByLabelText(/Dependent/)).not.toBeInTheDocument();
+
+    await user.type(constructorInput, "custom");
+    expect(screen.getByLabelText(/Dependent/)).toBeVisible();
 });
 
 test("UI-12 list page Published only filter requires hasDraft=false and Reset filters recovers empty matches", async () =>

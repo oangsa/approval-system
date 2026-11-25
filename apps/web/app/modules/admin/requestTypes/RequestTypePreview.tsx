@@ -1,8 +1,12 @@
 import { useEffect, useState } from "react";
 import {
     applicableFields,
+    createFieldRecord,
+    getFieldValue,
+    hasOwnField,
     isPresent,
     resolveLocalizedText,
+    setFieldValue,
     validateFields,
     validateRequestTypeDefinition,
     type IFieldIssue,
@@ -23,7 +27,7 @@ export interface IRequestTypePreviewProps
 export function RequestTypePreview({ code, definition }: IRequestTypePreviewProps)
 {
     const [locale, setLocale] = useState<"en" | "th">("en");
-    const [values, setValues] = useState<Record<string, unknown>>({});
+    const [values, setValues] = useState<Record<string, unknown>>(() => createFieldRecord());
     const [lineItems, setLineItems] = useState<IEditableLineItem[]>([]);
     const [monetaryAmount, setMonetaryAmount] = useState("");
     const [previewIssues, setPreviewIssues] = useState<IFieldIssue[]>([]);
@@ -33,10 +37,10 @@ export function RequestTypePreview({ code, definition }: IRequestTypePreviewProp
     {
         setValues((current) =>
         {
-            const next = { ...current };
+            const next = createFieldRecord(current);
             for (const field of definition.fields)
             {
-                if (next[field.key] === undefined && field.defaultValue !== undefined) next[field.key] = field.defaultValue;
+                if (!hasOwnField(next, field.key) && field.defaultValue !== undefined) next[field.key] = field.defaultValue;
             }
             return next;
         });
@@ -58,13 +62,13 @@ export function RequestTypePreview({ code, definition }: IRequestTypePreviewProp
     };
 
     const visibleFields = definitionIssues.length === 0 ? applicableFields(definition.fields, values) : [];
-    const effectiveKeys = visibleFields.filter((field) => isPresent(values[field.key])).map((field) => field.key);
-    const omittedKeys = Object.keys(values).filter((key) => isPresent(values[key]) && !visibleFields.some((field) => field.key === key));
+    const effectiveKeys = visibleFields.filter((field) => isPresent(getFieldValue(values, field.key))).map((field) => field.key);
+    const omittedKeys = Object.keys(values).filter((key) => isPresent(getFieldValue(values, key)) && !visibleFields.some((field) => field.key === key));
 
     function runPreviewValidation(): void
     {
         if (definitionIssues.length > 0) return;
-        const payloadValues = Object.fromEntries(effectiveKeys.map((key) => [key, values[key]]));
+        const payloadValues = createFieldRecord(effectiveKeys.map((key) => [key, getFieldValue(values, key)] as const));
         setPreviewIssues(validateFields(previewDefinition, payloadValues, true));
         setValidated(true);
     }
@@ -101,19 +105,19 @@ export function RequestTypePreview({ code, definition }: IRequestTypePreviewProp
                     field={field}
                     locale={locale}
                     idPrefix="preview"
-                    value={values[field.key]}
+                    value={getFieldValue(values, field.key)}
                     error={previewIssues.find((issue) => issue.field === `fields.${field.key}`)?.message}
                     onChange={(nextValue) =>
                     {
                         setValidated(false);
                         setPreviewIssues([]);
-                        setValues((current) => ({ ...current, [field.key]: nextValue }));
+                        setValues((current) => setFieldValue(current, field.key, nextValue));
                     }}
                 />
             ))}
 
             {definition.monetary && definition.supportsLineItems && <div className="border-t pt-4">
-                <LineItemsEditor items={lineItems} onChange={setLineItems} errorFor={() => undefined} />
+                <LineItemsEditor items={lineItems} onChange={setLineItems} errorFor={() => undefined} locale={locale} />
             </div>}
             {definition.monetary && !definition.supportsLineItems && <div className="grid gap-1.5 border-t pt-4">
                 <label htmlFor="preview.monetaryAmount" className="text-sm font-medium">Amount (THB, required)</label>
@@ -124,7 +128,7 @@ export function RequestTypePreview({ code, definition }: IRequestTypePreviewProp
                 <ActionButton type="button" size="small" onClick={runPreviewValidation}>Validate preview</ActionButton>
                 <ActionButton type="button" size="small" variant="ghost" onClick={() =>
                 {
-                    setValues({});
+                    setValues(createFieldRecord());
                     setLineItems([]);
                     setMonetaryAmount("");
                     setPreviewIssues([]);
