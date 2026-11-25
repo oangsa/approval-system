@@ -1,0 +1,131 @@
+
+> check
+> npm run typecheck && npm run lint && npm test && npm run build
+
+
+> typecheck
+> npm run typecheck --workspaces && tsc -p tsconfig.json
+
+
+> typecheck
+> tsc -p tsconfig.json
+
+
+> typecheck
+> react-router typegen && tsc -p tsconfig.json
+
+
+> @workflow/contracts@0.0.0 typecheck
+> tsc -p tsconfig.json
+
+
+> lint
+> eslint "**/*.{ts,tsx}"
+
+
+> test
+> vitest run
+
+
+ RUN  v4.1.10 <workspace>
+
+
+ Test Files  52 passed (52)
+      Tests  469 passed (469)
+   Start at  11:19:32
+   Duration  55.21s (transform 39.14s, setup 150.71s, import 152.10s, tests 103.07s, environment 229.15s)
+
+
+> build
+> npm run build --workspaces
+
+
+> build
+> esbuild src/index.ts --bundle --platform=node --target=node24 --format=esm --external:elysia --external:@elysia/node --external:postgres --external:drizzle-orm --external:zod --outfile=dist/index.js
+
+
+  dist\index.js  170.8kb
+
+Done in 420ms
+
+> build
+> react-router build
+
+vite v7.3.7 building client environment for production...
+transforming...
+✓ 1922 modules transformed.
+rendering chunks...
+computing gzip size...
+build/client/.vite/manifest.json                      13.89 kB │ gzip:  1.63 kB
+build/client/assets/root-Djf0F-uN.css                 38.60 kB │ gzip:  7.67 kB
+build/client/assets/loader-circle-BFkdxMdj.js          0.15 kB │ gzip:  0.16 kB
+build/client/assets/plus-BqVbcXvk.js                   0.17 kB │ gzip:  0.16 kB
+build/client/assets/arrow-down-DRpCgUGH.js             0.18 kB │ gzip:  0.17 kB
+build/client/assets/chevron-right-DZivapty.js          0.22 kB │ gzip:  0.19 kB
+build/client/assets/log-out-Sc_pBGT9.js                0.24 kB │ gzip:  0.20 kB
+build/client/assets/x-DUnKpe8-.js                      0.25 kB │ gzip:  0.20 kB
+build/client/assets/input-hfJVgFuQ.js                  0.30 kB │ gzip:  0.23 kB
+build/client/assets/formatDue-Ded6J6sV.js              0.33 kB │ gzip:  0.26 kB
+build/client/assets/PageHeader-BUsnzE8e.js             0.50 kB │ gzip:  0.30 kB
+build/client/assets/new-CUrP4-3h.js                    0.55 kB │ gzip:  0.34 kB
+build/client/assets/index-CJucXI1l.js                  0.62 kB │ gzip:  0.40 kB
+build/client/assets/root-D-iuIE85.js                   0.78 kB │ gzip:  0.46 kB
+build/client/assets/ActionButton-SDBaSh0x.js           0.97 kB │ gzip:  0.51 kB
+build/client/assets/ProductIdentity-DiyzF5Vs.js        0.98 kB │ gzip:  0.53 kB
+build/client/assets/approvalTaskService-Ci5a2lF6.js    1.16 kB │ gzip:  0.64 kB
+build/client/assets/requestPresentation-CCXSqjTX.js    1.17 kB │ gzip:  0.64 kB
+build/client/assets/createLucideIcon-BFzwoezq.js       1.21 kB │ gzip:  0.70 kB
+build/client/assets/edit-D8dfppHB.js                   1.59 kB │ gzip:  0.87 kB
+build/client/assets/FieldRenderer-DNAIVixK.js          1.65 kB │ gzip:  0.74 kB
+build/client/assets/index-2vKOECdM.js                  2.05 kB │ gzip:  0.71 kB
+build/client/assets/RequestResult-DELZzpm8.js          3.43 kB │ gzip:  1.33 kB
+build/client/assets/RequestOwnerActions-B2bgL3cn.js    3.71 kB │ gzip:  1.75 kB
+build/client/assets/AuditTimeline-RhvypdVD.js          4.09 kB │ gzip:  1.77 kB
+build/client/assets/requestService-mDW4c9XS.js         4.55 kB │ gzip:  1.80 kB
+build/client/assets/login-DitxktnM.js                  4.95 kB │ gzip:  2.15 kB
+build/client/assets/RequestCollection-Df-drrrb.js      5.15 kB │ gzip:  1.94 kB
+build/client/assets/index-tQYrxEPU.js                  5.15 kB │ gzip:  1.82 kB
+build/client/assets/RequestTypeFilter-711RTzNb.js      5.35 kB │ gzip:  2.19 kB
+build/client/assets/index-m3uDgwA-.js                  7.16 kB │ gzip:  2.75 kB
+build/client/assets/detail-Dj0rxa4S.js                 7.74 kB │ gzip:  2.97 kB
+build/client/assets/task-C7qOxyhm.js                   9.14 kB │ gzip:  3.32 kB
+build/client/assets/protected-Dp9eMFtp.js              9.49 kB │ gzip:  3.43 kB
+build/client/assets/home-DuauE1Np.js                  10.17 kB │ gzip:  3.18 kB
+build/client/assets/index-BV0oeCPE.js                 10.80 kB │ gzip:  3.66 kB
+build/client/assets/RequestWizard-C0aUllpr.js         20.06 kB │ gzip:  6.72 kB
+build/client/assets/index-DLlOuYr2.js                 20.22 kB │ gzip:  6.64 kB
+build/client/assets/button-aUzG6gfI.js                28.89 kB │ gzip:  9.21 kB
+build/client/assets/sessionContext-CVnjVo6q.js        92.00 kB │ gzip: 25.78 kB
+build/client/assets/jsx-runtime-BB-UZN_D.js          132.44 kB │ gzip: 44.71 kB
+build/client/assets/entry.client-DlgZs95n.js         218.97 kB │ gzip: 68.42 kB
+✓ built in 23.07s
+  ⚠️  Future Flag Warning: Route middleware support is changing in React Router v8.
+     You can use the `future.v8_middleware` flag to opt in early.
+     -> https://reactrouter.com/v7/upgrading/future#futurev8_middleware
+  ⚠️  Future Flag Warning: Route module splitting behavior is changing in React Router v8.
+     You can use the `future.v8_splitRouteModules` flag to opt in early.
+     -> https://reactrouter.com/v7/upgrading/future#futurev8_splitroutemodules
+  ⚠️  Future Flag Warning: Vite Environment API usage is changing in React Router v8.
+     You can use the `future.v8_viteEnvironmentApi` flag to opt in early.
+     -> https://reactrouter.com/v7/upgrading/future#futurev8_viteenvironmentapi
+  ⚠️  Future Flag Warning: Request handling behavior is changing in React Router v8.
+     You can use the `future.v8_passThroughRequests` flag to opt in early.
+     -> https://reactrouter.com/v7/upgrading/future#futurev8_passthroughrequests
+  ⚠️  Future Flag Warning: Data request URL formats are changing in React Router v8.
+     You can use the `future.v8_trailingSlashAwareDataRequests` flag to opt in early.
+     -> https://reactrouter.com/v7/upgrading/future#futurev8_trailingslashawaredatarequests
+vite v7.3.7 building ssr environment for production...
+transforming...
+✓ 80 modules transformed.
+rendering chunks...
+build/server/.vite/manifest.json                 0.23 kB
+build/server/assets/server-build-Djf0F-uN.css   38.60 kB
+build/server/index.js                          263.88 kB
+
+✓ 1 asset cleaned from React Router server build.
+build\server\assets\server-build-Djf0F-uN.css
+
+✓ built in 1.73s
+
+> @workflow/contracts@0.0.0 build
+> tsc -p tsconfig.build.json

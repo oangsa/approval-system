@@ -351,6 +351,8 @@ M10 → FR-010 → AC-010 / DEC-AC-03,07 → additive AC-L7-01–07 → STS-L7-0
 
 Approval evidence: [record](../labs/lab-07/approval-record.md). Original sections remain historical baseline wording where superseded above; no unrelated behavior is changed.
 
+Issue #11 child criteria and clause ledger are in [acceptance criteria](../features/reporting-dashboard-timeline/acceptance-criteria.md) and [plan](../features/reporting-dashboard-timeline/plan.md); actual working-tree execution and review results are recorded in [verification](../features/reporting-dashboard-timeline/verification.md).
+
 ## Issue #6 — draft and withdrawal implementation slice
 
 R01/R05, FR-019/023, AC-019/023 and BR-026/028/029/033/034/044 map to [versioned design](../features/draft-withdraw-lifecycle/sds.md), [DW-AC-01–09](../features/draft-withdraw-lifecycle/acceptance-criteria.md), [test specification](../features/draft-withdraw-lifecycle/sts.md) and [verification](../features/draft-withdraw-lifecycle/verification.md). Supporting draft creation/decision infrastructure remains owned by earlier feature slices; no second request engine or expansion into returned/resubmit ownership. Actual execution and independent review status belong in verification, not the frozen acceptance baseline.

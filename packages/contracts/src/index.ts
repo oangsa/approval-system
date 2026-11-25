@@ -12,3 +12,5 @@ export * from "./requestSearch";
 export * from "./approvalTasks";
 export * from "./requestCollection";
 export * from "./decisions";
+export * from "./reporting";
+export * from "./dashboard";

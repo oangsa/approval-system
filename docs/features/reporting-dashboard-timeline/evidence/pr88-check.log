@@ -1,0 +1,68 @@
+
+> check
+> npm run typecheck && npm run lint && npm test && npm run build
+
+
+> typecheck
+> npm run typecheck --workspaces && tsc -p tsconfig.json
+
+
+> typecheck
+> tsc -p tsconfig.json
+
+
+> typecheck
+> react-router typegen && tsc -p tsconfig.json
+
+
+> @workflow/contracts@0.0.0 typecheck
+> tsc -p tsconfig.json
+
+
+> lint
+> eslint "**/*.{ts,tsx}"
+
+
+> test
+> vitest run
+
+
+ RUN  v4.1.10 <workspace>
+
+ ❯ |web| tests/components/adminRequestTypes.test.tsx (6 tests | 2 failed) 13046ms
+   × UI-12 editor supports add/reorder, live shared-evaluator preview, 422/409 draft preservation, and publish confirmation 5308ms
+   × UI-12 ConditionBuilder preserves IN typing, surfaces incompatible operators, and Disable keeps unsaved draft edits 5110ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  |web| tests/components/adminRequestTypes.test.tsx > UI-12 editor supports add/reorder, live shared-evaluator preview, 422/409 draft preservation, and publish confirmation
+Error: Test timed out in 5000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ ❯ tests/components/adminRequestTypes.test.tsx:150:1
+    148| });
+    149|
+    150| test("UI-12 editor supports add/reorder, live shared-evaluator preview…
+       | ^
+    151| {
+    152|     vi.mocked(requestTypeApi.readAdmin).mockResolvedValue(detailItem);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  |web| tests/components/adminRequestTypes.test.tsx > UI-12 ConditionBuilder preserves IN typing, surfaces incompatible operators, and Disable keeps unsaved draft edits
+Error: Test timed out in 5000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ ❯ tests/components/adminRequestTypes.test.tsx:217:1
+    215| });
+    216|
+    217| test("UI-12 ConditionBuilder preserves IN typing, surfaces incompatibl…
+       | ^
+    218| {
+    219|     const detailWithDecimalAndSelect: AdminRequestTypeDetail = {
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  1 failed | 56 passed (57)
+      Tests  2 failed | 487 passed (489)
+   Start at  11:38:33
+   Duration  53.89s (transform 35.34s, setup 116.44s, import 166.22s, tests 125.77s, environment 209.11s)

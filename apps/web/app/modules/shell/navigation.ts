@@ -14,6 +14,7 @@ export const navigationItems: readonly INavigationItem[] = [
     { to: "/dashboard", label: "Dashboard", roles: [], section: "workspace" },
     { to: "/requests", label: "My Requests", roles: ["REQUESTER"], section: "workspace" },
     { to: "/reviews", label: "My Reviews", roles: ["REVIEWER"], section: "workspace" },
+    { to: "/reports", label: "Reports", roles: [], section: "workspace" },
     { to: "/admin/request-types", label: "Request Types", roles: ["ADMINISTRATOR"], section: "administration" },
     { to: "/settings", label: "Settings", roles: [], section: "workspace" },
 ];

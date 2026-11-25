@@ -1,3 +1,5 @@
+import { ReportingService } from "./Applications/Reporting/ReportingService";
+import { ReportingUnitOfWork } from "./Infrastructures/Database/Repositories/ReportingRepository";
 import { DecisionService } from "./Applications/Approvals/DecisionService";
 import { DecisionUnitOfWork } from "./Infrastructures/Database/Repositories/DecisionRepository";
 import { RequestService } from "./Applications/Requests/RequestService";
@@ -28,6 +30,7 @@ async function main(): Promise<void>
             new DecisionService(new DecisionUnitOfWork(database.connection)),
             () => database.Check(),
             new RequestTypeService(new RequestTypeUnitOfWork(database.connection)),
+            new ReportingService(new ReportingUnitOfWork(database.connection)),
         );
         application.Start(environment.PORT, environment.HOST);
         let shuttingDown = false;

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router";
-import { ClipboardCheck, Files, ChevronDown, UserRound, LayoutDashboard, LogOut, Menu, Settings, SlidersHorizontal, X } from "lucide-react";
+import { BarChart3, ClipboardCheck, Files, ChevronDown, UserRound, LayoutDashboard, LogOut, Menu, Settings, SlidersHorizontal, X } from "lucide-react";
 import type { UserRole } from "@workflow/contracts";
 import { ActionButton } from "~/components/actions/ActionButton";
 import { ProductIdentity } from "~/components/layout/ProductIdentity";
@@ -12,6 +12,7 @@ const itemIcons: Record<string, typeof LayoutDashboard> = {
     "/requests": Files,
     "/reviews": ClipboardCheck,
     "/dashboard": LayoutDashboard,
+    "/reports": BarChart3,
     "/settings": Settings,
     "/admin/request-types": SlidersHorizontal,
 };
