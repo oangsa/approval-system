@@ -5,8 +5,10 @@ import { Link, useLocation, useSearchParams } from "react-router";
 import { useSession } from "~/modules/auth/sessionContext";
 import { useRef, type KeyboardEvent } from "react";
 import type { PublishedRequestType, RequestDetail } from "@workflow/contracts";
+import { resolveLocalizedText } from "@workflow/contracts";
+import { PriorityBadge } from "~/components/status/PriorityBadge";
 import { RequestResult, RequestStatus } from "./RequestResult";
-import { approverSlotLabel, requestPriorityLabel, requestTypeLabel } from "./requestPresentation";
+import { approverSlotLabel, preferredBrowserLocale, requestTypeLabel } from "./requestPresentation";
 
 const tabs = ["Overview", "Approval", "History", "Discussion / Files"] as const;
 const tabKeys = ["overview", "approval", "history", "discussion"] as const;
@@ -29,6 +31,7 @@ export function RequestDetailTabs({ detail, definition, onChanged, onUnavailable
     }
     const refs = useRef<(HTMLButtonElement | null)[]>([]);
     const statusRef = useRef<HTMLSpanElement>(null);
+    const locale = preferredBrowserLocale();
     const stages = [...new Set(detail.currentApprovers.map((slot) => slot.stageNumber))].sort((a, b) => a - b);
     function navigate(event: KeyboardEvent<HTMLButtonElement>, index: number)
     {
@@ -53,8 +56,8 @@ export function RequestDetailTabs({ detail, definition, onChanged, onUnavailable
                 <RequestStatus ref={statusRef} tabIndex={-1} status={detail.status} />
             </div>
             <dl className="grid gap-x-6 gap-y-4 border-t pt-5 wrap-anywhere sm:grid-cols-2 xl:grid-cols-3 [&_dd]:font-medium [&_dt]:text-sm [&_dt]:text-muted-foreground">
-                <div><dt>Type</dt><dd>{definition?.name.en ?? requestTypeLabel(detail.typeCode)}</dd></div>
-                <div><dt>Priority</dt><dd>{requestPriorityLabel(detail.priority)}</dd></div>
+                <div><dt>Type</dt><dd>{definition ? resolveLocalizedText(definition.name, locale) : requestTypeLabel(detail.typeCode)}</dd></div>
+                <div><dt>Priority</dt><dd><PriorityBadge priority={detail.priority} /></dd></div>
                 <div><dt>Requester</dt><dd>{detail.requester.displayName}</dd></div>
                 <div><dt>Department</dt><dd>{detail.department?.name ?? "No department"}</dd></div>
                 <div><dt>Last updated</dt><dd><time dateTime={detail.updatedAt}>{new Date(detail.updatedAt).toLocaleString(undefined, { timeZone: "Asia/Bangkok" })}</time></dd></div>

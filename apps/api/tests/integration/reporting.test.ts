@@ -19,7 +19,7 @@ test("reporting authenticates, preserves server scope and exposes direct paginat
             return { items: [], pagination: { currentPage: query.pageNumber, pageSize: query.pageSize, totalPages: 0, totalCount: 0, hasPrevious: false, hasNext: false } };
         },
     };
-    const app = createApplication(undefined, fixture.dependencies, undefined, undefined, undefined, undefined, new ReportingService({ Run: (operation) => operation(repository) }));
+    const app = createApplication(undefined, fixture.dependencies, undefined, undefined, undefined, undefined, undefined, new ReportingService({ Run: (operation) => operation(repository) }));
     const login = await app.handle(new Request("http://localhost/api/v1/auth/login", { method: "POST", headers: { "content-type": "application/json", origin: "http://localhost:3000" }, body: JSON.stringify({ email: fixture.account.email, password: "password" }) }));
     const { accessToken } = loginResponseSchema.parse(await login.json());
     const send = (body: string, token = accessToken) => app.handle(new Request("http://localhost/api/v1/reports/requests/search", { method: "POST", headers: { authorization: `Bearer ${token}`, "content-type": "application/json", origin: "http://localhost:3000" }, body }));

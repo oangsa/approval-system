@@ -9,7 +9,9 @@ import { RequestRepository } from "../../src/Infrastructures/Database/Repositori
 import { DecisionRepository } from "../../src/Infrastructures/Database/Repositories/DecisionRepository";
 import { seededTypeId, seededVersionId } from "../../src/Infrastructures/Database/seedRequests";
 import { RequestService } from "../../src/Applications/Requests/RequestService";
+import { RequestTypeService } from "../../src/Applications/RequestTypes/RequestTypeService";
 import { DecisionService } from "../../src/Applications/Approvals/DecisionService";
+import { RequestTypeRepository } from "../../src/Infrastructures/Database/Repositories/RequestTypeRepository";
 
 const database = createTestDatabase();
 afterAll(() => database.Close());
@@ -50,6 +52,18 @@ test("scoped runtime grants support submission/decision without schema or accoun
         const decisions = new DecisionService({ Run: async (operation) => operation(new DecisionRepository(tx)) });
         const decision = await decisions.Decide(reviewer, submitted.currentApprovers[0]!.slotId, { decision: "APPROVE", expectedVersion: 0 }, randomUUID());
         expect(decision.requestStatus).toBe("APPROVED");
+
+        const adminId = randomUUID();
+        const adminFamilyId = randomUUID();
+        const existingAdmin = (await tx.execute<{ id: string }>(sql`SELECT ur.user_id AS id FROM public.user_roles ur JOIN public.users u ON u.id = ur.user_id WHERE ur.role_code = 'ADMINISTRATOR' AND u.is_active = true LIMIT 1`))[0];
+        expect(existingAdmin).toBeDefined();
+        await identities.InsertFamily({ id: adminFamilyId, userId: existingAdmin!.id, authVersion: 0, createdAt: new Date(), expiresAt: new Date(Date.now() + 3600000), revokedAt: null });
+        const adminActor = (await identities.ReadCurrentIdentity(existingAdmin!.id, adminFamilyId))!;
+        const requestTypes = new RequestTypeService({ Run: async (operation) => operation(new RequestTypeRepository(tx)) });
+        const createdType = await requestTypes.Create(adminActor, { code: `RT_${adminId.slice(0, 8)}`, name: { en: "Runtime Type" }, monetary: false, supportsLineItems: false, fields: [] }, randomUUID());
+        const publishedType = await requestTypes.Publish(adminActor, createdType.id, { expectedVersion: createdType.version }, randomUUID());
+        expect(publishedType.versionNumber).toBe(1);
+        await requestTypes.SetEnabled(adminActor, createdType.id, false, { expectedVersion: createdType.version + 1 }, randomUUID());
         throw new Error("rollback-runtime-fixture");
     })).rejects.toThrow("rollback-runtime-fixture");
 });

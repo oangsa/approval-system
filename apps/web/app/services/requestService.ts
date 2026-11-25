@@ -1,4 +1,4 @@
-import { createRequestSchema, withdrawRequestSchema, requestTypeSearchSchema, type CreateRequest, type RequestDetail, type RequestSearchQuery, type WithdrawRequest } from "@workflow/contracts";
+import { createFieldRecord, createRequestSchema, withdrawRequestSchema, requestTypeSearchSchema, type CreateRequest, type RequestDetail, type RequestSearchQuery, type WithdrawRequest } from "@workflow/contracts";
 import { requestApi } from "~/api/requests";
 import { ApiFailure } from "~/api/errors";
 
@@ -120,7 +120,7 @@ export async function resumeDraft(id: string, signal: AbortSignal, generation?: 
     const revision = detail.workingRevision;
     const content: CreateRequest = {
         typeId: detail.typeId, formDefinitionVersionId: revision.formDefinitionVersionId,
-        title: detail.title, justification: detail.justification, priority: detail.priority, fields: revision.fields,
+        title: detail.title, justification: detail.justification, priority: detail.priority, fields: createFieldRecord(revision.fields),
         lineItems: revision.lineItems.map(({ description, quantity, unitAmount }) => ({ description, quantity, unitAmount })),
         monetaryAmount: definition.monetary && !definition.supportsLineItems ? revision.amount : null,
     };
