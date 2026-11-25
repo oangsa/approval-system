@@ -5,6 +5,7 @@ import {
     conditionAtomSchema,
     conditionSchema,
     decimalSchema,
+    formatMoney,
     itemTotal,
     moneySchema,
     normalizeMoney,
@@ -22,6 +23,7 @@ export {
     compareDecimals,
     conditionSchema,
     decimalSchema,
+    formatMoney,
     itemTotal,
     moneySchema,
     normalizeMoney,
@@ -65,6 +67,38 @@ export type PatchDraft = z.infer<typeof patchDraftSchema>;
 export type RequestRevision = z.infer<typeof requestRevisionSchema>;
 export type RequestDetail = z.infer<typeof requestDetailSchema>;
 
+export function hasOwnField(values: Record<string, unknown> | null | undefined, key: string): boolean
+{
+    return Boolean(values) && Object.prototype.hasOwnProperty.call(values, key);
+}
+
+export function getFieldValue(values: Record<string, unknown> | null | undefined, key: string): unknown
+{
+    return hasOwnField(values, key) ? values![key] : undefined;
+}
+
+export function createFieldRecord(source?: Iterable<readonly [string, unknown]> | Record<string, unknown> | null): Record<string, unknown>
+{
+    const record = Object.create(null) as Record<string, unknown>;
+    if (!source) return record;
+    const entries = Symbol.iterator in Object(source)
+        ? (source as Iterable<readonly [string, unknown]>)
+        : Object.entries(source as Record<string, unknown>);
+    for (const [key, value] of entries)
+    {
+        if (value !== undefined) record[key] = value;
+    }
+    return record;
+}
+
+export function setFieldValue(values: Record<string, unknown> | null | undefined, key: string, value: unknown): Record<string, unknown>
+{
+    const next = createFieldRecord(values);
+    if (value === undefined) delete next[key];
+    else next[key] = value;
+    return next;
+}
+
 export function isPresent(value: unknown): boolean
 {
     if (value === undefined || value === null) return false;
@@ -86,7 +120,7 @@ export function matchesCondition(condition: Condition | undefined, values: Recor
     if (!condition) return true;
     const atom = (rule: z.infer<typeof conditionAtomSchema>): boolean =>
     {
-        const value = values[rule.fieldKey];
+        const value = getFieldValue(values, rule.fieldKey);
         if (rule.operator === "PRESENT") return isPresent(value);
         if (!isPresent(value)) return false;
         const kind = fields.find((field) => field.key === rule.fieldKey)?.kind;
@@ -114,7 +148,7 @@ export function applicableFields(fields: RequestField[], values: Record<string, 
     const done = new Set<string>();
     const visiting = new Set<string>();
     const resolved = new Map<string, RequestField>();
-    const effective: Record<string, unknown> = {};
+    const effective = createFieldRecord();
     const visit = (field: RequestField): void =>
     {
         if (done.has(field.key)) return;
@@ -131,7 +165,8 @@ export function applicableFields(fields: RequestField[], values: Record<string, 
         }
         if (matchesCondition(field.visibleWhen, effective, fields))
         {
-            effective[field.key] = values[field.key];
+            const rawValue = getFieldValue(values, field.key);
+            if (rawValue !== undefined) effective[field.key] = rawValue;
             resolved.set(field.key, { ...field, required: field.required || !!field.requiredWhen && matchesCondition(field.requiredWhen, effective, fields) });
         }
         visiting.delete(field.key);
@@ -152,19 +187,32 @@ export function validateFields(definition: PublishedRequestType, values: Record<
     const add = (key: string, code: string, message: string) => issues.push({ field: `fields.${key}`, code, message });
     for (const key of Object.keys(values))
     {
-        if (!visible.some((field) => field.key === key)) add(key, "FORM_FIELD_NOT_APPLICABLE", "This field is not applicable.");
+        if (getFieldValue(values, key) !== undefined && !visible.some((field) => field.key === key))
+        {
+            add(key, "FORM_FIELD_NOT_APPLICABLE", "This field is not applicable.");
+        }
     }
     for (const field of visible)
     {
-        const value = values[field.key];
-        if (!isPresent(value))
+        const supplied = hasOwnField(values, field.key) && values[field.key] !== undefined;
+        if (!supplied)
         {
             if (complete && field.required) add(field.key, "REQUIRED", `${field.label.en} is required.`);
             continue;
         }
+        const value = values[field.key];
         const constraints = field.constraints;
-        const valid = field.kind === "BOOLEAN" ? typeof value === "boolean" : typeof value === "string" && (
-            field.kind === "DECIMAL" ? decimalSchema.safeParse(value).success : field.kind === "DATE" ? z.iso.date().safeParse(value).success : field.kind === "SELECT" ? !!constraints?.options?.some((option) => option.value === value) : true);
+        const valid = field.kind === "BOOLEAN"
+            ? typeof value === "boolean"
+            : typeof value === "string" && (
+                field.kind === "DECIMAL"
+                    ? decimalSchema.safeParse(value).success
+                    : field.kind === "DATE"
+                        ? z.iso.date().safeParse(value).success
+                        : field.kind === "SELECT"
+                            ? !!constraints?.options?.some((option) => option.value === value)
+                            : value.trim().length > 0
+            );
         if (!valid)
         {
             add(field.key, "INVALID_VALUE", `${field.label.en} has an invalid value.`);

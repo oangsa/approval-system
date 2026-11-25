@@ -6,6 +6,7 @@ import {
     conditionSchema,
     createRequestSchema,
     createRequestTypeSchema,
+    formatMoney,
     itemTotal,
     matchesCondition,
     normalizeMoney,
@@ -212,6 +213,11 @@ test("UT-05/06/CT-02 decimal precision, priority bounds, localized fallback, and
     expect(safeItemTotal("2", "10.50")).toBe("21.00");
     expect(normalizeMoney("12")).toBe("12.00");
     expect(compareDecimals("10.5", "10.500000")).toBe(0);
+    expect(formatMoney("0.30", "THB", "en-US")).toBe("THB\u00a00.30");
+    expect(formatMoney("10", "THB", "en-US")).toBe("THB\u00a010.00");
+    expect(formatMoney("1234567.89", "THB", "en-US")).toBe("THB\u00a01,234,567.89");
+    expect(formatMoney("9007199254740993.07", "THB", "en-US")).toBe("THB\u00a09,007,199,254,740,993.07");
+    expect(formatMoney("9007199254740993.07", "THB", "th-TH")).toBe("฿9,007,199,254,740,993.07");
 
     expect(resolveLocalizedText({ en: "Category", th: "ประเภท" }, "th")).toBe("ประเภท");
     expect(resolveLocalizedText({ en: "Category" }, "th")).toBe("Category");

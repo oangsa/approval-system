@@ -50,6 +50,32 @@ export function normalizeMoney(value: string): string
     return `${cents / 100n}.${String(cents % 100n).padStart(2, "0")}`;
 }
 
+export function formatMoney(amount: string, currency = "THB", locale?: string): string
+{
+    if (!/^-?(?:0|[1-9]\d*)(?:\.\d{1,2})?$/.test(amount)) return `${amount} ${currency}`;
+    const negative = amount.startsWith("-");
+    const [whole = "0", fraction = ""] = amount.replace(/^-/, "").split(".");
+    const exactFraction = fraction.padEnd(2, "0");
+    const wholeBigInt = BigInt(whole);
+    try
+    {
+        const parts = new Intl.NumberFormat(locale, {
+            style: "currency",
+            currency,
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+        }).formatToParts(wholeBigInt);
+        const formatted = parts.map((part) => part.type === "fraction" ? exactFraction : part.value).join("");
+        return negative && (whole !== "0" || exactFraction !== "00") ? `-${formatted}` : formatted;
+    }
+    catch
+    {
+        const grouped = new Intl.NumberFormat(locale).format(wholeBigInt);
+        const signed = negative && (whole !== "0" || exactFraction !== "00") ? `-${grouped}` : grouped;
+        return `${signed}.${exactFraction} ${currency}`;
+    }
+}
+
 export const localizedTextSchema = z.strictObject({
     en: z.string().trim().min(1, "English label is required.").max(200),
     th: z.string().trim().min(1).max(200).optional(),
