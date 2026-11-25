@@ -1,0 +1,29 @@
+# Policies, reviewer routing and budget limits — Issue #9
+
+Design v1, 2026-11-25; recorded before implementation. Owner @oangsa; independent reviewer @kittipichcha. R09/O10/O18/O19; FR-026/031/035/036; AC-026/031/035/036. Frozen product v1.0, API v1.0.1 §§5.3/5.6/6.6/6.9 and UI v1.0 §§11.4–11.5 take precedence.
+
+## Domain and transaction design
+
+Reuse RequestRules.resolvePlan and RequestRepository submit transaction. Filter published policies by type, trusted department and inclusive exact decimal bounds; highest numeric priority wins, equal highest priority fails 409 AMBIGUOUS_APPROVAL_POLICY. Validate every stage and every resolved reviewer before mutation. Mapping department-specific scope overrides type-wide mapping for the same stable key. One mapping may expand into multiple parallel ALL slots; all must be active Reviewer users, none may equal requester. Missing/inactive mappings fail 409 CONFIGURATION_INCOMPLETE. Budget department scope overrides type-wide, exact ceiling is inclusive; excess fails 422 BUDGET_LIMIT_EXCEEDED. No balance ledger.
+
+Policy lifecycle parent stores stable identity/code, draft, published version pointer, enabled flag and optimistic version. Published version records remain immutable except existing activation flag. Publishing deactivates prior version and inserts immutable replacement in one transaction, locks parent, validates draft, snapshots publication DTO, and stores actor-scoped idempotent response. Branch copies current published content. Disable affects future resolution only. Seeded versions are backfilled into lifecycle parents without changing version identity or existing cycles.
+
+Assignments retain existing identities and first reviewer column for seed compatibility; optional department and reviewer ID array support frozen AssignmentRuleDTO. Budget rows gain optimistic versions. Each configuration mutation appends actor/action/before/after audit evidence in same transaction. Historical audit and idempotency responses are append-only. Runtime grants and migrator ownership lists include new objects.
+
+Application uses domain repository/unit-of-work ports; infrastructure owns SQL and row locks. Configuration writes serialize with resolution through a shared advisory transaction lock (configuration writes exclusive, submit shared), preventing mixed mapping/policy reads and concurrent insertion phantoms. Existing user/role row locks continue to protect eligibility. No request-content access is added to Admin.
+
+## Contracts and UI
+
+Shared strict Zod schemas implement frozen ApprovalPolicyDTO, AssignmentRuleDTO and BudgetPolicyDTO, one/two ordered stages, nonempty unique assignment keys, SLA default 480, inclusive money bounds and positive hard ceilings. Unknown ANY/quorum fields and third stages are rejected. PATCH includes expectedVersion; publication requires UUID Idempotency-Key. Search uses bounded shared page/search/searchTerm/orderBy grammar and X-Pagination. Only frozen endpoint families are added; policy detail is hydrated via an exact ID search, without a new GET or simulation endpoint. Existing department/type searches and new admin-only eligible-reviewer search expose minimal routing metadata.
+
+Admin routes: /admin/approval-policies, /admin/approval-policies/:id, /admin/reviewer-assignments, /admin/budget-policies. Authenticated pages load data after session bootstrap; role denial, loading, empty, validation, stale conflict and retry states. Reuse shared managed forms, collection dialogs, API transport and service orchestration. Stage selectors store assignment keys, never user IDs. Reviewer lookup is server-paged. Draft/publish/version/disable controls explain future-cycle impact, ALL semantics, priority ambiguity, local routing predicates and hard ceilings. No confidential request fetch or backend preview endpoint.
+
+Returned lifecycle remains owned by Issue #7: Issue #9 provides current-policy resolution with historical department seam, without adding a resubmit endpoint.
+
+## Scope decision and data migration notes
+
+Owner confirmed option 1 on 2026-11-25: preserve Issue #9 ownership and test an internal historical department/form resolution seam for Issue #7. `IRequestRepository.Configuration` accepts the persisted historical DepartmentSummary as its optional fourth argument; the consumer must obtain this only from the locked request's server-owned snapshot, never from request JSON. The existing versionId argument pins the form. `resolvePlan(..., {allowDisabledType:true})` supports accepted returned requests while using current active policy/mapping/ceiling configuration. No return/resubmit transition or endpoint is added here.
+
+Migration 0011 adds lifecycle/audit/replay tables, optional mapping department, reviewer group array and budget version. 0012 adopts preexisting immutable policy version IDs and makes configuration audit/replay rows append-only. 0013 widens slot uniqueness to `(stage_id, assignment_key, reviewer_id)` so a mapping group can create multiple ALL slots. Legacy mapping rows with null reviewer_user_ids resolve through the existing reviewer_id; administration writes populate both fields. Cycle assignment snapshots retain existing per-stage ordering, including repeated mappings across sequential stages; slot insertion deduplicates repeated plan entries within a single stage only.
+
+Admin search implements endpoint allowlists in shared schemas; infrastructure binds values and whitelists SQL identifiers. Policy detail uses ID equality search. Type/department filters, bounded paging and sortable configured fields reuse the shared collection. CORS permits POST/PATCH and Idempotency-Key for configuration operations. Eligible reviewer DTO is limited to id/displayName/departmentId; it contains no credentials, request title/body or attachments. Validation feedback retains 409 scope/staleness recovery and 422 field details. UI local preview guards temporarily invalid decimal input.
