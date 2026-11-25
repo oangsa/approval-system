@@ -978,3 +978,56 @@ reflection/output: Finalized the selected bounded Issue #9 scope. Final npm run 
 @oangsa
 prompt: $caveman commit push and open pr to sprint-2-staging with issue 9 closing in the pr body.
 reflection/output: Reviewed the pending Issue #9 changes, ran workspace verification, and organized scoped commits for specifications, shared contracts, backend configuration and routing, frontend administration, and verification records. User authorized commits, push, and a PR targeting sprint-2-staging with Closes #9; independent teammate review and later promotions remain required.
+
+## Issue #9 assistance
+
+@oangsa
+prompt: /caveman
+reflection/output: Applied concise communication style preference for user-facing responses while keeping source code, specifications, and documentation in standard prose.
+
+## Issue #9 assistance
+
+@oangsa
+prompt: /karpathy-guidelines
+fix
+
+## Review — PR #90
+
+**Verdict: REQUEST CHANGES**
+
+Reviewed commit: `f53e955d947b70f6efabb3e47a0553388962f998`
+
+The implementation is largely compliant with Issue #9 and the frozen product/API/UI contracts. Only implementation mismatches and major edge cases are considered blocking.
+
+### [P1] Reviewer assignment keys are mutable despite the stable-key contract
+
+**Affected features:** O10, R09, O19
+
+**Locations:**
+- `packages/contracts/src/policies.ts:35–37`
+- `apps/api/src/Applications/Policies/ConfigurationService.ts:113–128`
+- `apps/api/src/Infrastructures/Database/Repositories/ConfigurationRepository.ts:67–70`
+- `apps/web/app/modules/admin/policies/ConfigurationListPage.tsx:156–159`
+
+The PATCH schema allows changing an existing assignment key. The application service, repository and UI all permit this operation.
+
+Published policies reference stable `reviewerAssignmentKeys`. Renaming an existing mapping can therefore invalidate published routing references or unexpectedly cause resolution to fall back to a global mapping with different reviewers.
+
+**Required changes:**
+- Preserve assignment keys after creation.
+- Reject key changes at the backend.
+- Make the key read-only when editing an existing assignment.
+- Preserve optimistic concurrency and audit behavior.
+- Add regression tests verifying that rejected renames do not alter mapping identity, published references or future routing.
+
+### Non-blocking observations
+
+- Full return/resubmit lifecycle remains with Issue #7 according to the owner-approved scope separation. The historical routing integration seam is implemented and tested.
+- No additional blockers were identified in the inspected policy resolution, budget validation, reviewer eligibility, transactional submission, authorization or concurrency behavior.
+- Remote GitHub Verification workflow passed.
+- Independent teammate review remains required.
+
+### Conclusion
+
+Resolve the single P1 finding and rerun the applicable regression tests. No architectural redesign, feature expansion or unrelated refactoring is required.
+reflection/output: Remediated the PR #90 P1 finding by making reviewer assignment keys immutable after creation: separated `patchAssignmentRuleSchema` from `key` in `packages/contracts/src/policies.ts`, validated update inputs against `patchAssignmentRuleSchema` while preserving `before.key`, optimistic `expectedVersion` checks, and `ASSIGNMENT_UPDATED` audit logging in `ConfigurationService.Assignment`, guarded `onConflictDoUpdate` against `assignment_key` changes in `ConfigurationRepository.SaveAssignment`, removed `assignment_key` from `GRANT UPDATE` in `deploy/runtime-grants.sql`, added `saveAssignment` TypeScript overloads in `apps/web/app/services/configurationService.ts`, and made the edit dialog key input `readOnly` while omitting `key` from update payloads in `ConfigurationListPage.tsx`. Added contract, OpenAPI, component, real-PostgreSQL (rename rejection, preserved identity/references/routing, concurrency, audit, and runtime privileges), and Playwright E2E regression tests; updated Issue #9 SDS, AC, STS, and verification records. Verified `npm run check` (typecheck, lint, 54 files / 480 tests, builds), `NODE_ENV=test RUN_BUILT_HTTP_SMOKE=1 npm run test:integration` (12 files / 125 tests), targeted `e2e/policies-routing-budget.spec.ts` (1/1), `npm run test:release` (13/13), and `git diff --check` all passed; full 45-test E2E and standalone `test:initialization` were not rerun. No commits, pushes, or external comments were performed.

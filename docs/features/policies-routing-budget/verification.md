@@ -53,3 +53,14 @@ Final targeted browser follow-up after the lookup debounce guard: 1/1 passed in 
 Independent teammate review, authorized atomic commits/push, feature PR to `sprint-2-staging`, reviewed promotion to `dev`, and release-reviewed promotion to `main` remain pending. Safari/Firefox, production migration/deployment and complete Issue #7 lifecycle were not claimed or performed. Frozen specifications were preserved; feature traceability, numbered AC, STS and DoD are versioned locally.
 
 Final workspace check on 2026-11-25 at 11:44 Asia/Bangkok: `npm run check` passed (typecheck, lint, 54 files / 479 tests, API/client/SSR/contracts builds). Targeted E2E follow-up passed with actual light/dark mobile screenshots and reduced-motion assertion. Verification evidence posted to [Issue #9 comment](https://github.com/oangsa/approval-system/issues/9#issuecomment-7153135001). Issue remains open; no commit/push/PR/merge/release performed.
+
+## PR #90 P1 remediation — immutable assignment keys
+
+2026-11-25 follow-up on `feature/9-policies-routing-budget` (based on `f53e955d947b70f6efabb3e47a0553388962f998`; uncommitted working tree, no commit/push/PR/merge performed).
+
+- Enforced creation-only assignment `key` in `patchAssignmentRuleSchema` (`packages/contracts/src/policies.ts`), `ConfigurationService.Assignment` (`apps/api/src/Applications/Policies/ConfigurationService.ts`), `ConfigurationRepository.SaveAssignment` (`apps/api/src/Infrastructures/Database/Repositories/ConfigurationRepository.ts`), `deploy/runtime-grants.sql` (`assignment_key` omitted from `GRANT UPDATE`), `saveAssignment` overloads (`apps/web/app/services/configurationService.ts`), and `ConfigurationListPage.tsx` (`readOnly` input when editing and `key` omitted from PATCH payloads).
+- `npm run check`: passed (`typecheck`, `lint`, Vitest 54 files / 480 tests passed with zero skips, and `build` across `@workflow/contracts`, `@workflow/api`, and `@workflow/web`).
+- `NODE_ENV=test RUN_BUILT_HTTP_SMOKE=1 npm run test:integration`: passed (12 files / 125 tests, zero skips), including `PRB-AC-04/09` HTTP/service/repository rename rejection, preserved mapping identity, published reference integrity, unchanged future routing, optimistic `409` concurrency, `ASSIGNMENT_UPDATED` audit preservation, and `runtimePrivileges.test.ts` verifying `assignment_key` lacks runtime `UPDATE` privilege.
+- `NODE_ENV=test npx playwright test e2e/policies-routing-budget.spec.ts`: passed (1/1 in 14.8s), verifying `readonly` assignment key input on edit, `PATCH` version bump without rename, `422` rejection on API rename attempt, and full configure-to-submit flow. Note: targeted `e2e/policies-routing-budget.spec.ts` ran rather than the full 45-test E2E suite or standalone `test:initialization`.
+- `npm run test:release`: passed (13/13, zero skips).
+- `git diff --check`: passed.
