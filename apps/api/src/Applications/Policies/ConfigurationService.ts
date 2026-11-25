@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { createHash, randomUUID } from "node:crypto";
-import { assignmentRuleSchema, budgetPolicySchema, createApprovalPolicySchema, createAssignmentRuleSchema, createBudgetPolicySchema, policyContentSchema, type ApprovalPolicyDTO, type ConfigurationKind, type ConfigurationSearch, type CreateApprovalPolicy, type CreateAssignmentRule, type CreateBudgetPolicy, type PatchApprovalPolicy, type PatchAssignmentRule, type PatchBudgetPolicy } from "@workflow/contracts";
+import { assignmentRuleSchema, budgetPolicySchema, createApprovalPolicySchema, createAssignmentRuleSchema, createBudgetPolicySchema, patchAssignmentRuleSchema, policyContentSchema, type ApprovalPolicyDTO, type ConfigurationKind, type ConfigurationSearch, type CreateApprovalPolicy, type CreateAssignmentRule, type CreateBudgetPolicy, type PatchApprovalPolicy, type PatchAssignmentRule, type PatchBudgetPolicy } from "@workflow/contracts";
 import type { IActor } from "../../Domains/Identity/Identity";
 import type { IConfigurationRepository, IConfigurationUnitOfWork, IPolicyRecord } from "../../Domains/Policies/Ports";
 import { assertConfigurationVersion, policyDto } from "../../Domains/Policies/PolicyRules";
@@ -118,11 +118,15 @@ export class ConfigurationService
             const current = await repository.CurrentAdmin(actor);
             const before = id ? await repository.Assignment(id.toLowerCase()) : null;
             if (id && !before) throw new RequestError("NOT_FOUND");
-            if (before) assertConfigurationVersion(before.version, (input as PatchAssignmentRule).expectedVersion);
-            const { expectedVersion: ignored, ...changes } = input as PatchAssignmentRule;
-            void ignored;
-            const merged = { ...before, ...changes };
-            const body = validate(createAssignmentRuleSchema, { key: merged.key, departmentId: merged.departmentId, reviewerUserIds: merged.reviewerUserIds, isActive: merged.isActive });
+            let body: CreateAssignmentRule;
+            if (before)
+            {
+                const { expectedVersion, ...changes } = validate(patchAssignmentRuleSchema, input);
+                assertConfigurationVersion(before.version, expectedVersion);
+                const merged = { ...before, ...changes };
+                body = validate(createAssignmentRuleSchema, { key: before.key, departmentId: merged.departmentId, reviewerUserIds: merged.reviewerUserIds, isActive: merged.isActive });
+            }
+            else body = validate(createAssignmentRuleSchema, input);
             await this.References(repository, null, body.departmentId, body.reviewerUserIds);
             const result = assignmentRuleSchema.parse({ ...body, id: before?.id ?? randomUUID(), version: before ? before.version + 1 : 0 });
             await repository.SaveAssignment(result);

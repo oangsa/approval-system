@@ -7,6 +7,11 @@ test("PRB-AC-01/05 EP-022/049–060 strict admin API contracts and publication k
     expect(document.paths["/api/v1/admin/approval-policies/{id}/publish"]?.post).toMatchObject({ parameters: expect.arrayContaining([{ name: "Idempotency-Key", in: "header", required: true, schema: { type: "string", format: "uuid" } }]), responses: { "201": expect.any(Object) } });
     for (const path of ["/api/v1/admin/approval-policies/{id}/draft", "/api/v1/admin/reviewer-assignments/{id}", "/api/v1/admin/budget-policies/{id}"])
         expect(document.paths[path]?.patch).toMatchObject({ requestBody: { content: { "application/json": { schema: { additionalProperties: false, required: expect.arrayContaining(["expectedVersion"]) } } } } });
+    const createAssignmentSchema = (document.paths["/api/v1/admin/reviewer-assignments"]?.post as { requestBody: { content: { "application/json": { schema: { required: string[]; properties: Record<string, unknown> } } } } }).requestBody.content["application/json"].schema;
+    expect(createAssignmentSchema.required).toContain("key");
+    const patchAssignmentSchema = (document.paths["/api/v1/admin/reviewer-assignments/{id}"]?.patch as { requestBody: { content: { "application/json": { schema: { additionalProperties: boolean; properties: Record<string, unknown> } } } } }).requestBody.content["application/json"].schema;
+    expect(patchAssignmentSchema.additionalProperties).toBe(false);
+    expect(patchAssignmentSchema.properties).not.toHaveProperty("key");
     expect(document.paths["/api/v1/reviewers/eligible/search"]?.post).toMatchObject({ security: [{ bearerAuth: [] }], responses: { "200": { headers: { "X-Pagination": expect.any(Object) } } } });
 });
 

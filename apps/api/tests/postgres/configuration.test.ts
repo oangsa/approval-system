@@ -9,7 +9,7 @@ import { RequestUnitOfWork } from "../../src/Infrastructures/Database/Repositori
 import { DecisionService } from "../../src/Applications/Approvals/DecisionService";
 import { DecisionUnitOfWork } from "../../src/Infrastructures/Database/Repositories/DecisionRepository";
 import { IdentityRepository } from "../../src/Infrastructures/Database/Repositories/IdentityRepository";
-import { approvalCycles, approvalPolicies, approvalPolicyVersions, configurationAuditEvents, departmentMemberships, departments, requestAuditEvents, requestOutboxEvents, requests, requestTypes, requestTypeVersions, sessionFamilies, userRoles, users } from "../../src/Infrastructures/Database/schema";
+import { approvalCycles, approvalPolicies, approvalPolicyVersions, configurationAuditEvents, departmentMemberships, departments, requestAuditEvents, requestOutboxEvents, requests, requestTypes, requestTypeVersions, reviewerAssignmentRules, sessionFamilies, userRoles, users } from "../../src/Infrastructures/Database/schema";
 import { seededDefinition } from "../../src/Infrastructures/Database/seedRequests";
 import { createTestDatabase } from "../helpers/testDatabase";
 import { readEnvironment } from "../../src/Infrastructures/Configuration/environment";
@@ -290,4 +290,45 @@ test("PRB-AC-04 invalid reviewer references and merged policy bounds fail withou
     expect(await db.select().from(configurationAuditEvents)).toEqual(before);
     const page = await service.Search(f.admin, "approval-policies", configurationSearchSchema("approval-policies").parse({ search: [{ name: "id", condition: "EQUAL", value: draft.id }] }));
     expect(page.items[0]).toMatchObject({ version: 0, minAmount: "10", maxAmount: "20" });
+});
+
+test("PRB-AC-04/09 rejected assignment key rename preserves mapping identity, published references, routing, concurrency and audit", async () =>
+{
+    const f = await fixture();
+    await service.Assignment(f.admin, null, { key: f.mapping.key, departmentId: null, reviewerUserIds: [f.peer.account.id], isActive: true });
+    const policy = await f.createPublished();
+    const environment = readEnvironment({ NODE_ENV: "test", DATABASE_URL: process.env.TEST_DATABASE_URL, AUTH_JWT_SECRET: "policy-test-secret-0123456789abcdef0123456789", AUTH_JWT_ISSUER: "policy-tests", AUTH_JWT_AUDIENCE: "policy-api", AUTH_ALLOWED_ORIGINS: "http://localhost:3000", AUTH_COOKIE_SECURE: "false" });
+    const identity = await createIdentityComposition(environment, database);
+    const tokens = new TokenProvider(environment.AUTH_JWT_SECRET, { Now: () => new Date() }, environment.AUTH_JWT_ISSUER, environment.AUTH_JWT_AUDIENCE);
+    const adminToken = await tokens.Sign(f.admin.account.id, f.admin.family.id, 0);
+    const app = createApplication(undefined, identity, requestService, undefined, undefined, undefined, undefined, service);
+    const sendPatch = (body: unknown) => app.handle(new Request(`http://localhost/api/v1/admin/reviewer-assignments/${f.mapping.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${adminToken}` },
+        body: JSON.stringify(body),
+    }));
+
+    expect((await sendPatch({ expectedVersion: 0, key: "renamed-key" })).status).toBe(422);
+    await expect(service.Assignment(f.admin, f.mapping.id, { expectedVersion: 0, key: "renamed-key" } as never)).rejects.toMatchObject({ code: "VALIDATION_ERROR" });
+    await expect(db.transaction((tx) => new ConfigurationRepository(tx).SaveAssignment({ ...f.mapping, key: "renamed-key", version: 1 }))).rejects.toMatchObject({ code: "VALIDATION_ERROR" });
+
+    const persisted = (await db.select().from(reviewerAssignmentRules).where(eq(reviewerAssignmentRules.id, f.mapping.id)))[0]!;
+    expect(persisted).toMatchObject({ id: f.mapping.id, assignmentKey: f.mapping.key, departmentId: f.departmentId, reviewerUserIds: [f.reviewer.account.id], version: 0 });
+    expect((await db.select().from(configurationAuditEvents).where(eq(configurationAuditEvents.resourceId, f.mapping.id))).map((item) => item.action)).toEqual(["ASSIGNMENT_CREATED"]);
+    const publishedVersion = (await db.select().from(approvalPolicyVersions).where(eq(approvalPolicyVersions.id, policy.versionId!)))[0]!;
+    expect(publishedVersion.stages[0]!.reviewerAssignmentKeys).toEqual([f.mapping.key]);
+
+    const draft = await f.draftRequest();
+    const submitted = await requestService.Mutate(f.owner, "submit", draft.id, { expectedVersion: 0 }, randomUUID());
+    expect(submitted.currentApprovers.map((slot) => slot.reviewer.id)).toEqual([f.reviewer.account.id]);
+
+    const validPatch = await sendPatch({ expectedVersion: 0, reviewerUserIds: [f.reviewer.account.id, f.peer.account.id] });
+    expect(validPatch.status).toBe(200);
+    expect(await validPatch.json()).toMatchObject({ id: f.mapping.id, key: f.mapping.key, version: 1, reviewerUserIds: [f.reviewer.account.id, f.peer.account.id] });
+    expect((await sendPatch({ expectedVersion: 0, isActive: false })).status).toBe(409);
+
+    const audits = await db.select().from(configurationAuditEvents).where(eq(configurationAuditEvents.resourceId, f.mapping.id));
+    expect(audits.map((item) => item.action)).toEqual(["ASSIGNMENT_CREATED", "ASSIGNMENT_UPDATED"]);
+    expect(audits[1]!.before).toMatchObject({ key: f.mapping.key, version: 0 });
+    expect(audits[1]!.after).toMatchObject({ key: f.mapping.key, version: 1 });
 });

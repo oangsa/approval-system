@@ -32,7 +32,7 @@ TO approval_runtime;
 
 GRANT UPDATE (version, is_enabled, draft, published_version_id) ON public.approval_policies TO approval_runtime;
 GRANT UPDATE (is_active) ON public.approval_policy_versions TO approval_runtime;
-GRANT UPDATE (assignment_key, department_id, reviewer_id, reviewer_user_ids, is_active, version) ON public.reviewer_assignment_rules TO approval_runtime;
+GRANT UPDATE (department_id, reviewer_id, reviewer_user_ids, is_active, version) ON public.reviewer_assignment_rules TO approval_runtime;
 GRANT UPDATE (type_id, department_id, max_amount, is_active, version) ON public.budget_policies TO approval_runtime;
 GRANT UPDATE (auth_version) ON public.users TO approval_runtime;
 GRANT UPDATE (revoked_at) ON public.session_families TO approval_runtime;

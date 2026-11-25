@@ -66,8 +66,11 @@ export class ConfigurationRepository implements IConfigurationRepository
     }
     public async SaveAssignment(value: AssignmentRuleDTO): Promise<void>
     {
-        const fields = { assignmentKey: value.key, departmentId: value.departmentId, reviewerId: value.reviewerUserIds[0]!, reviewerUserIds: value.reviewerUserIds, isActive: value.isActive, version: value.version };
-        await this.db.insert(reviewerAssignmentRules).values({ id: value.id, ...fields }).onConflictDoUpdate({ target: reviewerAssignmentRules.id, set: fields });
+        const mutable = { departmentId: value.departmentId, reviewerId: value.reviewerUserIds[0]!, reviewerUserIds: value.reviewerUserIds, isActive: value.isActive, version: value.version };
+        const saved = await this.db.insert(reviewerAssignmentRules).values({ id: value.id, assignmentKey: value.key, ...mutable })
+            .onConflictDoUpdate({ target: reviewerAssignmentRules.id, set: mutable, setWhere: eq(reviewerAssignmentRules.assignmentKey, value.key) })
+            .returning({ id: reviewerAssignmentRules.id });
+        if (saved.length === 0) throw new RequestError("VALIDATION_ERROR", [{ field: "key", code: "IMMUTABLE_FIELD", message: "Assignment key cannot be changed after creation." }]);
     }
     public async Budget(id: string): Promise<BudgetPolicyDTO | null>
     {
