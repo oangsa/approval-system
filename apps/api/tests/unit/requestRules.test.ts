@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { assertContent, businessDueAt, resolvePlan, type IConfiguration } from "../../src/Domains/Requests/RequestRules";
+import { assertContent, businessDueAt, resolvePlan, validateContent, type IConfiguration } from "../../src/Domains/Requests/RequestRules";
 import { seededDefinition } from "../../src/Infrastructures/Database/seedRequests";
 const department = { id: "department", code: "OPS", name: "Operations", isActive: true };
 function config(): IConfiguration
@@ -34,4 +34,27 @@ test("API-09 policy priority, ties, eligibility, self-approval and department ar
 test("business deadline skips Bangkok weekend and starts in working hours", () =>
 {
     expect(businessDueAt(new Date("2026-11-06T09:00:00Z"), 480).toISOString()).toBe("2026-11-09T09:00:00.000Z");
+});
+
+test("B06 validateContent emits canonical bracket-form line-item error paths", () =>
+{
+    const itemDefinition = { ...seededDefinition, monetary: true, supportsLineItems: true, fields: [] };
+    const missingDescription = validateContent(itemDefinition, {
+        typeId: itemDefinition.id,
+        formDefinitionVersionId: itemDefinition.versionId,
+        title: "Items",
+        justification: "Needed",
+        lineItems: [{ description: " ", quantity: "1", unitAmount: "10.00" }],
+    }, true);
+    expect(missingDescription.issues).toEqual(expect.arrayContaining([
+        expect.objectContaining({ field: "lineItems[0].description", code: "VALIDATION_ERROR" }),
+    ]));
+    const overflow = validateContent(itemDefinition, {
+        typeId: itemDefinition.id,
+        formDefinitionVersionId: itemDefinition.versionId,
+        lineItems: [{ description: "Item", quantity: "9999999999999999", unitAmount: "100.00" }],
+    }, false);
+    expect(overflow.issues).toEqual(expect.arrayContaining([
+        expect.objectContaining({ field: "lineItems[0].quantity", code: "VALIDATION_ERROR" }),
+    ]));
 });

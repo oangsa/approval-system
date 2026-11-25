@@ -329,3 +329,35 @@ test("unavailable selected types remain clearable and temporary label failures r
     await waitFor(() => expect(screen.queryByText(/This request type is unavailable/)).not.toBeInTheDocument());
     expect(read).toHaveBeenCalledTimes(2);
 });
+
+test("B07 list withdrawal returns focus to Withdraw on cancel and focuses Search input when Withdraw disappears", async () =>
+{
+    session.user.id = id;
+    let current = item;
+    vi.spyOn(requestApi, "search").mockImplementation(async () => ({ items: [current], pagination: { ...pagination, totalPages: 1, totalCount: 1, hasNext: false } }));
+    vi.spyOn(requestApi, "withdraw").mockImplementation(async () =>
+    {
+        const detail = {
+            ...current,
+            justification: "Needed",
+            workingRevision: null,
+            submittedRevision: null,
+            currentStageNumber: null,
+            currentApprovers: [],
+            availableActions: [],
+            status: "WITHDRAWN" as const,
+            version: current.version + 1,
+        };
+        current = { ...current, status: "WITHDRAWN", version: current.version + 1 };
+        return detail;
+    });
+    render(<MemoryRouter><RequestListPage /></MemoryRouter>);
+    const withdraw = (await screen.findAllByRole("button", { name: "Withdraw" }))[0]!;
+    fireEvent.click(withdraw);
+    fireEvent(screen.getByRole("dialog"), new Event("cancel", { cancelable: true }));
+    await waitFor(() => expect(withdraw).toHaveFocus());
+    fireEvent.click(withdraw);
+    fireEvent.click(screen.getByRole("button", { name: "Confirm withdrawal" }));
+    await waitFor(() => expect(screen.queryByRole("button", { name: "Withdraw" })).not.toBeInTheDocument());
+    expect(screen.getByLabelText("Search")).toHaveFocus();
+});

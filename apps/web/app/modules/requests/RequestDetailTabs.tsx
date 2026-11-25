@@ -1,3 +1,4 @@
+import { RequestOwnerActions } from "./RequestOwnerActions";
 import { ArrowLeft } from "lucide-react";
 import { AuditTimeline } from "./AuditTimeline";
 import { Link, useLocation, useSearchParams } from "react-router";
@@ -9,8 +10,8 @@ import { approverSlotLabel, requestPriorityLabel, requestTypeLabel } from "./req
 
 const tabs = ["Overview", "Approval", "History", "Discussion / Files"] as const;
 const tabKeys = ["overview", "approval", "history", "discussion"] as const;
-interface IRequestDetailTabsProps { detail: RequestDetail; definition: PublishedRequestType | null; }
-export function RequestDetailTabs({ detail, definition }: IRequestDetailTabsProps)
+interface IRequestDetailTabsProps { detail: RequestDetail; definition: PublishedRequestType | null; onChanged?: (detail: RequestDetail) => void; onUnavailable?: () => void; }
+export function RequestDetailTabs({ detail, definition, onChanged, onUnavailable }: IRequestDetailTabsProps)
 {
     const { user } = useSession();
     const { state } = useLocation();
@@ -27,6 +28,7 @@ export function RequestDetailTabs({ detail, definition }: IRequestDetailTabsProp
         }, { state });
     }
     const refs = useRef<(HTMLButtonElement | null)[]>([]);
+    const statusRef = useRef<HTMLSpanElement>(null);
     const stages = [...new Set(detail.currentApprovers.map((slot) => slot.stageNumber))].sort((a, b) => a - b);
     function navigate(event: KeyboardEvent<HTMLButtonElement>, index: number)
     {
@@ -48,7 +50,7 @@ export function RequestDetailTabs({ detail, definition }: IRequestDetailTabsProp
                     <p className="text-sm font-medium tabular-nums text-muted-foreground">{detail.requestNumber ?? "Draft request"}</p>
                     <h1 className="wrap-anywhere text-3xl font-semibold tracking-tight sm:text-4xl">{detail.title || "Untitled draft"}</h1>
                 </div>
-                <RequestStatus status={detail.status} />
+                <RequestStatus ref={statusRef} tabIndex={-1} status={detail.status} />
             </div>
             <dl className="grid gap-x-6 gap-y-4 border-t pt-5 wrap-anywhere sm:grid-cols-2 xl:grid-cols-3 [&_dd]:font-medium [&_dt]:text-sm [&_dt]:text-muted-foreground">
                 <div><dt>Type</dt><dd>{definition?.name.en ?? requestTypeLabel(detail.typeCode)}</dd></div>
@@ -57,6 +59,7 @@ export function RequestDetailTabs({ detail, definition }: IRequestDetailTabsProp
                 <div><dt>Department</dt><dd>{detail.department?.name ?? "No department"}</dd></div>
                 <div><dt>Last updated</dt><dd><time dateTime={detail.updatedAt}>{new Date(detail.updatedAt).toLocaleString(undefined, { timeZone: "Asia/Bangkok" })}</time></dd></div>
             </dl>
+            <RequestOwnerActions key={detail.id} detail={detail} onChanged={onChanged} onUnavailable={onUnavailable} onFocusFallback={() => statusRef.current?.focus()} />
         </header>
         <div role="tablist" aria-label="Request details" className="grid grid-cols-2 gap-1 rounded-lg border bg-muted/60 p-1 sm:flex sm:flex-wrap">{tabs.map((tab, index) => <button key={tab} ref={(node) =>
         {
@@ -84,7 +87,7 @@ export function RequestDetailTabs({ detail, definition }: IRequestDetailTabsProp
                     </section>;
                 })}
             </div>}
-            {index === 2 && selected === 2 && <div className="rounded-xl border bg-card p-5 sm:p-8"><AuditTimeline requestId={detail.id} /></div>}
+            {index === 2 && selected === 2 && <div className="rounded-xl border bg-card p-5 sm:p-8"><AuditTimeline key={`${detail.id}:${detail.version}`} requestId={detail.id} /></div>}
             {index === 3 && <div className="space-y-2 rounded-xl border bg-card p-5 sm:p-8">
                 <h2 className="text-lg font-semibold">Discussion / Files</h2>
                 <p className="text-sm text-muted-foreground">Discussion and files are not available yet.</p>

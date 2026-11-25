@@ -33,15 +33,15 @@ export function validateContent(definition: PublishedRequestType, content: Creat
     if (complete && definition.supportsLineItems && !content.lineItems?.length) add("lineItems", "At least one item is required.");
     for (const [index, item] of (content.lineItems ?? []).entries())
     {
-        if (complete && !item.description.trim()) add(`lineItems.${index}.description`, "Item description is required.");
+        if (complete && !item.description.trim()) add(`lineItems[${index}].description`, "Item description is required.");
     }
     if (complete && definition.monetary && !definition.supportsLineItems && content.monetaryAmount == null) add("monetaryAmount", "Amount is required.");
-    const amount = !definition.monetary ? null : definition.supportsLineItems ? sumAmounts((content.lineItems ?? []).map((item) => itemTotal(item.quantity, item.unitAmount))) : content.monetaryAmount ?? null;
-    if (amount !== null && !moneySchema.safeParse(amount).success) add(definition.supportsLineItems ? "lineItems" : "monetaryAmount", "The total exceeds the supported amount range.");
     for (const [index, item] of (content.lineItems ?? []).entries())
     {
-        if (!moneySchema.safeParse(itemTotal(item.quantity, item.unitAmount)).success) add(`lineItems.${index}.quantity`, "The item total exceeds the supported amount range.");
+        if (!moneySchema.safeParse(itemTotal(item.quantity, item.unitAmount)).success) add(`lineItems[${index}].quantity`, "The item total exceeds the supported amount range.");
     }
+    const amount = !definition.monetary ? null : definition.supportsLineItems ? sumAmounts((content.lineItems ?? []).map((item) => itemTotal(item.quantity, item.unitAmount))) : content.monetaryAmount ?? null;
+    if (amount !== null && !moneySchema.safeParse(amount).success) add(definition.supportsLineItems ? "lineItems" : "monetaryAmount", "The total exceeds the supported amount range.");
     return { amount, issues };
 }
 export function assertContent(definition: PublishedRequestType, content: CreateRequest, complete: boolean): string | null
@@ -106,4 +106,10 @@ export function businessDueAt(start: Date, minutes: number): Date
         remaining -= consumed;
     }
     return new Date(date.getTime() - 7 * 3600000);
+}
+
+export function assertWithdrawal(detail: RequestDetail, expectedVersion: number): void
+{
+    if (detail.status !== "PENDING" || !detail.currentCycleId || !detail.submittedRevision) throw new RequestError("INVALID_REQUEST_TRANSITION");
+    if (detail.version !== expectedVersion) throw new RequestError("REQUEST_STALE");
 }

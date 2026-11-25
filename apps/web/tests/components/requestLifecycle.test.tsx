@@ -1,0 +1,420 @@
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { createMemoryRouter, MemoryRouter, RouterProvider } from "react-router";
+import { afterAll, beforeAll, expect, test, vi } from "vitest";
+import { RequestEditPage } from "../../app/modules/requests/RequestEditPage";
+import { RequestOwnerActions } from "../../app/modules/requests/RequestOwnerActions";
+import { requestApi } from "../../app/api/requests";
+import { ApiFailure } from "../../app/api/errors";
+import { definition, draft, id } from "../helpers/requestLifecycle";
+vi.mock("../../app/modules/auth/sessionContext", () => ({ useSession: () => ({ generation: 1, user: { id: "7bb91ef4-5982-405f-8bd5-61b5c3cf410b", roles: ["REQUESTER"] } }) }));
+vi.mock("../../app/api/requests", () => ({ requestApi: { read: vi.fn(), version: vi.fn(), type: vi.fn(), types: vi.fn(), create: vi.fn(), patch: vi.fn(), withdraw: vi.fn() } }));
+const show = Object.getOwnPropertyDescriptor(HTMLDialogElement.prototype, "showModal");
+const close = Object.getOwnPropertyDescriptor(HTMLDialogElement.prototype, "close");
+beforeAll(() =>
+{
+    Object.defineProperty(HTMLDialogElement.prototype, "showModal", { configurable: true, value: function (this: HTMLDialogElement)
+    {
+        this.open = true;
+    } });
+    Object.defineProperty(HTMLDialogElement.prototype, "close", { configurable: true, value: function (this: HTMLDialogElement)
+    {
+        this.open = false;
+    } });
+});
+afterAll(() =>
+{
+    if (show) Object.defineProperty(HTMLDialogElement.prototype, "showModal", show);
+    else delete (HTMLDialogElement.prototype as Partial<HTMLDialogElement>).showModal;
+    if (close) Object.defineProperty(HTMLDialogElement.prototype, "close", close);
+    else delete (HTMLDialogElement.prototype as Partial<HTMLDialogElement>).close;
+});
+test("resume route restores incomplete content, saves without completeness, and focuses server field errors", async () =>
+{
+    vi.mocked(requestApi.read).mockResolvedValue(draft);
+    vi.mocked(requestApi.version).mockResolvedValue(definition);
+    vi.mocked(requestApi.types).mockResolvedValue({ items: [definition], pagination: { currentPage: 1, pageSize: 100, totalCount: 1, totalPages: 1, hasNext: false, hasPrevious: false } });
+    vi.mocked(requestApi.patch).mockRejectedValueOnce(new ApiFailure({ kind: "http", status: 422, message: "Invalid title", details: [{ field: "title", code: "VALIDATION_ERROR", message: "Invalid title" }] })).mockResolvedValue({ ...draft, title: "Changed", version: 3 });
+    const user = userEvent.setup();
+    render(<RouterProvider router={createMemoryRouter([{ path: "/requests/:id/edit", Component: RequestEditPage }], { initialEntries: [`/requests/${id}/edit`] })} />);
+    const title = await screen.findByLabelText("Title (required)");
+    expect(title).toHaveValue("Saved incomplete");
+    expect(screen.getByLabelText("Justification (required)")).toHaveValue("");
+    await user.clear(title);
+    await user.type(title, "Changed");
+    await user.click(screen.getByRole("button", { name: "Back" }));
+    await user.click(screen.getByRole("button", { name: "Save Draft" }));
+    await waitFor(() => expect(screen.getByLabelText("Title (required)")).toHaveFocus());
+    expect(screen.getByLabelText("Title (required)")).toHaveValue("Changed");
+    expect(requestApi.patch).toHaveBeenCalledWith(id, { expectedVersion: 2, title: "Changed" }, expect.any(String));
+    await user.click(screen.getByRole("button", { name: "Save Draft" }));
+    expect(await screen.findByRole("status")).toHaveTextContent("Draft saved");
+});
+test("withdraw confirmation permits absent reason, guards busy, and renders server result", async () =>
+{
+    const pending = { ...draft, status: "PENDING" as const, availableActions: ["WITHDRAW"], requestNumber: "REQ-00000001" };
+    let finish!: (value: typeof draft) => void;
+    vi.mocked(requestApi.withdraw).mockReturnValue(new Promise((resolve) => finish = resolve));
+    const changed = vi.fn();
+    const user = userEvent.setup();
+    render(<MemoryRouter><RequestOwnerActions detail={pending} onChanged={changed} /></MemoryRouter>);
+    await user.click(screen.getByRole("button", { name: "Withdraw" }));
+    const confirm = screen.getByRole("button", { name: "Confirm withdrawal" });
+    expect(confirm).toBeEnabled();
+    await user.click(confirm);
+    expect(screen.getByRole("button", { name: "Withdrawing…" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Cancel" })).toBeDisabled();
+    fireEvent.submit(screen.getByRole("dialog").querySelector("form")!);
+    expect(requestApi.withdraw).toHaveBeenCalledTimes(1);
+    expect(requestApi.withdraw).toHaveBeenCalledWith(id, { expectedVersion: 2 }, expect.any(String), 1);
+    finish({ ...draft, status: "WITHDRAWN", version: 3 });
+    await waitFor(() => expect(changed).toHaveBeenCalledWith(expect.objectContaining({ status: "WITHDRAWN", version: 3 })));
+});
+test("stale withdrawal preserves reason, requires reload and confirms refreshed version", async () =>
+{
+    const pending = { ...draft, status: "PENDING" as const, availableActions: ["WITHDRAW"] };
+    vi.mocked(requestApi.withdraw).mockRejectedValueOnce(new ApiFailure({ kind: "http", status: 409, code: "REQUEST_STALE", message: "Stale request" })).mockResolvedValue({ ...draft, status: "WITHDRAWN", version: 5 });
+    vi.mocked(requestApi.read).mockResolvedValue({ ...pending, version: 4 });
+    const user = userEvent.setup();
+    render(<MemoryRouter><RequestOwnerActions detail={pending} /></MemoryRouter>);
+    await user.click(screen.getByRole("button", { name: "Withdraw" }));
+    await user.type(screen.getByLabelText("Reason (optional)"), "Keep this reason");
+    await user.click(screen.getByRole("button", { name: "Confirm withdrawal" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Stale request");
+    expect(screen.getByRole("button", { name: "Confirm withdrawal" })).toBeDisabled();
+    await user.click(screen.getByRole("button", { name: "Reload request" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Confirm withdrawal" })).toBeEnabled());
+    expect(screen.getByLabelText("Reason (optional)")).toHaveValue("Keep this reason");
+    await user.click(screen.getByRole("button", { name: "Confirm withdrawal" }));
+    expect(requestApi.withdraw).toHaveBeenLastCalledWith(id, { expectedVersion: 4, reason: "Keep this reason" }, expect.any(String), 1);
+});
+test.each([403, 404])("withdrawal %s refreshes parent permission scope", async (status) =>
+{
+    vi.mocked(requestApi.withdraw).mockRejectedValue(new ApiFailure({ kind: "http", status, message: "Unavailable" }));
+    const unavailable = vi.fn();
+    const user = userEvent.setup();
+    render(<MemoryRouter><RequestOwnerActions detail={{ ...draft, status: "PENDING", availableActions: ["WITHDRAW"] }} onUnavailable={unavailable} /></MemoryRouter>);
+    await user.click(screen.getByRole("button", { name: "Withdraw" }));
+    await user.click(screen.getByRole("button", { name: "Confirm withdrawal" }));
+    await waitFor(() => expect(unavailable).toHaveBeenCalledOnce());
+    expect(screen.getByRole("alert")).toHaveTextContent(status === 403 ? "You do not have access" : "This request is unavailable");
+});
+test("foreign and terminal requests offer no owner mutations", () =>
+{
+    const view = render(<MemoryRouter><RequestOwnerActions detail={{ ...draft, requester: { ...draft.requester, id: definition.versionId } }} /></MemoryRouter>);
+    expect(screen.queryByRole("link", { name: "Resume draft" })).not.toBeInTheDocument();
+    view.rerender(<MemoryRouter><RequestOwnerActions detail={{ ...draft, status: "WITHDRAWN" }} /></MemoryRouter>);
+    expect(screen.queryByRole("button", { name: "Withdraw" })).not.toBeInTheDocument();
+});
+
+test("review: withdrawal conflict reload needs only current request and Escape refreshes parent", async () =>
+{
+    const pending = { ...draft, status: "PENDING" as const, availableActions: ["WITHDRAW"] };
+    vi.mocked(requestApi.withdraw).mockRejectedValue(new ApiFailure({ kind: "http", status: 409, code: "REQUEST_STALE", message: "Stale request" }));
+    vi.mocked(requestApi.read).mockResolvedValue({ ...pending, status: "WITHDRAWN", version: 4, availableActions: [] });
+    vi.mocked(requestApi.version).mockRejectedValue(new Error("Definition endpoint unavailable"));
+    const changed = vi.fn();
+    const user = userEvent.setup();
+    render(<MemoryRouter><RequestOwnerActions detail={pending} onChanged={changed} /></MemoryRouter>);
+    await user.click(screen.getByRole("button", { name: "Withdraw" }));
+    await user.click(screen.getByRole("button", { name: "Confirm withdrawal" }));
+    await user.click(await screen.findByRole("button", { name: "Reload request" }));
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("Current server status: Withdrawn"));
+    expect(requestApi.version).not.toHaveBeenCalled();
+    fireEvent(screen.getByRole("dialog"), new Event("cancel", { cancelable: true }));
+    expect(changed).toHaveBeenCalledWith(expect.objectContaining({ status: "WITHDRAWN", version: 4 }));
+});
+
+test("review: withdrawal permission lost during conflict reload refreshes parent scope", async () =>
+{
+    vi.mocked(requestApi.withdraw).mockRejectedValue(new ApiFailure({ kind: "http", status: 409, message: "Stale" }));
+    vi.mocked(requestApi.read).mockRejectedValue(new ApiFailure({ kind: "http", status: 403, message: "Forbidden" }));
+    const unavailable = vi.fn();
+    const user = userEvent.setup();
+    render(<MemoryRouter><RequestOwnerActions detail={{ ...draft, status: "PENDING", availableActions: ["WITHDRAW"] }} onUnavailable={unavailable} /></MemoryRouter>);
+    await user.click(screen.getByRole("button", { name: "Withdraw" }));
+    await user.click(screen.getByRole("button", { name: "Confirm withdrawal" }));
+    await user.click(await screen.findByRole("button", { name: "Reload request" }));
+    await waitFor(() => expect(unavailable).toHaveBeenCalledOnce());
+});
+
+function editableFixture(detail = draft, form = definition)
+{
+    vi.mocked(requestApi.read).mockResolvedValue(detail);
+    vi.mocked(requestApi.version).mockResolvedValue(form);
+    vi.mocked(requestApi.types).mockResolvedValue({ items: [definition], pagination: { currentPage: 1, pageSize: 100, totalCount: 1, totalPages: 1, hasNext: false, hasPrevious: false } });
+    return render(<RouterProvider router={createMemoryRouter([{ path: "/requests/:id/edit", Component: RequestEditPage }], { initialEntries: [`/requests/${id}/edit`] })} />);
+}
+
+test.each([403, 404])("review: draft save %s removes protected editor instead of leaving a writable form", async (status) =>
+{
+    vi.mocked(requestApi.patch).mockRejectedValue(new ApiFailure({ kind: "http", status, message: "Unavailable" }));
+    editableFixture();
+    const user = userEvent.setup();
+    const title = await screen.findByLabelText("Title (required)");
+    await user.type(title, " change");
+    await user.click(screen.getByRole("button", { name: "Save Draft" }));
+    await waitFor(() => expect(screen.queryByLabelText("Title (required)")).not.toBeInTheDocument());
+    expect(screen.getByRole("link", { name: "My Requests" })).toBeVisible();
+});
+
+test("review: stale draft offers explicit reload; cancel keeps inputs and confirmed reload resets expectedVersion", async () =>
+{
+    vi.mocked(requestApi.patch).mockRejectedValueOnce(new ApiFailure({ kind: "http", status: 409, code: "REQUEST_STALE", message: "Reload before editing" })).mockResolvedValue({ ...draft, version: 6 });
+    editableFixture();
+    const user = userEvent.setup();
+    await user.type(await screen.findByLabelText("Title (required)"), " local");
+    await user.click(screen.getByRole("button", { name: "Save Draft" }));
+    const reload = await screen.findByRole("button", { name: "Reload saved draft" });
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+    await user.click(reload);
+    expect(screen.getByLabelText("Title (required)")).toHaveValue("Saved incomplete local");
+    expect(requestApi.read).toHaveBeenCalledTimes(1);
+    confirm.mockReturnValue(true);
+    vi.mocked(requestApi.read).mockResolvedValue({ ...draft, title: "Server edit", version: 5 });
+    await user.click(reload);
+    await waitFor(() => expect(screen.getByLabelText("Title (required)")).toHaveValue("Server edit"));
+    await user.type(screen.getByLabelText("Title (required)"), " after reload");
+    await user.click(screen.getByRole("button", { name: "Save Draft" }));
+    expect(requestApi.patch).toHaveBeenLastCalledWith(id, { title: "Server edit after reload", expectedVersion: 5 }, expect.any(String));
+});
+
+test("review: recoverable draft server error retains input and support Request ID", async () =>
+{
+    vi.mocked(requestApi.patch).mockRejectedValue(new ApiFailure({ kind: "http", status: 503, message: "Unavailable", requestId: "support-issue6" }));
+    editableFixture();
+    const user = userEvent.setup();
+    await user.type(await screen.findByLabelText("Title (required)"), " retained");
+    await user.click(screen.getByRole("button", { name: "Save Draft" }));
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("support-issue6"));
+    expect(screen.getByLabelText("Title (required)")).toHaveValue("Saved incomplete retained");
+});
+
+test("review: explicit updated-form review can remove obsolete monetary authority without trapping draft saves", async () =>
+{
+    const oldDefinition = { ...definition, monetary: true };
+    const oldDraft = { ...draft, workingRevision: { ...draft.workingRevision!, amount: "12.00", currency: "THB" } };
+    vi.mocked(requestApi.patch).mockRejectedValueOnce(new ApiFailure({ kind: "http", status: 409, code: "FORM_DEFINITION_CHANGED", message: "Review updated form" })).mockResolvedValue({ ...draft, version: 3 });
+    editableFixture(oldDraft, oldDefinition);
+    const newVersion = "9bb91ef4-5982-405f-8bd5-61b5c3cf410b";
+    vi.mocked(requestApi.type).mockResolvedValue({ ...definition, versionId: newVersion, versionNumber: 2 });
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
+    const user = userEvent.setup();
+    await user.type(await screen.findByLabelText("Title (required)"), " keep");
+    await user.click(screen.getByRole("button", { name: "Save Draft" }));
+    await user.click(await screen.findByRole("button", { name: "Review updated form" }));
+    await user.click(screen.getByRole("button", { name: "Save Draft" }));
+    expect(requestApi.patch).toHaveBeenLastCalledWith(id, expect.objectContaining({ expectedVersion: 2, formDefinitionVersionId: newVersion, monetaryAmount: null }), expect.any(String));
+    expect(confirm).toHaveBeenCalled();
+});
+
+test("review: returning to completed Review step validates edited amounts before computing totals", async () =>
+{
+    const itemDefinition = { ...definition, supportsLineItems: true, monetary: true };
+    const itemDraft = { ...draft, justification: "Needed", workingRevision: { ...draft.workingRevision!, amount: "1.00", currency: "THB", lineItems: [{ id, description: "Part", quantity: "1", unitAmount: "1.00", totalAmount: "1.00" }] } };
+    editableFixture(itemDraft, itemDefinition);
+    const user = userEvent.setup();
+    await screen.findByLabelText("Title (required)");
+    await user.click(screen.getByRole("button", { name: /^Next$/ }));
+    await user.click(screen.getByRole("button", { name: /^Next$/ }));
+    await user.click(screen.getByRole("button", { name: /^Next$/ }));
+    await user.click(screen.getByRole("button", { name: "Back" }));
+    const quantity = screen.getByLabelText("Quantity (item 1)");
+    await user.clear(quantity);
+    await user.type(quantity, "invalid");
+    await user.click(screen.getByRole("button", { name: /Review & Submit/ }));
+    expect(screen.getByLabelText("Quantity (item 1)")).toHaveFocus();
+    expect(screen.getByRole("heading", { name: "Items & Attachments" })).toBeVisible();
+});
+
+test("B02 type change replaces edit resource URL, keeps step, and unchanged retry creates no duplicate", async () =>
+{
+    const other = { ...definition, id: "9bb91ef4-5982-405f-8bd5-61b5c3cf410b", code: "OTHER", name: { en: "Other" } };
+    const saved = { ...draft, id: "abb91ef4-5982-405f-8bd5-61b5c3cf410b", typeId: other.id, typeCode: other.code, title: "", version: 0 };
+    vi.mocked(requestApi.read).mockImplementation(async (requestId) => requestId === saved.id ? saved : draft);
+    vi.mocked(requestApi.version).mockImplementation(async (typeId) => typeId === other.id ? other : definition);
+    vi.mocked(requestApi.types).mockResolvedValue({ items: [definition, other], pagination: { currentPage: 1, pageSize: 100, totalCount: 2, totalPages: 1, hasNext: false, hasPrevious: false } });
+    vi.mocked(requestApi.create).mockResolvedValue(saved);
+    const router = createMemoryRouter([{ path: "/requests/:id/edit", Component: RequestEditPage }], { initialEntries: [`/requests/${id}/edit`] });
+    render(<RouterProvider router={router} />);
+    const user = userEvent.setup();
+    await screen.findByLabelText("Title (required)");
+    await user.click(screen.getByRole("button", { name: "Back" }));
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+    await user.selectOptions(screen.getByLabelText("Request type (required)"), other.id);
+    expect(screen.getByLabelText("Request type (required)")).toHaveValue(definition.id);
+    expect(requestApi.create).not.toHaveBeenCalled();
+    expect(requestApi.patch).not.toHaveBeenCalled();
+    confirm.mockReturnValue(true);
+    await user.selectOptions(screen.getByLabelText("Request type (required)"), other.id);
+    await user.click(screen.getByRole("button", { name: "Save Draft" }));
+    await waitFor(() => expect(router.state.location.pathname).toBe(`/requests/${saved.id}/edit`));
+    expect(router.state.historyAction).toBe("REPLACE");
+    await waitFor(() => expect(screen.getByLabelText("Request type (required)")).toHaveValue(other.id));
+    expect(screen.getByRole("heading", { name: "Request Type" })).toBeVisible();
+    expect(confirm).toHaveBeenCalledTimes(2);
+    await user.click(screen.getByRole("button", { name: "Save Draft" }));
+    await screen.findByText(/Draft saved/);
+    expect(requestApi.create).toHaveBeenCalledTimes(1);
+    expect(requestApi.patch).not.toHaveBeenCalled();
+});
+
+test.each([
+    { server: { ...draft, version: 3 }, message: "changed", recovery: true },
+    { server: { ...draft, status: "PENDING" as const, version: 3 }, message: "draft", recovery: true },
+    { server: { ...draft, availableActions: [] }, message: "access", recovery: false },
+])("B03 unchanged save removes prior success and handles $message server state", async ({ server, recovery }) =>
+{
+    editableFixture();
+    const user = userEvent.setup();
+    await screen.findByLabelText("Title (required)");
+    await user.click(screen.getByRole("button", { name: "Save Draft" }));
+    await screen.findByText(/Draft saved/);
+    vi.mocked(requestApi.read).mockResolvedValue(server);
+    await user.click(screen.getByRole("button", { name: "Save Draft" }));
+    await screen.findByRole("alert");
+    expect(screen.queryByText(/Draft saved/)).not.toBeInTheDocument();
+    expect(requestApi.patch).not.toHaveBeenCalled();
+    if (recovery)
+    {
+        expect(screen.getByRole("button", { name: "Reload saved draft" })).toBeVisible();
+        expect(screen.getByLabelText("Title (required)")).toHaveValue(draft.title);
+    }
+    else expect(screen.queryByLabelText("Title (required)")).not.toBeInTheDocument();
+});
+
+test("B04 review summary excludes raw line items that canonical payload omits", async () =>
+{
+    editableFixture({ ...draft, justification: "Needed", workingRevision: { ...draft.workingRevision!, lineItems: [{ id, description: "Obsolete part", quantity: "2", unitAmount: "5.00", totalAmount: "10.00" }] } });
+    const user = userEvent.setup();
+    await screen.findByLabelText("Title (required)");
+    await user.click(screen.getByRole("button", { name: /^Next$/ }));
+    await user.click(screen.getByRole("button", { name: /^Next$/ }));
+    expect(screen.getByRole("heading", { name: "Review & Submit" })).toBeVisible();
+    expect(screen.queryByText("Obsolete part")).not.toBeInTheDocument();
+});
+
+test.each([false, true])("B04 confirmed migration clears incompatible values permanently (items: %s)", async (items) =>
+{
+    const oldDefinition = { ...definition, monetary: true, supportsLineItems: items };
+    const lineItems = items ? [{ id, description: "Obsolete part", quantity: "2", unitAmount: "5.00", totalAmount: "10.00" }] : [];
+    const original = { ...draft, justification: "Needed", workingRevision: { ...draft.workingRevision!, amount: "10.00", currency: "THB", lineItems } };
+    const latest = { ...definition, versionId: "9bb91ef4-5982-405f-8bd5-61b5c3cf410b", versionNumber: 2 };
+    const migrated = { ...original, version: 3, workingRevision: { ...original.workingRevision, formDefinitionVersionId: latest.versionId, amount: null, currency: null, lineItems: [] } };
+    vi.mocked(requestApi.patch).mockRejectedValueOnce(new ApiFailure({ kind: "http", status: 409, code: "FORM_DEFINITION_CHANGED", message: "Review updated form" })).mockResolvedValue(migrated);
+    editableFixture(original, oldDefinition);
+    vi.mocked(requestApi.type).mockResolvedValue(latest);
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+    const user = userEvent.setup();
+    await user.type(await screen.findByLabelText("Title (required)"), " retained");
+    await user.click(screen.getByRole("button", { name: "Save Draft" }));
+    await user.click(await screen.findByRole("button", { name: "Review updated form" }));
+    expect(screen.getByLabelText("Title (required)")).toHaveValue(`${original.title} retained`);
+    await user.click(screen.getByRole("button", { name: /^Next$/ }));
+    if (items)
+    {
+        await user.click(screen.getByRole("button", { name: /^Next$/ }));
+        expect(screen.getByLabelText("Description (item 1)")).toHaveValue("Obsolete part");
+    }
+    else expect(screen.getByLabelText("Amount (THB, required)")).toHaveValue("10.00");
+    await user.click(screen.getByRole("button", { name: /^Next$/ }));
+    expect(screen.getByText("Total: 10.00 THB")).toBeVisible();
+    confirm.mockReturnValue(true);
+    await user.click(screen.getByRole("button", { name: "Review updated form" }));
+    await user.click(screen.getByRole("button", { name: /^Next$/ }));
+    expect(screen.getByRole("heading", { name: "Review & Submit" })).toBeVisible();
+    expect(screen.queryByText("Obsolete part")).not.toBeInTheDocument();
+    expect(screen.queryByText(/Total:/)).not.toBeInTheDocument();
+    expect(screen.getByText(`${original.title} retained`)).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Save Draft" }));
+    expect(requestApi.patch).toHaveBeenLastCalledWith(id, expect.objectContaining({ expectedVersion: 2, formDefinitionVersionId: latest.versionId, ...(items ? { lineItems: [] } : { monetaryAmount: null }) }), expect.any(String));
+    await screen.findByText(/Draft saved/);
+    await user.click(screen.getByRole("button", { name: /Basic Information/ }));
+    await user.type(screen.getByLabelText("Title (required)"), " again");
+    vi.mocked(requestApi.patch).mockRejectedValueOnce(new ApiFailure({ kind: "http", status: 409, code: "FORM_DEFINITION_CHANGED", message: "Review updated form" }));
+    vi.mocked(requestApi.type).mockResolvedValue({ ...oldDefinition, versionId: "abb91ef4-5982-405f-8bd5-61b5c3cf410b", versionNumber: 3 });
+    await user.click(screen.getByRole("button", { name: "Save Draft" }));
+    await user.click(await screen.findByRole("button", { name: "Review updated form" }));
+    if (items)
+    {
+        await user.click(screen.getByRole("button", { name: /^Next$/ }));
+        expect(screen.queryByLabelText("Description (item 1)")).not.toBeInTheDocument();
+    }
+    else expect(screen.getByLabelText("Amount (THB, required)")).toHaveValue("");
+    expect(confirm).toHaveBeenCalledTimes(2);
+});
+
+test.each([false, true])("B04 compatible form migration preserves monetary values and review/persistence payload (items: %s)", async (items) =>
+{
+    const oldDefinition = { ...definition, monetary: true, supportsLineItems: items };
+    const lineItems = items ? [{ id, description: "Retained part", quantity: "2", unitAmount: "5.00", totalAmount: "10.00" }] : [];
+    const original = { ...draft, justification: "Needed", workingRevision: { ...draft.workingRevision!, amount: "10.00", currency: "THB", lineItems } };
+    const latest = { ...oldDefinition, versionId: "9bb91ef4-5982-405f-8bd5-61b5c3cf410b", versionNumber: 2 };
+    vi.mocked(requestApi.patch).mockRejectedValueOnce(new ApiFailure({ kind: "http", status: 409, code: "FORM_DEFINITION_CHANGED", message: "Review updated form" })).mockResolvedValue({ ...original, version: 3 });
+    editableFixture(original, oldDefinition);
+    vi.mocked(requestApi.type).mockResolvedValue(latest);
+    const confirm = vi.spyOn(window, "confirm");
+    const user = userEvent.setup();
+    await user.type(await screen.findByLabelText("Title (required)"), " retained");
+    await user.click(screen.getByRole("button", { name: "Save Draft" }));
+    await user.click(await screen.findByRole("button", { name: "Review updated form" }));
+    await user.click(screen.getByRole("button", { name: /^Next$/ }));
+    if (items) await user.click(screen.getByRole("button", { name: /^Next$/ }));
+    expect(screen.getByText("Total: 10.00 THB")).toBeVisible();
+    if (items) expect(screen.getByText("Retained part")).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Save Draft" }));
+    expect(requestApi.patch).toHaveBeenLastCalledWith(id, { expectedVersion: 2, formDefinitionVersionId: latest.versionId, title: `${original.title} retained` }, expect.any(String));
+    expect(confirm).not.toHaveBeenCalled();
+});
+
+test("B06 wizard maps bracket-form server error path lineItems[0].quantity to item input and focuses it", async () =>
+{
+    const itemDefinition = { ...definition, monetary: true, supportsLineItems: true };
+    const itemDraft = { ...draft, workingRevision: { ...draft.workingRevision!, amount: "10.00", currency: "THB", lineItems: [{ id, description: "Part", quantity: "1", unitAmount: "10.00", totalAmount: "10.00" }] } };
+    vi.mocked(requestApi.patch).mockRejectedValueOnce(new ApiFailure({
+        kind: "http",
+        status: 422,
+        message: "Validation failed",
+        details: [{ field: "lineItems[0].quantity", code: "VALIDATION_ERROR", message: "Invalid quantity" }],
+    }));
+    editableFixture(itemDraft, itemDefinition);
+    const user = userEvent.setup();
+    await user.type(await screen.findByLabelText("Title (required)"), " check");
+    await user.click(screen.getByRole("button", { name: "Save Draft" }));
+    const quantity = await screen.findByLabelText("Quantity (item 1)");
+    await waitFor(() => expect(quantity).toHaveFocus());
+    expect(quantity).toHaveAttribute("aria-invalid", "true");
+    expect(screen.getByRole("heading", { name: "Items & Attachments" })).toBeVisible();
+});
+
+test("B07 withdrawal dialog returns focus to trigger when surviving and calls fallback when removed", async () =>
+{
+    const pending = { ...draft, status: "PENDING" as const, availableActions: ["WITHDRAW"], requestNumber: "REQ-00000001" };
+    vi.mocked(requestApi.withdraw).mockResolvedValue({ ...pending, status: "WITHDRAWN", version: 3, availableActions: [] });
+    const fallback = vi.fn();
+    const user = userEvent.setup();
+    const view = render(<MemoryRouter><RequestOwnerActions detail={pending} onFocusFallback={fallback} /></MemoryRouter>);
+    const withdraw = screen.getByRole("button", { name: "Withdraw" });
+    await user.click(withdraw);
+    expect(screen.getByRole("dialog")).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    await waitFor(() => expect(withdraw).toHaveFocus());
+    expect(fallback).not.toHaveBeenCalled();
+    await user.click(withdraw);
+    await user.click(screen.getByRole("button", { name: "Confirm withdrawal" }));
+    await waitFor(() => expect(screen.queryByRole("button", { name: "Withdraw" })).not.toBeInTheDocument());
+    expect(fallback).toHaveBeenCalledTimes(1);
+    view.unmount();
+
+    const fallbackConflict = vi.fn();
+    vi.mocked(requestApi.withdraw).mockRejectedValueOnce(new ApiFailure({ kind: "http", status: 409, code: "REQUEST_STALE", message: "Stale request" }));
+    vi.mocked(requestApi.read).mockResolvedValue({ ...pending, status: "WITHDRAWN", version: 4, availableActions: [] });
+    render(<MemoryRouter><RequestOwnerActions detail={pending} onFocusFallback={fallbackConflict} /></MemoryRouter>);
+    await user.click(screen.getByRole("button", { name: "Withdraw" }));
+    await user.click(screen.getByRole("button", { name: "Confirm withdrawal" }));
+    await user.click(await screen.findByRole("button", { name: "Reload request" }));
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("Current server status: Withdrawn"));
+    fireEvent(screen.getByRole("dialog"), new Event("cancel", { cancelable: true }));
+    await waitFor(() => expect(screen.queryByRole("button", { name: "Withdraw" })).not.toBeInTheDocument());
+    expect(fallbackConflict).toHaveBeenCalledTimes(1);
+});

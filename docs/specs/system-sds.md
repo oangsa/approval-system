@@ -569,3 +569,7 @@ The feature-level implementation design, criteria, tests, and DoD for M01–M03 
 Decision processing retains CurrentActor and accepted idempotency replay before stricter NEW-rejection semantic validation; the domain also enforces the 10–4000 trimmed UTF-16-unit invariant. Preserve Lock/Save/Complete ordering, request/cycle/slot guards and atomic decision/status/audit/outbox/key effects. No schema/backfill is required: the existing text column/nonblank constraint accepts the stricter subset and preserves historical rows. Do not introduce a PostgreSQL length() minimum that counts differently. Historical read and accepted replay remain compatible.
 
 Approval evidence: [record](../labs/lab-07/approval-record.md). Original sections remain historical baseline wording where superseded above; no unrelated behavior is changed.
+
+## Issue #6 physical lifecycle design — 2026-11-24
+
+[Draft/withdraw SDS v1](../features/draft-withdraw-lifecycle/sds.md) records the bounded R01/R05 implementation: reuse request lifecycle transactions/replay, acquire the shared request row lock before cancelling current unfinished work, and preserve submitted revision/cycle snapshots and completed votes. Migration `0009_withdrawal-audit-note` adds nullable `audit_events.note` for optional owner withdrawal reason; audit actor/time and the existing timeline DTO remain unchanged. Authenticated `/requests/:id/edit` reuses the existing wizard through service-layer hydration and changes-only draft PATCH. No returned/resubmit engine or product contract amendment is implied.

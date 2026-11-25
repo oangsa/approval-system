@@ -213,3 +213,14 @@ test("recovers from a rejected filter query with a default retry", async () =>
     await waitFor(() => expect(searchApprovalTasks).toHaveBeenLastCalledWith(expect.objectContaining({ pageNumber: 1, pageSize: 20, search: [], orderBy: "dueAt asc" }), expect.any(AbortSignal), 0));
     expect(screen.getByLabelText("Stage")).toHaveValue("");
 });
+
+test("withdrawn tasks disappear when reviewer returns focus to queue", async () =>
+{
+    vi.mocked(searchApprovalTasks).mockResolvedValueOnce(page).mockResolvedValue({ items: [], pagination: { ...page.pagination, totalPages: 0, totalCount: 0, hasNext: false } });
+    vi.mocked(requestApi.read).mockResolvedValue(detail("Pending withdrawal", "REQ-00000099"));
+    show();
+    await waitFor(() => expect(searchApprovalTasks).toHaveBeenCalledTimes(1));
+    fireEvent.focus(window);
+    await waitFor(() => expect(searchApprovalTasks).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(screen.queryByRole("row")).not.toBeInTheDocument());
+});
