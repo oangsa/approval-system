@@ -1,66 +1,48 @@
 # Actual verification — Issue #9
 
-2026-11-25. Branch `feature/9-policies-routing-budget`; base commit `a7cac0b58ec7066d22706a46fb2498e5fec710c5`. Implementation is an **uncommitted working tree**, not a claim of published commits or passing remote CI. No commit, push, PR, merge or release was authorized/performed. Owner @oangsa; independent @kittipichcha review remains pending.
+**Last verified:** 2026-11-25 (`Asia/Bangkok`)
+**Branch:** `feature/9-policies-routing-budget`
+**Tested implementation/test commit SHA:** `2e5f19d575b93ec9b2f8f792e3a264e85ecd7e87` (`test(policies): cover concurrent policy publish and request submit`)
+**PR:** [#90](https://github.com/oangsa/approval-system/pull/90) targeting `sprint-2-staging` (documentation-only synchronization commit follows `2e5f19d575b93ec9b2f8f792e3a264e85ecd7e87` without modifying runtime or test files). Owner `@oangsa`; independent teammate review by `@kittipichcha` remains pending.
 
 ## Environment and scope
 
-Linux; Node.js v24.18.1, npm 11.16.0, PostgreSQL 17 Alpine in loopback-only disposable Docker containers; Vitest 4.1.10 and Playwright 1.60.0 Chromium. Existing shared test database was used for development. Final complete CI-order run used a separate fresh `workflow_test` instance on loopback port 55439 (`approval-issue9-verification`), removed after execution; no development or production database was migrated. Additional fresh initialization ran independently in `approval-issue9-initialization`, also removed. No credentials, cookies or trace tokens are committed.
+- **Environment:** Linux, Node.js `v24.18.1`, npm `11.16.0`, PostgreSQL 17 Alpine (`postgres:17-alpine` disposable loopback `workflow_test` container via `apps/api/tests/postgres/compose.yaml`, recreated with `db:test:down -- -v && db:test:up` before verification and removed with `db:test:down -- -v` afterward), Vitest `4.1.10`, Playwright `1.60.0` (headless Chromium). No development or production database was modified, and no credentials, cookies, or trace tokens are committed.
+- **Scope boundary:** Owner confirmed bounded Issue #9 scope: current routing/ceiling configuration and a tested historical department/form resolution seam ship in Issue #9; full return/resubmit lifecycle remains Issue #7. Staged decision execution and approver display retain their primary feature ownership. No simulation endpoint, balance ledger, or funds mutation was added.
 
-User confirmed scope option 1: Issue #9 implements current routing/ceiling configuration and a tested historical department/form resolution seam; full return/resubmit lifecycle remains Issue #7. Staged decision execution and approver display keep their original ownership. No simulation endpoint, balance ledger or funds mutation was added.
-
-## Executed checks
+## Executed checks on `2e5f19d575b93ec9b2f8f792e3a264e85ecd7e87`
 
 | Command | Actual result |
 |---|---|
-| `npm run typecheck` | Passed all workspaces and root TypeScript |
-| `npm run lint` | Passed |
-| `npm test` | 54 files, 479 tests passed; zero skips |
-| `npm run build` | API, React Router client + SSR, and contracts builds passed |
-| `NODE_ENV=test npm run db:test:migrate` | All migrations, including 0011–0013, applied to fresh PostgreSQL |
-| `NODE_ENV=test npm run test:initialization` | 1 file / 1 test passed on fresh database; lifecycle seed and repeated initialization preserved |
-| `NODE_ENV=test npm run db:test:seed` | Passed before integration/browser run |
-| `NODE_ENV=test RUN_BUILT_HTTP_SMOKE=1 npm run test:integration` | 12 files / 124 tests passed; zero skips, including built HTTP smoke tests |
-| `NODE_ENV=test npm run test:e2e` | All 45 Chromium tests passed in 58.7s after fresh migration/initialization/seed/integration sequence |
-| `NODE_ENV=test npm run test:integration --workspace @workflow/api -- configuration.test.ts` | Final policy-only rerun: 9 tests passed after DTO simplification |
-| `npm run test:release` | 13 tests passed with loopback listener access |
-| `git diff --check` | Passed; new source whitespace checked separately |
+| `npm run check` (`npm run typecheck && npm run lint && npm test && npm run build`) | Passed: workspace + root `typecheck` passed; `lint` passed; `npm test` passed **54 files / 480 tests** (`0` failed, `0` skipped); `build` passed across `@workflow/contracts`, `@workflow/api`, and `@workflow/web` (client + SSR) |
+| `npm run test:release` | Passed: **13 tests** (`0` failed, `0` skipped) |
+| `npm run db:test:down -- -v && npm run db:test:up && NODE_ENV=test npm run db:test:migrate` | Passed: fresh `workflow_test` database created and all migrations (including `0011`–`0013`) applied |
+| `NODE_ENV=test npm run test:initialization` | Passed: **1 file / 1 test** (`0` failed, `0` skipped) on fresh unseeded database |
+| `NODE_ENV=test npm run db:test:seed` | Passed |
+| `NODE_ENV=test RUN_BUILT_HTTP_SMOKE=1 npm run test:integration` | Passed: **12 files / 126 tests** (`0` failed, `0` skipped), including built-listener HTTP smoke tests and `configuration.test.ts` (**11/11**) |
+| `NODE_ENV=test npm run test:e2e` | Passed: **45 tests** (`1.0m`, `0` failed, `0` skipped) in headless Chromium immediately following the CI database sequence |
+| `git diff --check` | Passed (`0` whitespace or conflict issues) |
 
-Final targeted browser follow-up after the lookup debounce guard: 1/1 passed in 14.4s. It additionally checks actual dark CSS token serialization, reduced-motion transition suppression and both mobile screenshots. The full 45-test run covers the same functional configure-to-submit flow. Final `npm run check` was repeated after the last code change; the table above records that run.
+**Disclosed skips, failures, and non-executed local checks:** Zero failed or skipped tests occurred in any executed suite above (`480` unit/API/contract/component, `13` release, `1` initialization, `126` PostgreSQL integration, `45` Playwright Chromium E2E). Production Docker image builds (`approval-release:ci`, `approval-api:ci`, `approval-web:ci`) execute in the GitHub Actions `Verification` workflow on push/PR rather than locally in this pass. Safari/Firefox, production database migration/deployment, and full Issue #7 return/resubmit lifecycle were not performed or claimed.
 
 ## Coverage and evidence
 
-- Contracts: one/two ordered stages, strict ALL-only shape, SLA default, exact inclusive amount bounds, positive ceilings, endpoint search allowlists and PATCH omission preservation.
-- API/security: admin POST/search/PATCH/configuration actions, direct frozen DTOs, publish key, 401/403 denial, stale 409, X-Pagination, minimal eligible-reviewer projection, no admin request-content read grant and CORS POST/PATCH/header checks.
-- PostgreSQL: concurrent publication produces one immutable version; same-key replay survives later branching; changed payload rejects; transactional before/after audit is immutable. Invalid reviewer references/merged bounds produce no configuration or audit mutation. Runtime grants exercise actual policy publication, mapping creation and budget updates; migrator ownership includes the new tables.
-- Resolution: exact ceilings immediately below/at/above, department-specific limit override, highest numeric priority/tie, no route, all reviewers in all stages including inactive/self-only later mappings, atomic no-cycle/audit/outbox failure and trusted department-specific/global mapping resolution. Accepted snapshots are unchanged after disable/mapping edits. Multi-reviewer mappings create actual parallel ALL slots; existing decision engine requires all votes.
-- Issue #7 seam: historical department and pinned form remain intact after membership/form changes; new amount resolves the current published two-stage policy. This is an internal integration test, not an assertion that the absent return/resubmit lifecycle shipped.
-- Browser E2E-08: admin eligible reviewer lookup, mapping creation, type selection, local preview, policy v1/branch/v2 publication, stage-3 absence, ceiling creation and duplicate-scope 409 feedback, requester role denial, above-ceiling 422 display, corrected at-ceiling submit and actual two-stage slots. SSR response contains no configured private page data. Mobile overflow and reduced motion are checked.
-- Local screenshots: `artifacts/policies-routing-budget/admin-budget-desktop.png`, `request-submitted.png`, `policy-mobile.png`, `policy-mobile-dark.png`. Artifacts remain ignored local verification outputs.
+- **Contracts (`packages/contracts`):** One/two ordered stages, strict `ALL`-only shape, SLA default `480`, exact inclusive amount bounds, positive ceilings, endpoint search allowlists, PATCH omission preservation, and creation-only immutable reviewer assignment `key` (`patchAssignmentRuleSchema` rejects `key` updates).
+- **API and security (`apps/api`):** Admin `POST`/search/`PATCH`/lifecycle actions, direct frozen DTOs, publish `Idempotency-Key`, `401`/`403` denial, stale `409`, `X-Pagination`, minimal eligible-reviewer projection, no admin confidential request-content read grant, and CORS `POST`/`PATCH`/`Idempotency-Key` preflight checks.
+- **Real PostgreSQL (`apps/api/tests/postgres/configuration.test.ts`, `runtimePrivileges.test.ts`, `migratorOwnership.test.ts`):**
+  - Concurrent same-draft publication produces one immutable version; same-key replay survives later branching; changed payload rejects with `IDEMPOTENCY_CONFLICT`; transactional before/after audit rows and published policy versions are immutable.
+  - **Concurrent policy v2 publication versus request submission (`CX-12` / `PRB-AC-09` / `BR-024` / `BR-045`):** Real multi-connection PostgreSQL test (`observer.connection` vs `database.connection`) publishes two-stage policy v2 while a requester submits a request across both unscripted concurrent races and lock-held interleavings, proving both `v1` and `v2` serialization outcomes occur and every accepted cycle, stage row, slot row, and `RequestDetail` contains either a complete `v1` or complete `v2` snapshot with zero mixed stages/reviewers and zero duplicate policy versions, cycles, audits, or outbox events.
+  - Rejected assignment key renames (`422` at HTTP/service/repository and omitted `UPDATE(assignment_key)` runtime grant) preserve mapping identity, published policy references, future routing, optimistic concurrency, and `ASSIGNMENT_UPDATED` audit history.
+  - Exact ceilings immediately below/at/above, department-specific limit override, highest numeric priority/tie (`409 AMBIGUOUS_APPROVAL_POLICY`), missing route/inactive/self-only later mappings (`409 CONFIGURATION_INCOMPLETE`) with zero partial mutation, trusted primary-department selection, multi-reviewer `ALL` parallel slot expansion, and unchanged in-flight snapshots after disable/mapping edits.
+- **Issue #7 seam:** Historical server-owned department and pinned form remain intact after membership/form changes while changed amount resolves the current published two-stage policy.
+- **Browser (`e2e/policies-routing-budget.spec.ts`, `E2E-08`):** Admin eligible reviewer lookup, mapping creation, read-only assignment key on edit (`PATCH` version bump without rename and `422` on API rename attempt), type selection, local preview, policy v1/branch/v2 publication, stage-3 absence, ceiling creation and duplicate-scope `409` feedback, requester role denial, above-ceiling `422` display, corrected at-ceiling submit with two-stage slots, SSR private-data absence, mobile overflow, dark CSS tokens, and reduced-motion checks. Local screenshots remain in ignored `artifacts/policies-routing-budget/`.
 
-## Failures found and resolved during development
+## Revision and remediation history
 
-1. Collection-route HTTP create initially returned 500 because Elysia omitted `params`; defaulting to `{}` fixed the route. The same PostgreSQL HTTP regression now passes.
-2. Zod partial schemas applied defaults to omitted department/amount fields; explicit optional PATCH fields now preserve existing scopes/bounds. Shared and database regressions cover this.
-3. Browser publication exposed missing CORS Idempotency-Key/PATCH support. Added shared preflight handling and regression assertions; the real browser flow passes.
-4. Global deduplication changed existing per-stage snapshot ordering. Restored per-stage snapshots and deduplicate slot insertion only within a stage; existing PostgreSQL regression passes.
-5. Narrow layout overflow came from adjacent lookup buttons; wrapping fixes it. Navigation regression expectation was updated for the three newly shipped admin routes.
-6. Initial broad browser run was interrupted after three older tests timed out because new test fixtures inherited the label “General request.” Unique fixture names fixed the collision. Fresh CI-order rerun passed all 45 tests without removing/skipping/weakening tests.
-7. Browser/test-only assertion corrections: duplicate display names now use a unique reviewer fixture; exact save notices avoid loading-status ambiguity; existing request wizard button/step names are used; OKLCH token assertion accepts equivalent fractional/percentage serialization.
-8. Default sandbox blocked Docker/network listeners and one release proxy check. Authorized reruns with loopback/Docker access passed. No unresolved auto-review rejection.
+1. **Initial development fixes (pre-PR baseline `f53e955` — historical counts `479` Vitest / `124` PostgreSQL / `45` E2E):** Resolved omitted Elysia collection `params`, Zod partial PATCH defaults, CORS `Idempotency-Key`/`PATCH` preflight headers, per-stage snapshot slot deduplication, narrow-viewport lookup button wrapping, and unique E2E fixture naming.
+2. **PR #90 Review 1 P1 remediation (`156865c`..`9df0986` — historical counts `480` Vitest / `125` PostgreSQL):** Made reviewer assignment `key` immutable after creation across `packages/contracts`, `ConfigurationService`, `ConfigurationRepository`, `deploy/runtime-grants.sql`, `configurationService.ts`, and `ConfigurationListPage.tsx`, with contract, OpenAPI, component, PostgreSQL, runtime-grant, and Playwright regression coverage.
+3. **PR #90 Review 2 B01–B02 remediation (`2e5f19d575b93ec9b2f8f792e3a264e85ecd7e87` — current counts `480` Vitest / `126` PostgreSQL / `45` E2E):** Added the real multi-transaction `CX-12/PRB-AC-09` policy v2 publication versus request submission PostgreSQL test in `configuration.test.ts`, updated `sts.md`, executed the full CI-order verification suite against `2e5f19d575b93ec9b2f8f792e3a264e85ecd7e87`, and synchronized `verification.md`, `dod.md`, `issue-comment.md`, PR #90 description, and [Issue #9 comment](https://github.com/oangsa/approval-system/issues/9#issuecomment-7153135001).
 
 ## Remaining gates
 
-Independent teammate review, authorized atomic commits/push, feature PR to `sprint-2-staging`, reviewed promotion to `dev`, and release-reviewed promotion to `main` remain pending. Safari/Firefox, production migration/deployment and complete Issue #7 lifecycle were not claimed or performed. Frozen specifications were preserved; feature traceability, numbered AC, STS and DoD are versioned locally.
-
-Final workspace check on 2026-11-25 at 11:44 Asia/Bangkok: `npm run check` passed (typecheck, lint, 54 files / 479 tests, API/client/SSR/contracts builds). Targeted E2E follow-up passed with actual light/dark mobile screenshots and reduced-motion assertion. Verification evidence posted to [Issue #9 comment](https://github.com/oangsa/approval-system/issues/9#issuecomment-7153135001). Issue remains open; no commit/push/PR/merge/release performed.
-
-## PR #90 P1 remediation — immutable assignment keys
-
-2026-11-25 follow-up on `feature/9-policies-routing-budget` (based on `f53e955d947b70f6efabb3e47a0553388962f998`; uncommitted working tree, no commit/push/PR/merge performed).
-
-- Enforced creation-only assignment `key` in `patchAssignmentRuleSchema` (`packages/contracts/src/policies.ts`), `ConfigurationService.Assignment` (`apps/api/src/Applications/Policies/ConfigurationService.ts`), `ConfigurationRepository.SaveAssignment` (`apps/api/src/Infrastructures/Database/Repositories/ConfigurationRepository.ts`), `deploy/runtime-grants.sql` (`assignment_key` omitted from `GRANT UPDATE`), `saveAssignment` overloads (`apps/web/app/services/configurationService.ts`), and `ConfigurationListPage.tsx` (`readOnly` input when editing and `key` omitted from PATCH payloads).
-- `npm run check`: passed (`typecheck`, `lint`, Vitest 54 files / 480 tests passed with zero skips, and `build` across `@workflow/contracts`, `@workflow/api`, and `@workflow/web`).
-- `NODE_ENV=test RUN_BUILT_HTTP_SMOKE=1 npm run test:integration`: passed (12 files / 125 tests, zero skips), including `PRB-AC-04/09` HTTP/service/repository rename rejection, preserved mapping identity, published reference integrity, unchanged future routing, optimistic `409` concurrency, `ASSIGNMENT_UPDATED` audit preservation, and `runtimePrivileges.test.ts` verifying `assignment_key` lacks runtime `UPDATE` privilege.
-- `NODE_ENV=test npx playwright test e2e/policies-routing-budget.spec.ts`: passed (1/1 in 14.8s), verifying `readonly` assignment key input on edit, `PATCH` version bump without rename, `422` rejection on API rename attempt, and full configure-to-submit flow. Note: targeted `e2e/policies-routing-budget.spec.ts` ran rather than the full 45-test E2E suite or standalone `test:initialization`.
-- `npm run test:release`: passed (13/13, zero skips).
-- `git diff --check`: passed.
+Independent teammate review by `@kittipichcha` on PR #90 (`feature/9-policies-routing-budget` -> `sprint-2-staging`), followed by reviewed promotion to `dev` and release-reviewed promotion to `main`, remain required before release.

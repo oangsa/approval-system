@@ -1031,3 +1031,25 @@ Published policies reference stable `reviewerAssignmentKeys`. Renaming an existi
 
 Resolve the single P1 finding and rerun the applicable regression tests. No architectural redesign, feature expansion or unrelated refactoring is required.
 reflection/output: Remediated the PR #90 P1 finding by making reviewer assignment keys immutable after creation: separated `patchAssignmentRuleSchema` from `key` in `packages/contracts/src/policies.ts`, validated update inputs against `patchAssignmentRuleSchema` while preserving `before.key`, optimistic `expectedVersion` checks, and `ASSIGNMENT_UPDATED` audit logging in `ConfigurationService.Assignment`, guarded `onConflictDoUpdate` against `assignment_key` changes in `ConfigurationRepository.SaveAssignment`, removed `assignment_key` from `GRANT UPDATE` in `deploy/runtime-grants.sql`, added `saveAssignment` TypeScript overloads in `apps/web/app/services/configurationService.ts`, and made the edit dialog key input `readOnly` while omitting `key` from update payloads in `ConfigurationListPage.tsx`. Added contract, OpenAPI, component, real-PostgreSQL (rename rejection, preserved identity/references/routing, concurrency, audit, and runtime privileges), and Playwright E2E regression tests; updated Issue #9 SDS, AC, STS, and verification records. Verified `npm run check` (typecheck, lint, 54 files / 480 tests, builds), `NODE_ENV=test RUN_BUILT_HTTP_SMOKE=1 npm run test:integration` (12 files / 125 tests), targeted `e2e/policies-routing-budget.spec.ts` (1/1), `npm run test:release` (13/13), and `git diff --check` all passed; full 45-test E2E and standalone `test:initialization` were not rerun. No commits, pushes, or external comments were performed.
+
+## Issue #9 assistance
+
+@oangsa
+prompt: /karpathy-guidelines
+reflection/output: Activated Karpathy coding guidelines (explicit assumptions, minimal surgical changes, and verifiable execution criteria) for the session and deferred recording until confirming the active issue and branch workflow.
+
+## Issue #9 assistance
+
+@oangsa
+prompt: <html>
+<body>
+<!--StartFragment--><div><div></div><div><div><h2><span><strong>PR #90 — Blocking Findings</strong></span></h2><div><div>
+ID | Blocking finding | Violated requirement | Where to fix | Required fix | Acceptance condition
+-- | -- | -- | -- | -- | --
+B01 | Missing concurrent policy publication versus request submission test. Existing tests cover concurrent publication and mapping updates, but not publication versus submission directly. | Issue #9 AC-11, PRB-AC-09, CX-12, BR-024, BR-045 | apps/api/tests/postgres/configuration.test.ts, sts.md | Add a real PostgreSQL integration test that publishes policy v2 while a requester submits a request using independent transactions. | The accepted cycle contains either a complete v1 or v2 snapshot, with no mixed stages, reviewers, or duplicate side effects.
+B02 | Verification evidence is inconsistent and not explicitly tied to the current implementation revision. PR reports 479/124 tests, while the latest verification records report 480/125 tests. | Issue #9 AC-12, PRB-AC-10, AGENTS.md testing rules | verification.md, dod.md, PR #90 description, Issue #9 | Run applicable verification against the final implementation revision or provide equivalent CI evidence. Synchronize all verification records with the actual results. | Consistent test counts, tested commit SHA, environment, commands, results, and disclosed skips or failures across all records.
+
+</div></div></div><div></div><!--EndFragment-->
+</body>
+</html>
+reflection/output: Resolved PR #90 B01 and B02 with explicit user authorization for scoped commits, branch push, and PR #90 / Issue #9 synchronization. Added the `CX-12/PRB-AC-09` real multi-connection PostgreSQL integration test in `apps/api/tests/postgres/configuration.test.ts` racing policy v2 publication (`observer.connection`) against request submission (`database.connection`) across unscripted concurrent runs and lock-held interleavings, verifying both complete `v1` and complete `v2` cycle/stage/slot/approver snapshots occur with zero mixed stages/reviewers or duplicate versions, cycles, audits, or outbox events, and updated `docs/features/policies-routing-budget/sts.md`. Committed the implementation/test revision at `2e5f19d575b93ec9b2f8f792e3a264e85ecd7e87` and executed the full CI-order verification suite against it (`npm run check`: 54 files / 480 tests passed; `npm run test:release`: 13/13 passed; fresh `db:test:migrate`, `test:initialization`: 1/1 passed, `db:test:seed`, `RUN_BUILT_HTTP_SMOKE=1 npm run test:integration`: 12 files / 126 tests passed, `npm run test:e2e`: 45/45 passed; `git diff --check` passed; zero failures or skips). Synchronized `verification.md`, `dod.md`, `issue-comment.md`, PR #90 description, and Issue #9 comment `#issuecomment-7153135001` with the tested commit SHA, counts, environment, commands, and disclosures, then pushed `feature/9-policies-routing-budget` for independent `@kittipichcha` review.
