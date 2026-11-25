@@ -1,0 +1,105 @@
+
+> build
+> npm run build --workspaces
+
+
+> build
+> esbuild src/index.ts --bundle --platform=node --target=node24 --format=esm --external:elysia --external:@elysia/node --external:postgres --external:drizzle-orm --external:zod --outfile=dist/index.js
+
+
+  dist\index.js  215.5kb
+
+Done in 221ms
+
+> build
+> react-router build
+
+vite v7.3.7 building client environment for production...
+transforming...
+✓ 1938 modules transformed.
+rendering chunks...
+computing gzip size...
+build/client/.vite/manifest.json                        19.94 kB │ gzip:  2.06 kB
+build/client/assets/root-sxJ9hI76.css                   39.97 kB │ gzip:  7.86 kB
+build/client/assets/chevron-down-DkDJNP6u.js             0.14 kB │ gzip:  0.15 kB
+build/client/assets/loader-circle-BaXETXrn.js            0.15 kB │ gzip:  0.16 kB
+build/client/assets/plus-B_LhqCmh.js                     0.17 kB │ gzip:  0.16 kB
+build/client/assets/x-CcarC9R5.js                        0.17 kB │ gzip:  0.16 kB
+build/client/assets/arrow-up-B3TVQGWu.js                 0.17 kB │ gzip:  0.17 kB
+build/client/assets/arrow-left-BJp82OKf.js               0.18 kB │ gzip:  0.17 kB
+build/client/assets/arrow-down-DHN9E_DI.js               0.18 kB │ gzip:  0.17 kB
+build/client/assets/search-CAI_Xieg.js                   0.18 kB │ gzip:  0.17 kB
+build/client/assets/chevron-right-DPkmlc4X.js            0.22 kB │ gzip:  0.19 kB
+build/client/assets/log-out-DqDhjKZb.js                  0.24 kB │ gzip:  0.20 kB
+build/client/assets/input-CWNkXIrn.js                    0.30 kB │ gzip:  0.23 kB
+build/client/assets/formatDue-Ded6J6sV.js                0.33 kB │ gzip:  0.26 kB
+build/client/assets/circle-check-KGApmQFT.js             0.39 kB │ gzip:  0.24 kB
+build/client/assets/PageHeader-uHan8Kiy.js               0.50 kB │ gzip:  0.30 kB
+build/client/assets/index-PXM6HPhW.js                    0.62 kB │ gzip:  0.40 kB
+build/client/assets/new-CFT6X7TY.js                      0.68 kB │ gzip:  0.40 kB
+build/client/assets/detail-C2OEb5Ix.js                   0.76 kB │ gzip:  0.44 kB
+build/client/assets/new-EtFj7H1M.js                      0.76 kB │ gzip:  0.44 kB
+build/client/assets/root-C6eOatXs.js                     0.78 kB │ gzip:  0.46 kB
+build/client/assets/ActionButton-ClJxW6gh.js             0.97 kB │ gzip:  0.51 kB
+build/client/assets/ProductIdentity-CGl-oxYB.js          0.98 kB │ gzip:  0.53 kB
+build/client/assets/approvalTaskService-N3ruUO-a.js      1.16 kB │ gzip:  0.64 kB
+build/client/assets/createLucideIcon-XGx9e5u8.js         1.21 kB │ gzip:  0.70 kB
+build/client/assets/requestPresentation-7BIpi-6w.js      1.39 kB │ gzip:  0.73 kB
+build/client/assets/edit-idFVS_eV.js                     1.72 kB │ gzip:  0.94 kB
+build/client/assets/FieldRenderer-CC81tM39.js            1.74 kB │ gzip:  0.79 kB
+build/client/assets/index-BAQRY2ui.js                    2.05 kB │ gzip:  0.71 kB
+build/client/assets/requestTypeService-Cnv22vhs.js       2.38 kB │ gzip:  0.89 kB
+build/client/assets/LineItemsEditor-D13W6Bav.js          3.43 kB │ gzip:  1.43 kB
+build/client/assets/RequestOwnerActions-Be7r1LA9.js      3.71 kB │ gzip:  1.75 kB
+build/client/assets/AuditTimeline-DyKdOWa0.js            4.09 kB │ gzip:  1.77 kB
+build/client/assets/RequestResult-BDiYK6ii.js            4.11 kB │ gzip:  1.67 kB
+build/client/assets/requestService-BO7J6_-S.js           4.56 kB │ gzip:  1.81 kB
+build/client/assets/login-CXqQiCWq.js                    4.95 kB │ gzip:  2.15 kB
+build/client/assets/RequestCollection-DDl7A80p.js        5.08 kB │ gzip:  1.91 kB
+build/client/assets/index-CS8y2fJi.js                    5.15 kB │ gzip:  1.82 kB
+build/client/assets/RequestTypeFilter-CnSXU1F8.js        5.39 kB │ gzip:  2.21 kB
+build/client/assets/index-DZpEdfah.js                    7.18 kB │ gzip:  2.77 kB
+build/client/assets/detail-MdF77tsd.js                   7.84 kB │ gzip:  2.99 kB
+build/client/assets/index-BZMfHGcX.js                    9.05 kB │ gzip:  3.20 kB
+build/client/assets/task-DLp8cR2l.js                     9.35 kB │ gzip:  3.43 kB
+build/client/assets/home-DN8ewLAY.js                    10.17 kB │ gzip:  3.18 kB
+build/client/assets/protected-C9UkEPRO.js               10.62 kB │ gzip:  3.72 kB
+build/client/assets/index-C9gnFIOO.js                   10.83 kB │ gzip:  3.68 kB
+build/client/assets/RequestWizard-CzBWo5nn.js           18.50 kB │ gzip:  6.27 kB
+build/client/assets/index-mf0q1kBc.js                   20.27 kB │ gzip:  6.66 kB
+build/client/assets/button-8SgaC4qW.js                  28.89 kB │ gzip:  9.21 kB
+build/client/assets/RequestTypeEditorPage-B5Sx1wkR.js   39.24 kB │ gzip:  9.65 kB
+build/client/assets/sessionContext-BWYwZhQ7.js         101.99 kB │ gzip: 28.35 kB
+build/client/assets/jsx-runtime-CLcbz9Lx.js            132.44 kB │ gzip: 44.71 kB
+build/client/assets/entry.client-Co42EIob.js           218.97 kB │ gzip: 68.42 kB
+✓ built in 21.02s
+  ⚠️  Future Flag Warning: Route middleware support is changing in React Router v8.
+     You can use the `future.v8_middleware` flag to opt in early.
+     -> https://reactrouter.com/v7/upgrading/future#futurev8_middleware
+  ⚠️  Future Flag Warning: Route module splitting behavior is changing in React Router v8.
+     You can use the `future.v8_splitRouteModules` flag to opt in early.
+     -> https://reactrouter.com/v7/upgrading/future#futurev8_splitroutemodules
+  ⚠️  Future Flag Warning: Vite Environment API usage is changing in React Router v8.
+     You can use the `future.v8_viteEnvironmentApi` flag to opt in early.
+     -> https://reactrouter.com/v7/upgrading/future#futurev8_viteenvironmentapi
+  ⚠️  Future Flag Warning: Request handling behavior is changing in React Router v8.
+     You can use the `future.v8_passThroughRequests` flag to opt in early.
+     -> https://reactrouter.com/v7/upgrading/future#futurev8_passthroughrequests
+  ⚠️  Future Flag Warning: Data request URL formats are changing in React Router v8.
+     You can use the `future.v8_trailingSlashAwareDataRequests` flag to opt in early.
+     -> https://reactrouter.com/v7/upgrading/future#futurev8_trailingslashawaredatarequests
+vite v7.3.7 building ssr environment for production...
+transforming...
+✓ 93 modules transformed.
+rendering chunks...
+build/server/.vite/manifest.json                 0.23 kB
+build/server/assets/server-build-sxJ9hI76.css   39.97 kB
+build/server/index.js                          383.29 kB
+
+✓ 1 asset cleaned from React Router server build.
+build\server\assets\server-build-sxJ9hI76.css
+
+✓ built in 2.18s
+
+> @workflow/contracts@0.0.0 build
+> tsc -p tsconfig.build.json

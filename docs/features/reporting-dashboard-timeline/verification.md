@@ -85,3 +85,19 @@ The committed runtime at `9e8235b` is the source for the following publication c
 These results supersede the smaller pre-integration suite totals above for publication. Human teammate review and reviewed promotion from sprint staging to dev and main remain pending; syncing staging into this feature branch is not a release promotion.
 
 Publication verification is complete: the combined code check, PostgreSQL suite and browser suite all passed without source changes after synchronization. The bounded integration review reported no findings. The PR is ready for independent teammate review; it is not approved for merge or release by this record.
+
+## Concurrent request-type staging integration
+
+Staging subsequently advanced to `a7cac0b58ec7066d22706a46fb2498e5fec710c5` through PR #88. Normal merge `2379f6f1c96c85930ae53a243fce7a97ed75b100` preserves both the request-type builder and reporting feature. Composition retains the existing RequestTypeService argument positions and appends ReportingService; both route sets, CORS allowances, authenticated navigation and bootstrap paths remain available. Assistance records retain the incoming append-only history. The primary source manifest now identifies this revision's Git blobs. Earlier suite totals above describe earlier revisions, not this second merge.
+
+| Check on `2379f6f` | Actual outcome |
+| --- | --- |
+| Bounded independent integration review | No findings; static review of composition, callers, routes, navigation, contracts and query compatibility |
+| Windows `npm run check` | Typecheck and lint passed; 487 of 489 tests passed, two unchanged upstream request-type component tests exceeded their existing five-second limit |
+| Windows serial full Vitest retry | 488 of 489 passed; the unchanged UI-12 ConditionBuilder test timed out |
+| Windows isolated UI-12 retry | Same five-second timeout; five unrelated tests intentionally excluded by the name filter |
+| Windows `npm run build` | All workspace production builds passed |
+| Fresh disposable Docker database initialization | Migration and initialization test passed before synthetic seeding |
+| Linux PR CI | Completed successfully: typecheck, lint, web/API/contract tests, builds, release tests, all three container builds, migration, initialization, seed, PostgreSQL integration and browser tests passed |
+
+The Linux results are recorded by [Verification run 45548727760](https://github.com/oangsa/approval-system/actions/runs/45548727760). Local evidence is retained in the [combined check](evidence/pr88-check.log), [serial retry](evidence/pr88-tests-serial.log), [isolated retry](evidence/pr88-editor-isolated.log) and [build](evidence/pr88-build.log) logs. The Windows timeouts remain unresolved locally; no timeout, assertion or configuration was weakened. Full PostgreSQL and browser suites were not rerun locally after this second merge. Human teammate review and checks on the final PR head remain required before promotion. Subsequent evidence-only commits do not change the tested runtime.
