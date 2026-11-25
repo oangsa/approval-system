@@ -354,3 +354,7 @@ Approval evidence: [record](../labs/lab-07/approval-record.md). Original section
 ## Issue #6 — draft and withdrawal implementation slice
 
 R01/R05, FR-019/023, AC-019/023 and BR-026/028/029/033/034/044 map to [versioned design](../features/draft-withdraw-lifecycle/sds.md), [DW-AC-01–09](../features/draft-withdraw-lifecycle/acceptance-criteria.md), [test specification](../features/draft-withdraw-lifecycle/sts.md) and [verification](../features/draft-withdraw-lifecycle/verification.md). Supporting draft creation/decision infrastructure remains owned by earlier feature slices; no second request engine or expansion into returned/resubmit ownership. Actual execution and independent review status belong in verification, not the frozen acceptance baseline.
+
+### Issue #8 R07/O16/O17 evidence
+
+R07/O16/O17, FR-024/033/034, AC-024/033/034 and BR-013–022/031/032/070 map to [versioned design](../features/configurable-forms-items-priority/sds.md), [CF-AC-01–12](../features/configurable-forms-items-priority/acceptance-criteria.md), [test specification](../features/configurable-forms-items-priority/sts.md) and [Definition of Done](../features/configurable-forms-items-priority/dod.md). Actual verification outcomes belong in the feature verification record; independent teammate review and branch promotion remain external gates.

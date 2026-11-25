@@ -1,0 +1,32 @@
+# Configurable Forms, Line Items, and Priority SDS — v1
+
+Issue #8; R07/O16/O17; FR-024/033/034; BR-013–022/031/032/070; AC-024/033/034. Design recorded before implementation on 2026-11-25. Frozen product v1.0, API v1.0.1 §§3.3/5.3/6.3–6.4, UI v1.0 §§8.2–8.4/11.3 take precedence. Required branch: `feature/8-configurable-forms-items-priority`; owner `@oangsa`; independent reviewer `@kittipichcha`.
+
+## Shared Contracts and Graph Evaluator
+
+- `packages/contracts/src/requestTypes.ts` defines strict Zod schemas for localized text (`en` required, `th` optional with `resolveLocalizedText` English fallback), `RequestTypeDraftContent`, `CreateRequestType`, `PatchRequestTypeDraft`, `VersionedRequestTypeAction`, `RequestTypeDraftDto`, `AdminRequestTypeSummary`, `AdminRequestTypeDetail`, and `adminRequestTypeSearchSchema` (`requestSearch.ts`).
+- `packages/contracts/src/requests.ts` re-exports condition, field, and `PublishedRequestType` schemas, enforcing bounded `all`/`any` groups (at least one non-empty group, max 16 total atoms across both groups; both present combine with AND), strict typed `isPresent` (boolean `false` is present), strict `DECIMAL`/`DATE` comparisons, topological `applicableFields` returning visible fields in declared order with hidden fields unset downstream and never required, and pure `BigInt` decimal helpers (`itemTotal`, `safeItemTotal`, `sumAmounts`, `compareDecimals`, `normalizeMoney`).
+- `validateRequestTypeDefinition` validates `supportsLineItems => monetary`, unique field keys, kind-specific bounds/options, `defaultValue` compatibility, non-empty condition groups, known field keys, no self-reference, duplicate atom rejection, operator/kind compatibility (`GT`/`GTE`/`LT`/`LTE` for `DECIMAL`/`DATE` only, `PRESENT` without value, `IN` non-empty unique typed literals), and 3-color DFS cycle detection across combined `visibleWhen` and `requiredWhen` edges (permitting diamond DAGs).
+
+## Backend Domain, Application, Persistence, and Routes
+
+- Frozen §5.3 routes:
+  - `POST /api/v1/request-types/search` (authenticated active `PublishedRequestType[]` + `X-Pagination`; `?view=admin` enforces `ADMINISTRATOR` and returns `AdminRequestTypeSummary[]` + `X-Pagination` including draft-only and disabled types; admin `isEnabled` filter on default view preserves backward compatibility).
+  - `GET /api/v1/request-types/:id` (authenticated active `PublishedRequestType` with zero draft leakage; `?view=admin` enforces `ADMINISTRATOR` and returns `AdminRequestTypeDetail`; default reads return `404 NOT_FOUND` when unpublished or disabled regardless of admin role).
+  - `GET /api/v1/request-types/:id/versions/:versionId` (admin without `requestId`, or owner/current reviewer with matching `requestId`, surviving type disablement and newer versions).
+  - `POST /api/v1/admin/request-types` (`ADMINISTRATOR`, returns `201 RequestTypeDraftDto` + `Location` pointing to `/api/v1/request-types/:id?view=admin`).
+  - `PATCH /api/v1/admin/request-types/:id/draft` (`ADMINISTRATOR`, requires `expectedVersion`, preserves omitted fields, replaces `fields` when supplied, clears `description` on `null`, returns `200 RequestTypeDraftDto`).
+  - `POST /api/v1/admin/request-types/:id/draft` (`ADMINISTRATOR`, requires `expectedVersion`, branches latest immutable publication to an editable draft, returns `201 RequestTypeDraftDto` + `Location` pointing to `/api/v1/request-types/:id?view=admin`).
+  - `POST /api/v1/admin/request-types/:id/publish` (`ADMINISTRATOR`, requires `expectedVersion` and `Idempotency-Key` UUID, validates complete definition graph, inserts immutable `request_type_versions` row, clears draft, updates pointer/version, returns `201 PublishedRequestType` + `Location`).
+  - `POST /api/v1/admin/request-types/:id/enable` and `disable` (`ADMINISTRATOR`, requires `expectedVersion`, preserves immutable version history, returns `200 AdminRequestTypeSummary`).
+- Data model: `request_types` adds `version`, nullable `draft` JSONB, `created_at`, `updated_at`; `request_items` adds `sort_order`; `request_type_idempotency_records` stores durable replay state protected by existing `protect_accepted_history()` trigger; `request_type_versions` remains strictly immutable under `protect_published_form()`, with `TypeVersion` returning the stored immutable snapshot verbatim while current-type `Type`, `Types`, and admin views reflect live `request_types.is_enabled`.
+- Concurrency & atomicity: advisory-locked idempotency replay runs before version/state checks; `SELECT ... FOR UPDATE` on `request_types` + `expectedVersion` + `UNIQUE(type_id, version_number)` prevents concurrent duplicate versions or lost draft edits.
+- Line items & Priority: server generates item IDs, preserves `sort_order`, computes exact `BigInt` decimal row/total strings, rejects competing `monetaryAmount` vs `lineItems` and monetary inputs on non-monetary types; `LOW`/`MEDIUM`/`HIGH`/`URGENT` round-trips across API/UI without influencing authorization or policy routing; disabled types block new drafts/first submissions (`409 CONFIGURATION_INCOMPLETE`) while allowing pinned `RETURNED` edits/resubmission.
+
+## Frontend UI and Consumers
+
+- Navigation adds `Administration -> Request Types` (`/admin/request-types`) visible only to `ADMINISTRATOR`, keeping `Workspace` clean for non-admins.
+- `/admin/request-types`, `/admin/request-types/new`, `/admin/request-types/:id` provide client-loaded search/filter/sort/paging, enable/disable confirmation, structured field list (add/edit/remove/move up/down, no drag-and-drop), bounded `all`/`any` `ConditionBuilder`, shared-evaluator `RequestTypePreview` (with English and Thai/English-fallback toggle, live `validateFields`, and hidden-key omission view), immutable publish confirmation, and draft preservation on `422`/`409`.
+- Shared `LineItemsEditor` and `LineItemsSummary` enforce `{description, quantity, unitAmount}` editing, per-row validation, exact decimal subtotals/totals, and read-only server totals after submission.
+- Shared `PriorityBadge` renders distinct monochrome/neutral styling with Lucide icons and text labels across wizard review, request list, and request detail.
+- `FieldRenderer` and `RequestWizard` apply localized labels with English fallback (`resolveLocalizedText`), omit hidden keys from outgoing payloads, preserve pinned versions on returned/submitted records, and support `409 FORM_DEFINITION_CHANGED` review recovery.
