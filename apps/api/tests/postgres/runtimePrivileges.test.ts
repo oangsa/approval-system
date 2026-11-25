@@ -1,3 +1,5 @@
+import { ConfigurationService } from "../../src/Applications/Policies/ConfigurationService";
+import { ConfigurationRepository } from "../../src/Infrastructures/Database/Repositories/ConfigurationRepository";
 import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { afterAll, expect, test } from "vitest";
@@ -34,7 +36,7 @@ test("scoped runtime grants support submission/decision without schema or accoun
                 has_column_privilege(current_user, 'public.reviewer_assignment_rules', 'reviewer_id', 'UPDATE') AS "routingUpdate",
                 has_schema_privilege(current_user, 'drizzle', 'USAGE') AS "migrationAccess"
         `);
-        expect(permissions[0]).toEqual({ schemaCreate: false, passwordUpdate: false, auditUpdate: false, routingUpdate: false, migrationAccess: false });
+        expect(permissions[0]).toEqual({ schemaCreate: false, passwordUpdate: false, auditUpdate: false, routingUpdate: true, migrationAccess: false });
         const identities = new IdentityRepository(tx);
         const actors = [];
         for (const fixture of [fixtureUsers[0]!, fixtureUsers[2]!])
@@ -64,6 +66,13 @@ test("scoped runtime grants support submission/decision without schema or accoun
         const publishedType = await requestTypes.Publish(adminActor, createdType.id, { expectedVersion: createdType.version }, randomUUID());
         expect(publishedType.versionNumber).toBe(1);
         await requestTypes.SetEnabled(adminActor, createdType.id, false, { expectedVersion: createdType.version + 1 }, randomUUID());
+        const configuration = new ConfigurationService({ Run: async (operation) => operation(new ConfigurationRepository(tx)) });
+        const mapping = await configuration.Assignment(adminActor, null, { key: `runtime-${randomUUID()}`, departmentId: null, reviewerUserIds: [reviewer.account.id], isActive: true });
+        const draftPolicy = await configuration.CreatePolicy(adminActor, { code: `runtime-${randomUUID()}`, typeId: createdType.id, departmentId: null, priority: 10, minAmount: null, maxAmount: null, stages: [{ stageNumber: 1, reviewerAssignmentKeys: [mapping.key], slaBusinessMinutes: 480 }] });
+        const publishedPolicy = await configuration.PolicyAction(adminActor, draftPolicy.id, "publish", { expectedVersion: 0 }, randomUUID());
+        expect(publishedPolicy.versionNumber).toBe(1);
+        const budget = await configuration.Budget(adminActor, null, { typeId: createdType.id, departmentId: null, maxAmount: "100.10", isActive: true });
+        expect((await configuration.Budget(adminActor, budget.id, { expectedVersion: 0, maxAmount: "100.20" })).version).toBe(1);
         throw new Error("rollback-runtime-fixture");
     })).rejects.toThrow("rollback-runtime-fixture");
 });

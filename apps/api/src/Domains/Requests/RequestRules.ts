@@ -1,6 +1,6 @@
-import { compareDecimals, createFieldRecord, itemTotal, moneySchema, publishedRequestTypeSchema, sumAmounts, validateFields, validateRequestTypeDefinition, type CreateRequest, type DepartmentSummary, type IFieldIssue, type PublishedRequestType, type RequestDetail, type RequestRevision } from "@workflow/contracts";
+import { compareDecimals, createFieldRecord, itemTotal, moneySchema, policyStageSchema, publishedRequestTypeSchema, sumAmounts, validateFields, validateRequestTypeDefinition, type CreateRequest, type DepartmentSummary, type IFieldIssue, type PublishedRequestType, type RequestDetail, type RequestRevision } from "@workflow/contracts";
 
-export type RequestErrorCode = "VALIDATION_ERROR" | "FORM_FIELD_NOT_APPLICABLE" | "FORM_DEFINITION_CHANGED" | "CONFIGURATION_INCOMPLETE" | "AMBIGUOUS_APPROVAL_POLICY" | "BUDGET_LIMIT_EXCEEDED" | "INVALID_REQUEST_TRANSITION" | "REQUEST_STALE" | "IDEMPOTENCY_CONFLICT" | "NOT_FOUND" | "FORBIDDEN" | "UNAUTHENTICATED";
+export type RequestErrorCode = "CONFLICT" | "VALIDATION_ERROR" | "FORM_FIELD_NOT_APPLICABLE" | "FORM_DEFINITION_CHANGED" | "CONFIGURATION_INCOMPLETE" | "AMBIGUOUS_APPROVAL_POLICY" | "BUDGET_LIMIT_EXCEEDED" | "INVALID_REQUEST_TRANSITION" | "REQUEST_STALE" | "IDEMPOTENCY_CONFLICT" | "NOT_FOUND" | "FORBIDDEN" | "UNAUTHENTICATED";
 export class RequestError extends Error
 {
     constructor(public readonly code: RequestErrorCode, public readonly details: IFieldIssue[] = [])
@@ -10,7 +10,7 @@ export class RequestError extends Error
 }
 export interface IStageDefinition { stageNumber: 1 | 2; reviewerAssignmentKeys: string[]; slaBusinessMinutes: number; }
 export interface IPolicy { id: string; priority: number; departmentId: string | null; minAmount: string | null; maxAmount: string | null; stages: IStageDefinition[]; }
-export interface IAssignment { id: string; assignmentKey: string; reviewerId: string; displayName: string; isEligible: boolean; version: number; }
+export interface IAssignment { id: string; assignmentKey: string; reviewerId: string; displayName: string; isEligible: boolean; version: number; departmentId?: string | null; }
 export interface IConfiguration
 {
     definition: PublishedRequestType;
@@ -74,18 +74,25 @@ export function resolvePlan(config: IConfiguration, ownerId: string, amount: str
     if (!policy) throw new RequestError("CONFIGURATION_INCOMPLETE");
     if (candidates[1]?.priority === policy.priority) throw new RequestError("AMBIGUOUS_APPROVAL_POLICY");
     if (policy.stages.length < 1 || policy.stages.length > 2) throw new RequestError("CONFIGURATION_INCOMPLETE");
+    const stages = policy.stages.map((stage) =>
+    {
+        const parsed = policyStageSchema.safeParse(stage);
+        if (!parsed.success) throw new RequestError("CONFIGURATION_INCOMPLETE");
+        return parsed.data;
+    });
     const assignments: IAssignment[] = [];
-    for (const [index, stage] of policy.stages.entries())
+    for (const [index, stage] of stages.entries())
     {
         if (stage.stageNumber !== index + 1 || !stage.reviewerAssignmentKeys.length || new Set(stage.reviewerAssignmentKeys).size !== stage.reviewerAssignmentKeys.length) throw new RequestError("CONFIGURATION_INCOMPLETE");
         for (const key of stage.reviewerAssignmentKeys)
         {
-            const assignment = config.assignments.find((item) => item.assignmentKey === key);
-            if (!assignment?.isEligible || assignment.reviewerId === ownerId) throw new RequestError("CONFIGURATION_INCOMPLETE");
-            assignments.push(assignment);
+            const matching = config.assignments.filter((item) => item.assignmentKey === key && (item.departmentId == null || item.departmentId === department.id));
+            const scoped = matching.some((item) => item.departmentId === department.id) ? matching.filter((item) => item.departmentId === department.id) : matching;
+            if (!scoped.length || scoped.some((item) => !item.isEligible || item.reviewerId === ownerId)) throw new RequestError("CONFIGURATION_INCOMPLETE");
+            assignments.push(...scoped);
         }
     }
-    return { policy, assignments, department };
+    return { policy: { ...policy, stages }, assignments, department };
 }
 export function editableContent(detail: RequestDetail, definition: PublishedRequestType): CreateRequest
 {

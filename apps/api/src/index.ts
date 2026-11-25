@@ -1,3 +1,5 @@
+import { ConfigurationService } from "./Applications/Policies/ConfigurationService";
+import { ConfigurationUnitOfWork } from "./Infrastructures/Database/Repositories/ConfigurationRepository";
 import { DecisionService } from "./Applications/Approvals/DecisionService";
 import { DecisionUnitOfWork } from "./Infrastructures/Database/Repositories/DecisionRepository";
 import { RequestService } from "./Applications/Requests/RequestService";
@@ -28,6 +30,7 @@ async function main(): Promise<void>
             new DecisionService(new DecisionUnitOfWork(database.connection)),
             () => database.Check(),
             new RequestTypeService(new RequestTypeUnitOfWork(database.connection)),
+            new ConfigurationService(new ConfigurationUnitOfWork(database.connection)),
         );
         application.Start(environment.PORT, environment.HOST);
         let shuttingDown = false;

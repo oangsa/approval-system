@@ -106,3 +106,33 @@ test("B01 assertPublishedDefinition rejects Zod-invalid and cyclic stored defini
     expect(() => editableContent(detail, cyclic as typeof seededDefinition)).toThrowError("CONFIGURATION_INCOMPLETE");
     expect(Object.getPrototypeOf(editableContent(detail, seededDefinition).fields)).toBeNull();
 });
+
+test("PRB-AC-03/06 amount boundaries, department override, highest priority and nonmonetary predicates", () =>
+{
+    const value = config();
+    value.policies.push({ ...value.policies[0]!, id: "higher", priority: 20, minAmount: "10.10", maxAmount: "20.20" });
+    for (const amount of ["10.10", "20.20"]) expect(resolvePlan(value, "owner", amount).policy.id).toBe("higher");
+    for (const amount of ["10.09", "20.21", null]) expect(resolvePlan(value, "owner", amount).policy.id).toBe("policy");
+    value.budgets = [{ departmentId: null, maxAmount: "5" }, { departmentId: department.id, maxAmount: "20.20" }];
+    expect(resolvePlan(value, "owner", "20.20").policy.id).toBe("higher");
+    expect(() => resolvePlan(value, "owner", "20.21")).toThrow("BUDGET_LIMIT_EXCEEDED");
+    value.policies = [{ ...value.policies[1]!, departmentId: "other" }];
+    expect(() => resolvePlan(value, "owner", "10.10")).toThrow("CONFIGURATION_INCOMPLETE");
+});
+test("PRB-AC-04/07 all reviewers and later stages validated; department mapping overrides global", () =>
+{
+    const value = config();
+    const original = value.assignments[0]!;
+    value.assignments.push({ ...original, reviewerId: "peer", id: "peer" });
+    expect(resolvePlan(value, "owner", null).assignments).toHaveLength(2);
+    value.policies[0]!.stages.push({ stageNumber: 2, reviewerAssignmentKeys: ["later"], slaBusinessMinutes: 480 });
+    expect(() => resolvePlan(value, "owner", null)).toThrow("CONFIGURATION_INCOMPLETE");
+    value.assignments.push({ ...original, assignmentKey: "later", reviewerId: "owner" });
+    expect(() => resolvePlan(value, "owner", null)).toThrow("CONFIGURATION_INCOMPLETE");
+    value.assignments.at(-1)!.reviewerId = "later-reviewer";
+    value.assignments.at(-1)!.isEligible = false;
+    expect(() => resolvePlan(value, "owner", null)).toThrow("CONFIGURATION_INCOMPLETE");
+    value.assignments.at(-1)!.isEligible = true;
+    value.assignments.push({ ...original, id: "scoped", departmentId: department.id, reviewerId: "scoped-reviewer" });
+    expect(resolvePlan(value, "owner", null).assignments.map((item) => item.reviewerId)).toEqual(["scoped-reviewer", "later-reviewer"]);
+});

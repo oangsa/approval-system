@@ -1,0 +1,2 @@
+ALTER TABLE "approval_slots" DROP CONSTRAINT "approval_slots_stage_id_assignment_key_unique";--> statement-breakpoint
+ALTER TABLE "approval_slots" ADD CONSTRAINT "approval_slots_stage_id_assignment_key_reviewer_id_unique" UNIQUE("stage_id","assignment_key","reviewer_id");
