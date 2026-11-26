@@ -10,6 +10,7 @@ import { readApprovalTaskResult } from "~/services/approvalTaskService";
 import { formatInstant } from "~/modules/reviews/formatDue";
 import { isApiFailure } from "~/api/errors";
 import { Button } from "~/components/ui/button";
+import { ApprovalProgress } from "~/modules/requests/ApprovalProgress";
 
 type TaskResult = Awaited<ReturnType<typeof readApprovalTaskResult>>;
 interface IState { key: string; result: TaskResult | null; error: string; requestId?: string; retryable?: boolean; }
@@ -49,7 +50,6 @@ export function ReviewTaskPage()
     const slots = result?.detail?.currentApprovers.filter((slot) => slot.stageNumber === result.detail?.currentStageNumber) ?? [];
     const validStage = result && result.detail?.currentStageNumber === result.task.stageNumber && slots.some((slot) => slot.slotId === result.task.slotId && slot.status === "ACTIONABLE");
     const savedReason = reasonState.scope === scope ? reasonState.value : "";
-    const approved = slots.filter((slot) => slot.status === "APPROVED").length;
     return <div className="mx-auto max-w-3xl space-y-6">
         <h1 className="text-2xl font-semibold">Review task</h1>
         {!eligible && status !== "loading" && status !== "idle" ? <p role="alert">This task is unavailable.</p> : result && !result.task.canCurrentUserDecide ? <><section aria-label="Handled task" className="space-y-3 rounded-lg border bg-card p-6"><h2 className="text-xl font-semibold">Read-only handled task</h2><p>Stage {result.task.stageNumber} · {approverSlotLabel(result.task.status)}</p><p>Only your handled decision is available here. Current request contents are not included.</p></section>{result.revision && <RevisionViewer revision={result.revision} cycleId={result.task.cycleId} />}<AuditTimeline requestId={result.task.requestId} /></> : result && !validStage ? <div role="alert" className="space-y-3"><p>This task is unavailable.</p><Button onClick={() => setAttempt((value) => value + 1)}>Reload task</Button></div> : current?.error ? <div role="alert" className="space-y-3"><p>{current.error}</p>{current.requestId && <p className="select-text">Request ID: {current.requestId}</p>}{current.retryable && <Button onClick={() => setAttempt((value) => value + 1)}>Retry</Button>}</div> : result?.detail ? <>
@@ -58,11 +58,11 @@ export function ReviewTaskPage()
                 <dl className="grid gap-4 sm:grid-cols-2">
                     <div><dt className="text-sm text-muted-foreground">Status</dt><dd>{result.task.status === "ACTIONABLE" ? "Actionable" : result.task.status}</dd></div>
                     <div><dt className="text-sm text-muted-foreground">Stage</dt><dd>{result.task.stageNumber}</dd></div>
-                    <div><dt className="text-sm text-muted-foreground">Stage progress</dt><dd>{approved} of {slots.length} approved; {slots.length - approved} remaining</dd></div>
                     <div><dt className="text-sm text-muted-foreground">Assigned reviewer</dt><dd>{result.task.assignedReviewer.displayName}</dd></div>
                     <div><dt className="text-sm text-muted-foreground">Due</dt><dd>{result.task.dueAt ? <time dateTime={result.task.dueAt}>{formatInstant(result.task.dueAt)}</time> : "No due date"}</dd></div>
                     <div><dt className="text-sm text-muted-foreground">Task version</dt><dd>{result.task.version}</dd></div>
                 </dl>
+                <ApprovalProgress approvers={result.detail.currentApprovers} currentStageNumber={result.detail.currentStageNumber} />
             </section>}
             <DecisionActions key={`${generation}:${taskId}:${result.task.version}`} task={result.task} requestLabel={result.detail.requestNumber ?? result.detail.title} reason={reasonState.scope === scope ? reasonState.value : ""} onReason={(value) => setReasonState({ scope, value })} onAccepted={() => setAcceptedScope(scope)} onUnavailable={() => setState({ key, result: null, error: "This task is unavailable." })} onReload={() => setAttempt((value) => value + 1)} />
             {acceptedScope !== scope && <><RequestResult detail={result.detail} definition={result.definition} /><AuditTimeline requestId={result.task.requestId} /></>}
