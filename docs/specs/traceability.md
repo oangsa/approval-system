@@ -364,3 +364,8 @@ R07/O16/O17, FR-024/033/034, AC-024/033/034 and BR-013–022/031/032/070 map to 
 ### Issue #9 R09/O10/O18/O19 evidence
 
 R09/O10/O18/O19, FR-026/031/035/036, AC-026/031/035/036 and BR-018/021/023–025/031/035/036/045/048/054 map to [feature SDS and contracts](../features/policies-routing-budget/sds.md), [PRB-AC-01–10](../features/policies-routing-budget/acceptance-criteria.md), [STS](../features/policies-routing-budget/sts.md), [DoD](../features/policies-routing-budget/dod.md) and [actual verification](../features/policies-routing-budget/verification.md). Implementation covers versioned policy configuration/publication, reviewer mapping management/eligibility, conditional resolution and exact hard ceilings, admin-only metadata lookup and authenticated client-loaded configuration pages. Supporting initial-submit integration reuses the existing request transaction and cycle snapshots. Owner selected the bounded Issue #7 integration seam on 2026-11-25: current policy resolution with historical department/form is tested; return/resubmit lifecycle and staged execution remain with their primary issues. Teammate review and reviewed sprint staging/dev/main promotions are separate gates.
+
+
+### Issue #7 feature traceability reference
+
+[RR acceptance criteria](../features/return-revision-resubmission/acceptance-criteria.md) and [STS](../features/return-revision-resubmission/sts.md) map M11, R02, R03, R04 and R11 and their source clauses to planned checks. [Verification](../features/return-revision-resubmission/verification.md) records actual status; planning is not passing evidence.

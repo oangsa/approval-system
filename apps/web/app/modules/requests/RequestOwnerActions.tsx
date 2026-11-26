@@ -42,7 +42,7 @@ export function RequestOwnerActions({ detail, onChanged, onUnavailable, onFocusF
     const dialog = useRef<HTMLDialogElement>(null);
     const attempt = useRef(new WithdrawalAttempt());
     const current = latest ?? detail;
-    const canEdit = current.status === "DRAFT" && (current.availableActions === undefined || current.availableActions.includes("EDIT_DRAFT"));
+    const canEdit = ["DRAFT", "RETURNED"].includes(current.status) && (current.availableActions === undefined || current.availableActions.includes("EDIT_DRAFT"));
     const canWithdraw = current.status === "PENDING" && (current.availableActions === undefined || current.availableActions.includes("WITHDRAW"));
     useEffect(() =>
     {
@@ -115,7 +115,7 @@ export function RequestOwnerActions({ detail, onChanged, onUnavailable, onFocusF
         }
     }
     return <div className="flex flex-wrap items-center gap-2">
-        {canEdit && <Link className={actionStyles({ size: "small" })} to={`/requests/${detail.id}/edit`}>Resume draft</Link>}
+        {canEdit && <Link className={actionStyles({ size: "small" })} to={`/requests/${detail.id}/edit`}>{current.status === "RETURNED" ? "Edit returned request" : "Resume draft"}</Link>}
         {canWithdraw && <ActionButton ref={trigger} type="button" size="small" variant="danger" onClick={() => setOpen(true)}>Withdraw</ActionButton>}
         {open && <dialog ref={dialog} aria-labelledby={`withdraw-title-${detail.id}`} onCancel={(event) =>
         {

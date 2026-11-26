@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { applicableFields, compareDecimals, createFieldRecord, createRequestSchema, itemTotal, matchesCondition, patchDraftSchema, sumAmounts, validateFields, type PublishedRequestType } from "../src/requests";
+import { applicableFields, compareDecimals, createFieldRecord, createRequestSchema, itemTotal, matchesCondition, patchDraftSchema, resubmitRequestSchema, revisionMetadataSchema, revisionQuerySchema, sumAmounts, validateFields, type PublishedRequestType } from "../src/requests";
 
 const definition: PublishedRequestType = {
     id: "30000000-0000-4000-8000-000000000001", versionId: "30000000-0000-4000-8000-000000000002", code: "TEST", name: { en: "Test" }, versionNumber: 1, isEnabled: true, monetary: false, supportsLineItems: false, publishedAt: "2026-11-06T00:00:00Z",
@@ -147,4 +147,13 @@ test("B03 inherited Object.prototype keys never trigger conditions and field sto
         "hiddenParent",
         "downstream",
     ]);
+});
+
+test("RR-AC-03/04 resubmit and revision list inputs are strict and bounded", () =>
+{
+    expect(resubmitRequestSchema.parse({ expectedVersion: 2 })).toEqual({ expectedVersion: 2 });
+    for (const value of [{}, { expectedVersion: null }, { expectedVersion: 1, extra: true }]) expect(resubmitRequestSchema.safeParse(value).success).toBe(false);
+    expect(revisionQuerySchema.parse({})).toEqual({ pageNumber: 1, pageSize: 20 });
+    for (const value of [{ pageNumber: 0 }, { pageNumber: 10001 }, { pageSize: 101 }, { extra: "x" }]) expect(revisionQuerySchema.safeParse(value).success).toBe(false);
+    expect(revisionMetadataSchema.safeParse({ id: definition.id, revisionNumber: 1, formDefinitionVersionId: definition.versionId, submittedAt: "2026-11-06T00:00:00Z", submittedBy: definition.id, cycleId: definition.versionId }).success).toBe(true);
 });

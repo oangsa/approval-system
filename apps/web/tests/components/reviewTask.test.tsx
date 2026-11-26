@@ -27,7 +27,7 @@ function taskFixture()
             { slotId: "9bb91ef4-5982-405f-8bd5-61b5c3cf410b", stageNumber: 2, reviewer: { id, displayName: "Future" }, status: "WAITING" },
         ], availableActions: [],
     };
-    return { task, detail, definition };
+    return { task, detail, definition, revision: null };
 }
 test("shows progress for the current stage only", async () =>
 {
@@ -109,7 +109,7 @@ test.each([403, 404])("a decision %i clears previously loaded private content", 
 });
 test("handled task shows read-only history without current request content or actions", async () =>
 {
-    vi.mocked(readApprovalTaskResult).mockResolvedValueOnce({ task: { ...taskFixture().task, status: "APPROVED", canCurrentUserDecide: false }, detail: null, definition: null });
+    vi.mocked(readApprovalTaskResult).mockResolvedValueOnce({ task: { ...taskFixture().task, status: "APPROVED", canCurrentUserDecide: false }, detail: null, definition: null, revision: taskFixture().detail.submittedRevision! });
     render(<MemoryRouter initialEntries={["/reviews/task"]}><Routes><Route path="/reviews/:taskId" element={<ReviewTaskPage />} /></Routes></MemoryRouter>);
     expect(await screen.findByRole("region", { name: "Handled task" })).toHaveTextContent("Read-only handled task");
     expect(screen.getByText("Persisted history")).toBeVisible();

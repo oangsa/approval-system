@@ -15,8 +15,9 @@ export interface IDecisionTransition
 }
 export function decideTransition(state: IDecisionState, taskId: string, body: DecisionRequest): IDecisionTransition
 {
-    if (body.decision === "RETURN") throw new ApprovalTaskError("INVALID_REQUEST_TRANSITION");
+
     const reasonLength = body.reason?.trim().length ?? 0;
+    if (body.decision === "RETURN" && (reasonLength < 1 || reasonLength > decisionReasonMaximumLength)) throw new ApprovalTaskError("VALIDATION_ERROR");
     if (body.decision === "REJECT" && (reasonLength < rejectionReasonMinimumLength || reasonLength > decisionReasonMaximumLength)) throw new ApprovalTaskError("VALIDATION_ERROR");
     AssertReviewerCanDecide({ ...state.context, expectedVersion: body.expectedVersion });
     const slot = state.slots.find((item) => item.id === taskId);
@@ -25,8 +26,10 @@ export function decideTransition(state: IDecisionState, taskId: string, body: De
     {
         throw new ApprovalTaskError("INVALID_REQUEST_TRANSITION");
     }
-    if (stage.stageNumber !== 1) throw new ApprovalTaskError("INVALID_REQUEST_TRANSITION");
+
     if (state.stages.some((item) => item.stageNumber < stage.stageNumber && item.status !== "COMPLETED")) throw new ApprovalTaskError("APPROVAL_TASK_STALE");
+    if (body.decision === "RETURN") return { stageId: stage.id, stageComplete: true, requestStatus: "RETURNED", currentStageNumber: null };
+    if (stage.stageNumber !== 1) throw new ApprovalTaskError("INVALID_REQUEST_TRANSITION");
     if (body.decision === "REJECT") return { stageId: stage.id, stageComplete: true, requestStatus: "REJECTED", currentStageNumber: null };
     const stageComplete = state.slots.filter((item) => item.stageId === stage.id).every((item) => item.id === taskId || item.status === "APPROVED");
     // Preserve an actionable current stage until stage-two activation is implemented.

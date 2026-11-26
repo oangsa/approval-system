@@ -7,7 +7,7 @@ import { ApprovalTaskError } from "../../../Domains/Approvals/ApprovalTaskRules"
 import type { IDecisionRepository, IDecisionUnitOfWork } from "../../../Domains/Approvals/DecisionPorts";
 import type { IDecisionState, IDecisionTransition } from "../../../Domains/Approvals/DecisionRules";
 import type { Database } from "../Database";
-import { approvalCycles, approvalDecisions, approvalSlots, approvalStages, decisionIdempotencyRecords, requestAuditEvents, requestOutboxEvents, requests, users } from "../schema";
+import { approvalCycles, approvalDecisions, approvalSlots, approvalStages, decisionIdempotencyRecords, requestAuditEvents, requestOutboxEvents, requestItems, requestRevisions, requests, users } from "../schema";
 import { RequestRepository } from "./RequestRepository";
 
 type Connection = Database["connection"];
@@ -59,9 +59,9 @@ export class DecisionRepository implements IDecisionRepository
     public async Save(actorId: string, taskId: string, body: DecisionRequest, state: IDecisionState, transition: IDecisionTransition)
     {
         const decisionId = randomUUID(), now = new Date();
-        await this.db.insert(approvalDecisions).values({ id: decisionId, slotId: taskId, actorId, decision: body.decision === "APPROVE" ? "APPROVE" : "REJECT", reason: body.reason ?? null, decidedAt: now });
-        await this.db.update(approvalSlots).set({ status: body.decision === "APPROVE" ? "APPROVED" : "REJECTED", version: body.expectedVersion + 1 }).where(eq(approvalSlots.id, taskId));
-        if (transition.stageComplete) await this.db.update(approvalStages).set({ status: body.decision === "REJECT" ? "REJECTED" : "COMPLETED" }).where(eq(approvalStages.id, transition.stageId));
+        await this.db.insert(approvalDecisions).values({ id: decisionId, slotId: taskId, actorId, decision: body.decision, reason: body.reason ?? null, decidedAt: now });
+        await this.db.update(approvalSlots).set({ status: body.decision === "APPROVE" ? "APPROVED" : body.decision === "RETURN" ? "RETURNED" : "REJECTED", version: body.expectedVersion + 1 }).where(eq(approvalSlots.id, taskId));
+        if (transition.stageComplete) await this.db.update(approvalStages).set({ status: body.decision === "REJECT" ? "REJECTED" : body.decision === "RETURN" ? "CANCELLED" : "COMPLETED" }).where(eq(approvalStages.id, transition.stageId));
         if (transition.requestStatus !== "PENDING")
         {
             await this.db.update(approvalCycles).set({ isActive: false }).where(eq(approvalCycles.id, state.cycleId));
@@ -69,7 +69,16 @@ export class DecisionRepository implements IDecisionRepository
             if (unfinished.length) await this.db.update(approvalSlots).set({ status: "CANCELLED", version: sql`${approvalSlots.version} + 1` }).where(inArray(approvalSlots.id, unfinished.map((item) => item.id)));
             await this.db.update(approvalStages).set({ status: "CANCELLED" }).where(and(eq(approvalStages.cycleId, state.cycleId), inArray(approvalStages.status, ["ACTIVE", "WAITING"])));
         }
-        await this.db.update(requests).set({ status: transition.requestStatus, version: state.requestVersion + 1, updatedAt: now }).where(eq(requests.id, state.requestId));
+        let workingRevisionId: string | undefined;
+        if (body.decision === "RETURN")
+        {
+            const source = (await this.db.select().from(requestRevisions).where(eq(requestRevisions.id, state.revisionId)))[0]!;
+            workingRevisionId = randomUUID();
+            await this.db.insert(requestRevisions).values({ ...source, id: workingRevisionId, revisionNumber: source.revisionNumber + 1, submittedAt: null, submittedBy: null });
+            const items = await this.db.select().from(requestItems).where(eq(requestItems.revisionId, source.id));
+            if (items.length) await this.db.insert(requestItems).values(items.map((item) => ({ ...item, id: randomUUID(), revisionId: workingRevisionId! })));
+        }
+        await this.db.update(requests).set({ status: transition.requestStatus, workingRevisionId, version: state.requestVersion + 1, updatedAt: now }).where(eq(requests.id, state.requestId));
         await this.db.insert(requestAuditEvents).values({ id: randomUUID(), requestId: state.requestId, actorId, eventType: `DECISION_${body.decision}`, revisionId: state.revisionId, cycleId: state.cycleId, decisionId, occurredAt: now });
         if (transition.requestStatus !== state.context.requestStatus)
         {

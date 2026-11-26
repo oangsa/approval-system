@@ -85,12 +85,13 @@ async function decisionHttp()
     const identity = await createIdentityComposition(env, database);
     const app = createApplication(undefined, identity, service, new ApprovalTaskService(new ApprovalTaskUnitOfWork(db)), decisions);
     const tokens = new TokenProvider(env.AUTH_JWT_SECRET, { Now: () => new Date() }, env.AUTH_JWT_ISSUER, env.AUTH_JWT_AUDIENCE);
-    async function send(method: "GET" | "POST", path: string, actor: IActor | null, body?: DecisionRequest, key = randomUUID())
+    async function send(method: "GET" | "POST", path: string, actor: IActor | null, body?: unknown, key: string = randomUUID())
     {
         const token = actor ? await tokens.Sign(actor.account.id, actor.family.id, actor.account.authVersion) : null;
         return app.handle(new Request(`http://localhost/api/v1${path}`, { method, headers: { ...(token ? { authorization: `Bearer ${token}` } : {}), "Idempotency-Key": key, "content-type": "application/json" }, ...(method === "POST" ? { body: JSON.stringify(body) } : {}) }));
     }
     return {
+        send,
         post: (item: Awaited<ReturnType<typeof pending>>, body: DecisionRequest, key = randomUUID(), actor: IActor | null = item.reviewer, taskId = item.slot) => send("POST", `/approval-tasks/${taskId}/decisions`, actor, body, key),
         timeline: (item: Awaited<ReturnType<typeof pending>>, actor: IActor = item.actor) => send("GET", `/requests/${item.submitted.id}/timeline?pageSize=100`, actor),
     };
@@ -413,7 +414,7 @@ test.each(["version", "revision", "cycle", "slot"])("Lab 7 valid REJECT HTTP sta
     expect(await evidence(item.submitted.id)).toEqual(before);
 });
 
-test.each([["No", 409, "INVALID_REQUEST_TRANSITION"], [undefined, 422, "VALIDATION_ERROR"], [" ", 422, "VALIDATION_ERROR"]] as const)("Lab 7 RETURN transport %s retains existing behavior", async (reason, status, code) =>
+test.each([[undefined, 422, "VALIDATION_ERROR"], [" ", 422, "VALIDATION_ERROR"]] as const)("RR-AC-01a RETURN rejects missing reason %s", async (reason, status, code) =>
 {
     const item = await pending(), http = await decisionHttp(), before = await evidence(item.submitted.id);
     const response = await http.post(item, { decision: "RETURN", reason, expectedVersion: 0 });
@@ -661,4 +662,105 @@ test("CX-14 same-key simultaneous withdrawal returns one durable outcome and one
     expect(saved.audit.filter((event) => event.eventType === "REQUEST_WITHDRAWN")).toHaveLength(1);
     expect(saved.outbox.filter((event) => event.eventType === "REQUEST_WITHDRAWN")).toHaveLength(1);
     expect(saved.votes).toEqual([]);
+});
+
+test("RR-AC-01b through 04b return, resubmit and exact historical reads", async () =>
+{
+    const item = await pending(true, true);
+    const original = item.submitted.submittedRevision!;
+    const result = await decisions.Decide(item.reviewer, item.slot, { decision: "RETURN", reason: " Revise ", expectedVersion: 0 }, randomUUID());
+    expect(result.requestStatus).toBe("RETURNED");
+    const returned = await service.Read(item.actor, item.submitted.id);
+    expect(returned.workingRevision).toMatchObject({ revisionNumber: 2, fields: original.fields, formDefinitionVersionId: original.formDefinitionVersionId });
+    expect(returned.workingRevision!.id).not.toBe(original.id);
+    expect(returned.submittedRevision).toEqual(original);
+    expect(returned.currentApprovers.map((slot) => slot.status).sort()).toEqual(["CANCELLED", "CANCELLED", "RETURNED"]);
+    expect((await service.Revisions(item.actor, returned.id, { pageNumber: 1, pageSize: 20 })).items).toHaveLength(1);
+    await expect(service.Revision(item.other, returned.id, original.id)).rejects.toMatchObject({ code: "NOT_FOUND" });
+    const edited = await service.Mutate(item.actor, "patch", returned.id, { expectedVersion: returned.version, title: "Revised" });
+    await db.update(reviewerAssignmentRules).set({ reviewerId: item.other.account.id }).where(eq(reviewerAssignmentRules.id, item.assignmentId));
+    const key = randomUUID();
+    const submitted = await service.Mutate(item.actor, "resubmit", returned.id, { expectedVersion: edited.version }, key);
+    expect(submitted).toMatchObject({ status: "PENDING", requestNumber: item.submitted.requestNumber, department: item.submitted.department, submittedAt: item.submitted.submittedAt });
+    expect(submitted.submittedRevision!.id).toBe(returned.workingRevision!.id);
+    expect(submitted.currentCycleId).not.toBe(item.submitted.currentCycleId);
+    expect(await service.Mutate(item.actor, "resubmit", returned.id, { expectedVersion: edited.version }, key)).toEqual(submitted);
+    expect(await service.Revision(item.reviewer, returned.id, original.id)).toEqual(original);
+    await expect(service.Revision(item.reviewer, returned.id, submitted.submittedRevision!.id)).rejects.toMatchObject({ code: "NOT_FOUND" });
+    await expect(service.Revisions(item.reviewer, returned.id, { pageNumber: 1, pageSize: 20 })).rejects.toMatchObject({ code: "NOT_FOUND" });
+    expect((await service.Revisions(item.actor, returned.id, { pageNumber: 1, pageSize: 1 })).pagination).toMatchObject({ totalCount: 2, totalPages: 2, hasNext: true });
+});
+
+test("RR-AC-02 through 04 preserves item evidence, original department and pinned form across cycles", async () =>
+{
+    const item = await fixture(true, true);
+    const reviewerFamily = randomUUID();
+    await db.insert(sessionFamilies).values({ id: reviewerFamily, userId: item.reviewerId, authVersion: 0, createdAt: new Date(), expiresAt: new Date(Date.now() + 3600000) });
+    const reviewer = (await new IdentityRepository(db).ReadCurrentIdentity(item.reviewerId, reviewerFamily))!;
+    const draft = await item.draft();
+    const first = await service.Mutate(item.actor, "submit", draft.id, { expectedVersion: draft.version }, randomUUID());
+    const firstRevision = first.submittedRevision!;
+    await decisions.Decide(reviewer, first.currentApprovers[0]!.slotId, { decision: "RETURN", reason: "Fix", expectedVersion: 0 }, randomUUID());
+    const returned = await service.Read(item.actor, first.id);
+    expect(returned.workingRevision!.lineItems[0]).toMatchObject({ description: "Parts", quantity: firstRevision.lineItems[0]!.quantity, unitAmount: firstRevision.lineItems[0]!.unitAmount, totalAmount: firstRevision.lineItems[0]!.totalAmount });
+    expect(returned.workingRevision!.lineItems[0]!.id).not.toBe(firstRevision.lineItems[0]!.id);
+    const otherDepartment = randomUUID();
+    await db.insert(departments).values({ id: otherDepartment, code: otherDepartment, name: "New" });
+    await db.update(departmentMemberships).set({ isPrimary: false, isActive: false }).where(and(eq(departmentMemberships.userId, item.ownerId), eq(departmentMemberships.departmentId, item.departmentId)));
+    await db.insert(departmentMemberships).values({ userId: item.ownerId, departmentId: otherDepartment, isPrimary: true });
+    await expect(service.Mutate(item.actor, "resubmit", first.id, { expectedVersion: returned.version }, randomUUID())).rejects.toMatchObject({ code: "CONFIGURATION_INCOMPLETE" });
+    await db.update(departmentMemberships).set({ isActive: true }).where(and(eq(departmentMemberships.userId, item.ownerId), eq(departmentMemberships.departmentId, item.departmentId)));
+    await db.update(departments).set({ name: "Renamed" }).where(eq(departments.id, item.departmentId));
+    const nextVersion = randomUUID();
+    await db.insert(requestTypeVersions).values({ id: nextVersion, typeId: item.typeId, versionNumber: 2, definition: { ...seededDefinition, id: item.typeId, versionId: nextVersion, code: `T${item.typeId}`, monetary: true, supportsLineItems: true } });
+    await db.update(requestTypes).set({ publishedVersionId: nextVersion, isEnabled: false }).where(eq(requestTypes.id, item.typeId));
+    const nextPolicy = randomUUID();
+    await db.update(approvalPolicyVersions).set({ isActive: false }).where(eq(approvalPolicyVersions.id, item.policyId));
+    await db.insert(approvalPolicyVersions).values({ id: nextPolicy, typeId: item.typeId, code: nextPolicy, versionNumber: 1, priority: 1, stages: [{ stageNumber: 1, reviewerAssignmentKeys: ["review"], slaBusinessMinutes: 120 }] });
+    const second = await service.Mutate(item.actor, "resubmit", first.id, { expectedVersion: returned.version }, randomUUID());
+    expect((await db.select().from(approvalCycles).where(eq(approvalCycles.id, second.currentCycleId!)))[0]!.policyVersionId).toBe(nextPolicy);
+    expect(second.department).toEqual(first.department);
+    expect(second.submittedRevision!.formDefinitionVersionId).toBe(item.versionId);
+    expect(second.submittedRevision!.lineItems).toEqual(returned.workingRevision!.lineItems);
+    expect(await service.Revision(item.actor, first.id, firstRevision.id)).toEqual(firstRevision);
+    await decisions.Decide(reviewer, second.currentApprovers[0]!.slotId, { decision: "RETURN", reason: "Again", expectedVersion: 0 }, randomUUID());
+    const again = await service.Read(item.actor, first.id);
+    expect(again.workingRevision!.revisionNumber).toBe(3);
+    expect((await service.Revisions(item.actor, first.id, { pageNumber: 1, pageSize: 20 })).items.map((row) => row.revisionNumber)).toEqual([2, 1]);
+    await expect(service.Revisions(reviewer, first.id, { pageNumber: 1, pageSize: 20 })).rejects.toMatchObject({ code: "NOT_FOUND" });
+    expect(await service.Revision(reviewer, first.id, firstRevision.id)).toEqual(firstRevision);
+    await expect(service.Revision(reviewer, first.id, again.workingRevision!.id)).rejects.toMatchObject({ code: "NOT_FOUND" });
+    const third = await service.Mutate(item.actor, "resubmit", first.id, { expectedVersion: again.version }, randomUUID());
+    expect(third.submittedRevision!.revisionNumber).toBe(3);
+    expect(third.currentCycleId).not.toBe(second.currentCycleId);
+    expect(third.currentApprovers.every((slot) => slot.status === "ACTIONABLE" || slot.status === "WAITING")).toBe(true);
+    expect((await service.Revisions(item.actor, first.id, { pageNumber: 1, pageSize: 20 })).items.map((row) => row.revisionNumber)).toEqual([3, 2, 1]);
+});
+
+test("RR-AC-03/04 HTTP validates resubmit body, key, bounded listing and exact revision", async () =>
+{
+    const item = await pending();
+    const http = await decisionHttp();
+    await decisions.Decide(item.reviewer, item.slot, { decision: "RETURN", reason: "Fix", expectedVersion: 0 }, randomUUID());
+    const returned = await service.Read(item.actor, item.submitted.id);
+    const base = `/requests/${returned.id}`;
+    expect((await http.send("POST", `${base}/resubmit`, item.actor, { expectedVersion: returned.version, extra: true })).status).toBe(422);
+    expect((await http.send("POST", `${base}/resubmit`, item.actor, { expectedVersion: null })).status).toBe(422);
+    expect((await http.send("POST", `${base}/resubmit`, item.actor, { expectedVersion: returned.version }, "invalid")).status).toBe(422);
+    expect((await http.send("GET", `${base}/revisions?pageSize=101`, item.actor)).status).toBe(422);
+    expect((await http.send("GET", `${base}/revisions?extra=x`, item.actor)).status).toBe(422);
+    const list = await http.send("GET", `${base}/revisions?pageSize=1`, item.actor);
+    expect(list.status).toBe(200);
+    expect(JSON.parse(list.headers.get("x-pagination")!)).toMatchObject({ totalCount: 1, pageSize: 1 });
+    expect(await list.json()).toMatchObject([{ id: item.submitted.submittedRevision!.id, cycleId: item.submitted.currentCycleId }]);
+    expect((await http.send("GET", `${base}/revisions/${returned.workingRevision!.id}`, item.actor)).status).toBe(404);
+    expect((await http.send("GET", `${base}/revisions/${item.submitted.submittedRevision!.id}`, item.reviewer)).status).toBe(200);
+    expect((await http.send("GET", `${base}/revisions`, item.reviewer)).status).toBe(404);
+    expect((await http.send("POST", `${base}/resubmit`, item.actor, { expectedVersion: returned.version })).status).toBe(200);
+});
+
+test("RR-AC-07b decision constraint permits historical short REJECT reasons", async () =>
+{
+    const item = await pending();
+    await expect(db.insert(approvalDecisions).values({ id: randomUUID(), slotId: item.slot, actorId: item.reviewerId, decision: "REJECT", reason: "old", decidedAt: new Date() })).resolves.toBeDefined();
 });

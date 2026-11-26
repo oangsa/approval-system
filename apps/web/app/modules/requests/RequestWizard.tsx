@@ -29,6 +29,7 @@ interface IRequestWizardProps
 export function RequestWizard({ initial }: IRequestWizardProps = {})
 {
     const { user, generation } = useSession();
+    const returned = initial?.detail.status === "RETURNED";
     const navigate = useNavigate();
     const routeState = useLocation().state as { requestWizardStep?: number } | null;
     const [types, setTypes] = useState<PublishedRequestType[]>([]);
@@ -87,6 +88,11 @@ export function RequestWizard({ initial }: IRequestWizardProps = {})
     }, [blocker]);
     useEffect(() =>
     {
+        if (returned)
+        {
+            setLoading(false);
+            return;
+        }
         const controller = new AbortController();
         setLoading(true);
         setTypes([]);
@@ -107,7 +113,7 @@ export function RequestWizard({ initial }: IRequestWizardProps = {})
             if (!controller.signal.aborted) setLoading(false);
         });
         return () => controller.abort();
-    }, [loadVersion, pageNumber]);
+    }, [loadVersion, pageNumber, returned]);
     useEffect(() =>
     {
         const changedStep = previousStep.current !== step;
@@ -192,7 +198,7 @@ export function RequestWizard({ initial }: IRequestWizardProps = {})
             else
             {
                 setSavedId(detail.id);
-                setSavedMessage("Draft saved. No request number or approval task has been created.");
+                setSavedMessage(returned ? "Changes saved to the returned request." : "Draft saved. No request number or approval task has been created.");
             }
         }
         catch (failure)
@@ -222,7 +228,7 @@ export function RequestWizard({ initial }: IRequestWizardProps = {})
     }
     function selectType(id: string): void
     {
-        if (type?.id === id) return;
+        if (returned || type?.id === id) return;
         if (type && (dirty || session.current.HasSaved()) && !window.confirm("Changing the type starts a new draft and clears incompatible values. Continue?")) return;
         const selected = types.find((item) => item.id === id) ?? null;
         setSavedId("");
@@ -308,7 +314,7 @@ export function RequestWizard({ initial }: IRequestWizardProps = {})
         return <div className="space-y-2"><label htmlFor={name} className="block text-sm font-medium">{label} (required)</label>{name === "title" ? <Input id={name} value={content[name]} onChange={(event) => update({ [name]: event.target.value })} aria-invalid={!!errorFor(name)} aria-describedby={`${name}.counter ${name}.error`} /> : <textarea id={name} className={fieldClassName} rows={4} value={content[name]} onChange={(event) => update({ [name]: event.target.value })} aria-invalid={!!errorFor(name)} aria-describedby={`${name}.error`} />}{name === "title" && <p id={`${name}.counter`} className="text-sm text-muted-foreground">{(content.title ?? "").trim().length} / 200 characters (excluding leading and trailing spaces)</p>}<p id={`${name}.error`} className="text-sm text-destructive">{errorFor(name)}</p></div>;
     }
     return <div className="mx-auto max-w-5xl space-y-6 sm:space-y-8">
-        <header><h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">{initial ? "Edit draft" : "New request"}</h1><p className="mt-2 text-sm leading-relaxed text-muted-foreground">Prepare your request, review the details, then submit for approval.</p></header>
+        <header><h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">{returned ? "Edit returned request" : initial ? "Edit draft" : "New request"}</h1><p className="mt-2 text-sm leading-relaxed text-muted-foreground">Prepare your request, review the details, then submit for approval.</p></header>
         <div className="grid items-start gap-5 xl:grid-cols-[14rem_minmax(0,1fr)] xl:gap-8">
             <nav aria-label="Request steps" className="rounded-xl border bg-card p-4">
                 <p aria-hidden="true" className="mb-3 text-xs font-medium text-muted-foreground">Step {step + 1} of {steps.length}</p>
@@ -343,7 +349,7 @@ export function RequestWizard({ initial }: IRequestWizardProps = {})
                             {step === 0 && <>
                                 <div className="grid gap-2">
                                     <label htmlFor="typeId" className="text-sm font-medium">Request type (required)</label>
-                                    <select id="typeId" className={fieldClassName} value={type?.id ?? ""} onChange={(event) => selectType(event.target.value)} aria-invalid={!!errorFor("typeId")}>
+                                    <select id="typeId" disabled={returned} className={fieldClassName} value={type?.id ?? ""} onChange={(event) => selectType(event.target.value)} aria-invalid={!!errorFor("typeId")}>
                                         <option value="">Choose a published type</option>
                                         {type && !types.some((item) => item.id === type.id) && <option value={type.id}>{resolveLocalizedText(type.name, locale)}</option>}
                                         {types.map((item) => <option key={item.id} value={item.id}>{resolveLocalizedText(item.name, locale)}</option>)}
@@ -372,7 +378,7 @@ export function RequestWizard({ initial }: IRequestWizardProps = {})
                                     </div>
                                     <dl className="space-y-2">
                                         <dt className="text-sm font-medium">Department</dt>
-                                        <dd className="text-sm text-muted-foreground">{user.department?.name ?? "An administrator must assign your department before submission."}</dd>
+                                        <dd className="text-sm text-muted-foreground">{returned ? initial?.detail.department?.name ?? "Not assigned" : user.department?.name ?? "An administrator must assign your department before submission."}</dd>
                                     </dl>
                                 </div>
                             </>}
@@ -391,7 +397,8 @@ export function RequestWizard({ initial }: IRequestWizardProps = {})
                                     <div className="sm:col-span-2"><dt>Title</dt><dd className="font-medium">{review.title}</dd></div>
                                     <div className="sm:col-span-2"><dt>Justification</dt><dd className="whitespace-pre-wrap">{review.justification}</dd></div>
                                     <div><dt>Priority</dt><dd><PriorityBadge priority={review.priority ?? "MEDIUM"} /></dd></div>
-                                    <div><dt>Department</dt><dd>{user.department?.name ?? "Not assigned"}</dd></div>
+                                    {returned && <div><dt>Request number</dt><dd>{initial?.detail.requestNumber}</dd></div>}
+                                    <div><dt>Department</dt><dd>{returned ? initial?.detail.department?.name ?? "Not assigned" : user.department?.name ?? "Not assigned"}</dd></div>
                                     {visible.map((field) =>
                                     {
                                         const raw = getFieldValue(review.fields, field.key);
@@ -406,7 +413,7 @@ export function RequestWizard({ initial }: IRequestWizardProps = {})
                                     return <li key={index} className="flex flex-wrap justify-between gap-x-4 gap-y-1 py-3"><span>{item.description}</span><span className="tabular-nums text-muted-foreground">{item.quantity} × {formatMoney(item.unitAmount, "THB", locale)}{rowTotal ? ` = ${formatMoney(rowTotal, "THB", locale)}` : ""}</span></li>;
                                 })}</ul>}
                                 {type?.monetary && <p className="font-medium tabular-nums">Total: {reviewTotal ? formatMoney(reviewTotal, "THB", locale) : "—"}</p>}
-                                <p className="rounded-lg bg-muted/60 p-4 text-sm leading-relaxed text-muted-foreground">Submission locks this revision. The server checks the active department, policy and eligible reviewers before assigning a request number.</p>
+                                <p className="rounded-lg bg-muted/60 p-4 text-sm leading-relaxed text-muted-foreground">{returned ? "Resubmission locks this revision and restarts review under the current policy. The original request number and department remain unchanged." : "Submission locks this revision. The server checks the active department, policy and eligible reviewers before assigning a request number."}</p>
                             </div>}
                         </>}
                     </section>
@@ -415,7 +422,7 @@ export function RequestWizard({ initial }: IRequestWizardProps = {})
                             {step > 0 && <ActionButton type="button" variant="ghost" onClick={() => setStep((value) => value - 1)}><ChevronLeft aria-hidden="true" className="size-4" />Back</ActionButton>}
                             <div className="ml-auto flex flex-wrap justify-end gap-2">
                                 <ActionButton type="button" disabled={!type || staleDraft} aria-describedby={!type ? "save-draft-hint" : undefined} onClick={() => void save()}>Save Draft</ActionButton>
-                                <ActionButton ref={submitButton} type="submit" variant="primary" disabled={!type || staleDraft}>{busy ? "Saving…" : step === steps.length - 1 ? "Submit request" : "Next"}{step < steps.length - 1 && <ChevronRight aria-hidden="true" className="size-4" />}</ActionButton>
+                                <ActionButton ref={submitButton} type="submit" variant="primary" disabled={!type || staleDraft}>{busy ? "Saving…" : step === steps.length - 1 ? returned ? "Resubmit request" : "Submit request" : "Next"}{step < steps.length - 1 && <ChevronRight aria-hidden="true" className="size-4" />}</ActionButton>
                             </div>
                         </div>
                         {!type && <p id="save-draft-hint" className="text-right text-sm text-muted-foreground">Select a request type to enable Save Draft.</p>}
@@ -427,6 +434,6 @@ export function RequestWizard({ initial }: IRequestWizardProps = {})
         {
             event.preventDefault();
             if (!busy) setConfirming(false);
-        }} className="fixed inset-0 m-auto w-[calc(100%-2rem)] max-w-md space-y-5 rounded-xl border bg-background p-6 text-foreground backdrop:bg-black/50"><h2 id="confirm-title" className="text-lg font-semibold">Submit this request?</h2><p className="text-sm">Submitted content becomes read-only. The server will validate routing and assign the official number.</p><div className="flex justify-end gap-3"><Button type="button" disabled={busy} onClick={() => setConfirming(false)}>Keep editing</Button><Button type="button" disabled={busy} className="bg-primary px-4 py-2 text-primary-foreground" onClick={() => void save(true)}>{busy ? "Submitting…" : "Confirm submission"}</Button></div></dialog>}
+        }} className="fixed inset-0 m-auto w-[calc(100%-2rem)] max-w-md space-y-5 rounded-xl border bg-background p-6 text-foreground backdrop:bg-black/50"><h2 id="confirm-title" className="text-lg font-semibold">{returned ? "Resubmit this request?" : "Submit this request?"}</h2><p className="text-sm">{returned ? "Submitted content becomes read-only and review restarts with a new cycle. The original request number and department are retained." : "Submitted content becomes read-only. The server will validate routing and assign the official number."}</p><div className="flex justify-end gap-3"><Button type="button" disabled={busy} onClick={() => setConfirming(false)}>Keep editing</Button><Button type="button" disabled={busy} className="bg-primary px-4 py-2 text-primary-foreground" onClick={() => void save(true)}>{busy ? "Submitting…" : returned ? "Confirm resubmission" : "Confirm submission"}</Button></div></dialog>}
     </div>;
 }

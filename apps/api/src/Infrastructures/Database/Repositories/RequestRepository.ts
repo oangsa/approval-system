@@ -6,7 +6,7 @@ import type { IRequestRepository, IRequestUnitOfWork } from "../../../Domains/Re
 import { businessDueAt, RequestError, type IConfiguration, type IPlan } from "../../../Domains/Requests/RequestRules";
 import type { Database } from "../Database";
 import { IdentityRepository } from "./IdentityRepository";
-import { approvalCycles, approvalPolicyVersions, approvalSlots, approvalStages, budgetPolicies, departmentMemberships, departments, idempotencyRecords, requestAuditEvents, requestItems, requestOutboxEvents, requestRevisions, requests, requestTypes, requestTypeVersions, reviewerAssignmentRules, userRoles, users } from "../schema";
+import { approvalCycles, approvalDecisions, approvalPolicyVersions, approvalSlots, approvalStages, budgetPolicies, departmentMemberships, departments, idempotencyRecords, requestAuditEvents, requestItems, requestOutboxEvents, requestRevisions, requests, requestTypes, requestTypeVersions, reviewerAssignmentRules, userRoles, users } from "../schema";
 
 type Connection = Database["connection"];
 type Transaction = Parameters<Parameters<Connection["transaction"]>[0]>[0];
@@ -18,7 +18,8 @@ export class RequestRepository implements IRequestRepository
     public async CurrentActor(actor: IActor): Promise<IActor>
     {
         const identity = new IdentityRepository(this.db);
-        await identity.LockUser(actor.account.id);
+        // Share the identity lock with configuration reads while blocking identity changes.
+        await this.db.select().from(users).where(eq(users.id, actor.account.id)).for("share");
         const current = await identity.ReadCurrentIdentity(actor.account.id, actor.family.id);
         if (!current || !current.roles.length || !isCurrentIdentity(current, actor.account.authVersion, new Date())) throw new RequestError("UNAUTHENTICATED");
         return current;
@@ -62,8 +63,27 @@ export class RequestRepository implements IRequestRepository
             department: row.departmentSnapshot, revisionNumber: submittedRevision?.revisionNumber ?? null, currentCycleId: row.currentCycleId,
             createdAt: row.createdAt.toISOString(), updatedAt: row.updatedAt.toISOString(), submittedAt: row.submittedAt?.toISOString() ?? null, version: row.version,
             workingRevision, submittedRevision, currentStageNumber: slots.find((item) => item.stage.status === "ACTIVE")?.stage.stageNumber ?? null,
-            currentApprovers: slots.map(({ slot, stage, reviewer }) => ({ slotId: slot.id, stageNumber: stage.stageNumber, reviewer, status: slot.status })), availableActions: row.status === "DRAFT" ? ["EDIT_DRAFT", "SUBMIT"] : row.status === "RETURNED" ? ["EDIT_DRAFT"] : row.status === "PENDING" ? ["WITHDRAW"] : [],
+            currentApprovers: slots.map(({ slot, stage, reviewer }) => ({ slotId: slot.id, stageNumber: stage.stageNumber, reviewer, status: slot.status })), availableActions: row.status === "DRAFT" ? ["EDIT_DRAFT", "SUBMIT"] : row.status === "RETURNED" ? ["EDIT_DRAFT", "RESUBMIT"] : row.status === "PENDING" ? ["WITHDRAW"] : [],
         });
+    }
+    public async Revisions(id: string, query: import("@workflow/contracts").RevisionQuery)
+    {
+        const where = and(eq(requestRevisions.requestId, id), sql`${requestRevisions.submittedAt} is not null`);
+        const total = (await this.db.select({ value: count() }).from(requestRevisions).innerJoin(approvalCycles, eq(approvalCycles.revisionId, requestRevisions.id)).where(where))[0]!.value;
+        const rows = await this.db.select({ revision: requestRevisions, cycleId: approvalCycles.id }).from(requestRevisions).innerJoin(approvalCycles, eq(approvalCycles.revisionId, requestRevisions.id)).where(where).orderBy(desc(requestRevisions.revisionNumber), asc(requestRevisions.id)).limit(query.pageSize).offset((query.pageNumber - 1) * query.pageSize);
+        const totalPages = Math.ceil(total / query.pageSize);
+        return { items: rows.map(({ revision, cycleId }) => ({ id: revision.id, revisionNumber: revision.revisionNumber, formDefinitionVersionId: revision.formDefinitionVersionId, submittedAt: revision.submittedAt!.toISOString(), submittedBy: revision.submittedBy!, cycleId })), pagination: { currentPage: query.pageNumber, pageSize: query.pageSize, totalPages, totalCount: total, hasPrevious: query.pageNumber > 1, hasNext: query.pageNumber < totalPages } };
+    }
+    public async SubmittedRevision(id: string, revisionId: string, actorId: string, current: boolean)
+    {
+        const revision = (await this.db.select({ id: requestRevisions.id }).from(requestRevisions).innerJoin(approvalCycles, eq(approvalCycles.revisionId, requestRevisions.id)).where(and(eq(requestRevisions.id, revisionId), eq(requestRevisions.requestId, id), sql`${requestRevisions.submittedAt} is not null`)))[0];
+        if (!revision) return null;
+        if (!current)
+        {
+            const handled = (await this.db.select({ id: approvalDecisions.id }).from(approvalDecisions).innerJoin(approvalSlots, eq(approvalDecisions.slotId, approvalSlots.id)).innerJoin(approvalStages, eq(approvalSlots.stageId, approvalStages.id)).innerJoin(approvalCycles, eq(approvalStages.cycleId, approvalCycles.id)).where(and(eq(approvalDecisions.actorId, actorId), eq(approvalCycles.requestId, id), eq(approvalCycles.revisionId, revisionId))).limit(1))[0];
+            if (!handled) return null;
+        }
+        return this.Revision(revisionId);
     }
     public async Search(ownerId: string, query: RequestSearchQuery)
     {
@@ -117,8 +137,8 @@ export class RequestRepository implements IRequestRepository
         const type = (await this.db.select().from(requestTypes).where(eq(requestTypes.id, typeId)).for("share"))[0];
         const version = (await this.db.select().from(requestTypeVersions).where(and(eq(requestTypeVersions.id, versionId), eq(requestTypeVersions.typeId, typeId))).for("share"))[0];
         if (!type || !version) throw new RequestError("NOT_FOUND");
-        const membership = (await this.db.select().from(departmentMemberships).where(and(eq(departmentMemberships.userId, actorId), eq(departmentMemberships.isActive, true), eq(departmentMemberships.isPrimary, true))).for("share"))[0];
-        const department = historicalDepartment ?? (membership ? (await this.db.select().from(departments).where(eq(departments.id, membership.departmentId)).for("share"))[0] ?? null : null);
+        const membership = (await this.db.select().from(departmentMemberships).where(and(eq(departmentMemberships.userId, actorId), eq(departmentMemberships.isActive, true), historicalDepartment ? eq(departmentMemberships.departmentId, historicalDepartment.id) : eq(departmentMemberships.isPrimary, true))).for("share"))[0];
+        const department = membership ? (await this.db.select().from(departments).where(eq(departments.id, membership.departmentId)).for("share"))[0] ?? null : null;
         const policies = await this.db.select().from(approvalPolicyVersions).where(and(eq(approvalPolicyVersions.typeId, typeId), eq(approvalPolicyVersions.isActive, true))).orderBy(asc(approvalPolicyVersions.id)).for("share");
         const rules = department ? await this.db.select().from(reviewerAssignmentRules).where(and(or(eq(reviewerAssignmentRules.departmentId, department.id), isNull(reviewerAssignmentRules.departmentId)))).orderBy(asc(reviewerAssignmentRules.id)).for("share") : [];
         const reviewerIds = [...new Set(rules.flatMap((rule) => rule.reviewerUserIds ?? [rule.reviewerId]))].sort();
@@ -180,8 +200,13 @@ export class RequestRepository implements IRequestRepository
         const revisionId = row.workingRevisionId!;
         const cycleId = randomUUID();
         const now = new Date();
-        const numbers = await this.db.execute<{ value: string }>(sql`select nextval('request_number_sequence')::text as value`);
-        const number = `REQ-${String(numbers[0]!.value).padStart(8, "0")}`;
+        const resubmit = row.status === "RETURNED";
+        let number = row.requestNumber;
+        if (!resubmit)
+        {
+            const numbers = await this.db.execute<{ value: string }>(sql`select nextval('request_number_sequence')::text as value`);
+            number = `REQ-${String(numbers[0]!.value).padStart(8, "0")}`;
+        }
         await this.db.update(requestRevisions).set({ submittedAt: now, submittedBy: actorId }).where(eq(requestRevisions.id, revisionId));
         await this.db.insert(approvalCycles).values({ id: cycleId, requestId: id, revisionId, policyVersionId: plan.policy.id, snapshot: { policy: plan.policy, assignments: plan.assignments, department: plan.department, title: row.title, justification: row.justification, priority: row.priority } });
         for (const stage of plan.policy.stages)
@@ -197,9 +222,9 @@ export class RequestRepository implements IRequestRepository
                 }
             }
         }
-        await this.db.update(requests).set({ status: "PENDING", requestNumber: number, departmentId: plan.department.id, departmentSnapshot: plan.department, submittedAt: now, updatedAt: now, version: row.version + 1, workingRevisionId: null, submittedRevisionId: revisionId, currentCycleId: cycleId }).where(eq(requests.id, id));
-        await this.db.insert(requestAuditEvents).values({ id: randomUUID(), requestId: id, actorId, eventType: "REQUEST_SUBMITTED", revisionId, cycleId });
-        await this.db.insert(requestOutboxEvents).values({ id: randomUUID(), eventKey: `REQUEST_SUBMITTED:${cycleId}`, eventType: "REQUEST_SUBMITTED", payload: { requestId: id, cycleId } });
+        await this.db.update(requests).set({ status: "PENDING", requestNumber: number, departmentId: resubmit ? row.departmentId : plan.department.id, departmentSnapshot: resubmit ? row.departmentSnapshot : plan.department, submittedAt: resubmit ? row.submittedAt : now, updatedAt: now, version: row.version + 1, workingRevisionId: null, submittedRevisionId: revisionId, currentCycleId: cycleId }).where(eq(requests.id, id));
+        await this.db.insert(requestAuditEvents).values({ id: randomUUID(), requestId: id, actorId, eventType: resubmit ? "REQUEST_RESUBMITTED" : "REQUEST_SUBMITTED", revisionId, cycleId });
+        await this.db.insert(requestOutboxEvents).values({ id: randomUUID(), eventKey: `${resubmit ? "REQUEST_RESUBMITTED" : "REQUEST_SUBMITTED"}:${cycleId}`, eventType: resubmit ? "REQUEST_RESUBMITTED" : "REQUEST_SUBMITTED", payload: { requestId: id, cycleId } });
     }
     public async TypeVersion(id: string, versionId: string)
     {

@@ -9,6 +9,7 @@ import {
     patchDraftSchema,
     publishedRequestTypeSchema,
     requestDetailSchema,
+    requestRevisionSchema, revisionMetadataSchema, revisionQuerySchema,
     requestTypeSearchSchema,
     requestSearchSchema,
     requestSummarySchema,
@@ -25,7 +26,7 @@ import { HttpError } from "../errors";
 const requestRoutes = [
         ["GET", "/api/v1/request-types/:id/versions/:versionId", "typeVersion"],
         ["POST", "/api/v1/requests/search", "search"], ["POST", "/api/v1/requests", "create"], ["PATCH", "/api/v1/requests/:id/draft", "patch"], ["POST", "/api/v1/requests/:id/submit", "submit"],
-        ["POST", "/api/v1/requests/:id/withdraw", "withdraw"], ["GET", "/api/v1/requests/:id", "read"], ["POST", "/api/v1/request-types/search", "types"], ["GET", "/api/v1/request-types/:id", "type"],
+        ["POST", "/api/v1/requests/:id/resubmit", "resubmit"], ["GET", "/api/v1/requests/:id/revisions", "revisions"], ["GET", "/api/v1/requests/:id/revisions/:revisionId", "revision"], ["POST", "/api/v1/requests/:id/withdraw", "withdraw"], ["GET", "/api/v1/requests/:id", "read"], ["POST", "/api/v1/request-types/search", "types"], ["GET", "/api/v1/request-types/:id", "type"],
     ] as const;
 
 export function createRequestOpenApi()
@@ -37,7 +38,7 @@ export function createRequestOpenApi()
             ? createRequestSchema
             : action === "patch"
                 ? patchDraftSchema
-                : action === "submit"
+                : action === "submit" || action === "resubmit"
                     ? submitRequestSchema
                     : action === "withdraw"
                         ? withdrawRequestSchema
@@ -48,6 +49,10 @@ export function createRequestOpenApi()
                                 : null;
         const response = action === "types"
             ? z.union([z.array(publishedRequestTypeSchema), z.array(adminRequestTypeSummarySchema)])
+            : action === "revisions"
+                ? z.array(revisionMetadataSchema)
+                : action === "revision"
+                    ? requestRevisionSchema
             : action === "search"
                 ? z.array(requestSummarySchema)
                 : action === "type"
@@ -55,19 +60,21 @@ export function createRequestOpenApi()
                     : action === "typeVersion"
                         ? publishedRequestTypeSchema
                         : requestDetailSchema;
-        const keyRequired = action === "create" || action === "submit" || action === "withdraw";
-        paths[path.replace(":id", "{id}").replace(":versionId", "{versionId}")] ??= {};
-        paths[path.replace(":id", "{id}").replace(":versionId", "{versionId}")]![method.toLowerCase()] = {
+        const keyRequired = action === "create" || action === "submit" || action === "resubmit" || action === "withdraw";
+        paths[path.replace(":id", "{id}").replace(":versionId", "{versionId}").replace(":revisionId", "{revisionId}")] ??= {};
+        paths[path.replace(":id", "{id}").replace(":versionId", "{versionId}").replace(":revisionId", "{revisionId}")]![method.toLowerCase()] = {
             security: [{ bearerAuth: [] }],
             parameters: [
                 ...(action === "types" || action === "type" ? [{ name: "view", in: "query", required: false, description: "Set to 'admin' for administrator request-type views.", schema: { type: "string", enum: ["admin"] } }] : []),
                 ...(action === "typeVersion" ? [{ name: "versionId", in: "path", required: true, schema: { type: "string", format: "uuid" } }, { name: "requestId", in: "query", required: false, description: "Required for non-admins; must identify an authorized request using this version.", schema: { type: "string", format: "uuid" } }] : []),
+                ...(action === "revision" ? [{ name: "revisionId", in: "path", required: true, schema: { type: "string", format: "uuid" } }] : []),
+                ...(action === "revisions" ? ["pageNumber", "pageSize"].map((name) => ({ name, in: "query", schema: { type: "integer", minimum: 1, maximum: name === "pageSize" ? 100 : 10000 } })) : []),
                 ...(path.includes(":id") ? [{ name: "id", in: "path", required: true, schema: { type: "string", format: "uuid" } }] : []),
                 ...(keyRequired || action === "patch" ? [{ name: "Idempotency-Key", in: "header", required: keyRequired, schema: { type: "string", format: "uuid" } }] : []),
             ],
             ...(body ? { requestBody: { required: true, content: { "application/json": { schema: z.toJSONSchema(body, { io: "input" }) } } } } : {}),
             responses: {
-                [action === "create" ? "201" : "200"]: { description: "Success", ...(action === "search" || action === "types" ? { headers: { "X-Pagination": { description: "JSON pagination metadata", schema: z.toJSONSchema(paginationSchema) } } } : {}), content: { "application/json": { schema: z.toJSONSchema(response) } } },
+                [action === "create" ? "201" : "200"]: { description: "Success", ...(action === "search" || action === "types" || action === "revisions" ? { headers: { "X-Pagination": { description: "JSON pagination metadata", schema: z.toJSONSchema(paginationSchema) } } } : {}), content: { "application/json": { schema: z.toJSONSchema(response) } } },
                 default: { description: "Error", content: { "application/json": { schema: z.toJSONSchema(errorResponseSchema) } } },
             },
         };
@@ -101,6 +108,18 @@ export function registerRequestRoutes(app: {
                 const requestId = new URL(request.url).searchParams.get("requestId") ?? undefined;
                 if (!z.uuid().safeParse(params.versionId).success || requestId !== undefined && !z.uuid().safeParse(requestId).success) throw new HttpError("NOT_FOUND");
                 return Response.json(publishedRequestTypeSchema.parse(await service.TypeVersion(actor, params.id!, params.versionId!, requestId)));
+            }
+            if (action === "revisions")
+            {
+                const query = revisionQuerySchema.safeParse(Object.fromEntries(new URL(request.url).searchParams));
+                if (!query.success) throw new HttpError("VALIDATION_ERROR");
+                const result = await service.Revisions(actor, params.id!.toLowerCase(), query.data);
+                return Response.json(z.array(revisionMetadataSchema).parse(result.items), { headers: { "X-Pagination": JSON.stringify(result.pagination) } });
+            }
+            if (action === "revision")
+            {
+                if (!z.uuid().safeParse(params.revisionId).success) throw new HttpError("NOT_FOUND");
+                return Response.json(requestRevisionSchema.parse(await service.Revision(actor, params.id!.toLowerCase(), params.revisionId!.toLowerCase())));
             }
             if (action === "read") return Response.json(requestDetailSchema.parse(await service.Read(actor, params.id!)));
             let value: unknown;

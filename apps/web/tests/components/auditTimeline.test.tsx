@@ -30,10 +30,14 @@ const item = (id: string, eventType: string) => ({ id, requestId: "request", cyc
 
 test("renders chronological readable facts and safely handles unknown events", async () =>
 {
-    vi.mocked(readTimeline).mockResolvedValueOnce({ items: [item("1", "DECISION_REJECT"), item("2", "toString")], pagination: pagination(1) });
+    vi.mocked(readTimeline).mockResolvedValueOnce({ items: [item("1", "DECISION_REJECT"), item("2", "REQUEST_RESUBMITTED"), item("3", "toString")], pagination: pagination(1) });
     render(<AuditTimeline requestId="request" />);
     const list = await screen.findByRole("list");
-    expect(list).toHaveTextContent(/Decision: rejected.*History event/);
+    expect(list).toHaveTextContent(/Decision: rejected.*Request resubmitted.*History event/);
+    const resubmitted = screen.getByText("Request resubmitted").closest("li")!;
+    expect(resubmitted).toHaveTextContent("Reviewer");
+    expect(resubmitted).toHaveTextContent("Cycle ID: cycle-id");
+    expect(resubmitted).toHaveTextContent("Revision ID: revision-id");
     expect(list).toHaveTextContent("Reviewer");
     expect(list).toHaveTextContent("Cycle ID: cycle-id");
     expect(list).toHaveTextContent("Revision ID: revision-id");

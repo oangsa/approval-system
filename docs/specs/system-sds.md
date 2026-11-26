@@ -573,3 +573,8 @@ Approval evidence: [record](../labs/lab-07/approval-record.md). Original section
 ## Issue #6 physical lifecycle design — 2026-11-24
 
 [Draft/withdraw SDS v1](../features/draft-withdraw-lifecycle/sds.md) records the bounded R01/R05 implementation: reuse request lifecycle transactions/replay, acquire the shared request row lock before cancelling current unfinished work, and preserve submitted revision/cycle snapshots and completed votes. Migration `0009_withdrawal-audit-note` adds nullable `audit_events.note` for optional owner withdrawal reason; audit actor/time and the existing timeline DTO remain unchanged. Authenticated `/requests/:id/edit` reuses the existing wizard through service-layer hydration and changes-only draft PATCH. No returned/resubmit engine or product contract amendment is implied.
+
+
+### Issue #7 implementation design reference
+
+The bounded [return/revision/resubmission SDS](../features/return-revision-resubmission/sds.md) and related feature contracts define the planned implementation under the frozen specifications. Implementation and verification are NOT RUN.
