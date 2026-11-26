@@ -46,9 +46,9 @@ test("missing required snapshot slots cannot approve", () =>
     item.stages[0]!.requiredKeys.push("missing");
     expect(() => decideTransition(item, "slot", { decision: "APPROVE", expectedVersion: 0 })).toThrow("INVALID_REQUEST_TRANSITION");
 });
-test("unsupported RETURN and stage-two execution fail closed", () =>
+test("RETURN and unsupported stage-two approval", () =>
 {
-    expect(() => decideTransition(state(), "slot", { decision: "RETURN", reason: "Revise", expectedVersion: 0 })).toThrow("INVALID_REQUEST_TRANSITION");
+    expect(decideTransition(state(), "slot", { decision: "RETURN", reason: "Revise", expectedVersion: 0 }).requestStatus).toBe("RETURNED");
     const item = state();
     item.stages[0]!.stageNumber = 2;
     expect(() => decideTransition(item, "slot", { decision: "APPROVE", expectedVersion: 0 })).toThrow("INVALID_REQUEST_TRANSITION");
@@ -65,4 +65,17 @@ test("two-stage partial approval remains allowed but the completing vote fails c
     expect(decideTransition(item, "slot", { decision: "APPROVE", expectedVersion: 0 })).toMatchObject({ requestStatus: "PENDING", stageComplete: false, currentStageNumber: 1 });
     item.slots[2]!.status = "APPROVED";
     expect(() => decideTransition(item, "slot", { decision: "APPROVE", expectedVersion: 0 })).toThrow("INVALID_REQUEST_TRANSITION");
+});
+
+test("RR-AC-01b RETURN permits valid active stage two and rejects invalid reasons", () =>
+{
+    const item = state();
+    item.stages[0]!.status = "COMPLETED";
+    item.slots[0]!.status = "APPROVED";
+    item.stages.push({ id: "second", stageNumber: 2, status: "ACTIVE", requiredKeys: ["second"] });
+    item.slots.push({ id: "second-slot", stageId: "second", assignmentKey: "second", status: "ACTIONABLE", version: 0 });
+    expect(decideTransition(item, "second-slot", { decision: "RETURN", reason: "Fix", expectedVersion: 0 })).toMatchObject({ requestStatus: "RETURNED", stageId: "second" });
+    for (const reason of [undefined, " ", "x".repeat(4001)]) expect(() => decideTransition(item, "second-slot", { decision: "RETURN", reason, expectedVersion: 0 })).toThrow("VALIDATION_ERROR");
+    item.stages[0]!.status = "ACTIVE";
+    expect(() => decideTransition(item, "second-slot", { decision: "RETURN", reason: "Fix", expectedVersion: 0 })).toThrow("APPROVAL_TASK_STALE");
 });

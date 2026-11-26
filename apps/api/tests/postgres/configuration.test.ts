@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, expect, test } from "vitest";
-import { asc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import { configurationSearchSchema, type CreateApprovalPolicy, type UserRole } from "@workflow/contracts";
 import { ConfigurationService } from "../../src/Applications/Policies/ConfigurationService";
 import { ConfigurationRepository, ConfigurationUnitOfWork } from "../../src/Infrastructures/Database/Repositories/ConfigurationRepository";
@@ -246,11 +246,18 @@ test("PRB-AC-07 Issue #7 seam keeps historical department/form while resolving c
     await db.update(requestTypes).set({ publishedVersionId: newVersionId, isEnabled: false }).where(eq(requestTypes.id, f.typeId));
     const { resolvePlan } = await import("../../src/Domains/Requests/RequestRules");
     const { RequestRepository } = await import("../../src/Infrastructures/Database/Repositories/RequestRepository");
-    const config = await db.transaction(async (transaction) =>
+    const readConfig = () => db.transaction(async (transaction) =>
     {
         await transaction.execute(sql`select pg_advisory_xact_lock_shared(941309)`);
         return new RequestRepository(transaction).Configuration(f.typeId, f.versionId, f.owner.account.id, submitted.department!);
     });
+    const beforeDenial = await evidence(draft.id);
+    const deniedConfig = await readConfig();
+    expect(deniedConfig.department).toBeNull();
+    expect(() => resolvePlan(deniedConfig, f.owner.account.id, "20", { allowDisabledType: true })).toThrow("CONFIGURATION_INCOMPLETE");
+    expect(await evidence(draft.id)).toEqual(beforeDenial);
+    await db.update(departmentMemberships).set({ isActive: true }).where(and(eq(departmentMemberships.userId, f.owner.account.id), eq(departmentMemberships.departmentId, f.departmentId)));
+    const config = await readConfig();
     expect(config.definition.versionId).toBe(f.versionId);
     expect(config.activeVersionId).toBe(newVersionId);
     expect(config.department!.id).toBe(f.departmentId);

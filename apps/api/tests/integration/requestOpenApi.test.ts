@@ -44,3 +44,11 @@ test("withdraw OpenAPI requires UUID key and version while reason remains option
         responses: { "200": { description: "Success" } },
     });
 });
+
+test("RR-AC revision and resubmit OpenAPI documents strict bounded contracts", () =>
+{
+    const paths = createRequestOpenApi().paths;
+    expect(paths["/api/v1/requests/{id}/resubmit"]?.post).toMatchObject({ parameters: expect.arrayContaining([expect.objectContaining({ name: "Idempotency-Key", required: true })]), requestBody: { content: { "application/json": { schema: { additionalProperties: false, required: ["expectedVersion"] } } } } });
+    expect(paths["/api/v1/requests/{id}/revisions"]?.get).toMatchObject({ responses: { "200": { headers: { "X-Pagination": expect.anything() }, content: { "application/json": { schema: { type: "array" } } } } } });
+    expect(paths["/api/v1/requests/{id}/revisions/{revisionId}"]?.get).toMatchObject({ parameters: expect.arrayContaining([expect.objectContaining({ name: "revisionId", required: true })]) });
+});

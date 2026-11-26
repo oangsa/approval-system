@@ -49,6 +49,15 @@ export const patchDraftSchema = z.strictObject({ expectedVersion: z.number().int
 export const withdrawRequestSchema = z.strictObject({ expectedVersion: z.number().int().nonnegative(), reason: z.string().optional() });
 export type WithdrawRequest = z.infer<typeof withdrawRequestSchema>;
 export const submitRequestSchema = z.strictObject({ expectedVersion: z.number().int().nonnegative() });
+export const resubmitRequestSchema = submitRequestSchema;
+export const revisionQuerySchema = z.strictObject({
+    pageNumber: z.coerce.number().int().min(1).max(10000).default(1), pageSize: z.coerce.number().int().min(1).max(100).default(20),
+});
+export const revisionMetadataSchema = z.strictObject({
+    id: z.uuid(), revisionNumber: z.number().int().positive(), formDefinitionVersionId: z.uuid(), submittedAt: z.iso.datetime(), submittedBy: z.uuid(), cycleId: z.uuid(),
+});
+export type RevisionQuery = z.infer<typeof revisionQuerySchema>;
+export type RevisionMetadata = z.infer<typeof revisionMetadataSchema>;
 export const requestRevisionSchema = z.strictObject({
     id: z.uuid(), revisionNumber: z.number().int().positive(), formDefinitionVersionId: z.uuid(), fields: z.record(z.string(), z.unknown()),
     lineItems: z.array(editableLineItemSchema.extend({ id: z.uuid(), totalAmount: moneySchema })), amount: moneySchema.nullable(), currency: z.string().nullable(), submittedAt: z.iso.datetime().nullable(), submittedBy: z.uuid().nullable(),

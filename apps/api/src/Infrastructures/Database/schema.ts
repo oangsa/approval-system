@@ -108,7 +108,7 @@ export const approvalDecisions = pgTable("approval_decisions", {
     id: uuid().primaryKey(), slotId: uuid("slot_id").notNull().unique().references(() => approvalSlots.id),
     actorId: uuid("actor_id").notNull().references(() => users.id), decision: text().$type<import("@workflow/contracts").DecisionRequest["decision"]>().notNull(),
     reason: text(), decidedAt: timestamp("decided_at", { withTimezone: true }).notNull(),
-}, (t) => [check("decision_type", sql`${t.decision} in ('APPROVE','REJECT')`), check("rejection_reason", sql`${t.decision} <> 'REJECT' OR length(btrim(${t.reason})) > 0 AND ${t.reason} IS NOT NULL`)]);
+}, (t) => [check("decision_type", sql`${t.decision} in ('APPROVE','REJECT','RETURN')`), check("rejection_reason", sql`${t.decision} not in ('REJECT','RETURN') OR length(btrim(${t.reason})) > 0 AND ${t.reason} IS NOT NULL`)]);
 export const decisionIdempotencyRecords = pgTable("decision_idempotency_records", {
     actorId: uuid("actor_id").notNull().references(() => users.id), scope: text().notNull(), key: uuid().notNull(), bodyHash: text("body_hash").notNull(),
     response: jsonb().$type<import("@workflow/contracts").DecisionResult>().notNull(), createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

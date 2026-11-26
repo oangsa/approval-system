@@ -26,7 +26,7 @@ export class RequestService
     {
         if (!actor.roles.includes("REQUESTER")) throw new RequestError("FORBIDDEN");
     }
-    public async Mutate(actor: IActor, operation: "create" | "patch" | "submit" | "withdraw", id: string | null, body: RequestMutation, key?: string): Promise<RequestDetail>
+    public async Mutate(actor: IActor, operation: "create" | "patch" | "submit" | "resubmit" | "withdraw", id: string | null, body: RequestMutation, key?: string): Promise<RequestDetail>
     {
         id = id?.toLowerCase() ?? null;
         return this.unit.Run(async (repository) =>
@@ -60,15 +60,16 @@ export class RequestService
             else
             {
                 const detail = await this.Owner(repository, actor, id!, true);
-                const allowedStatus = operation === "patch" ? detail.status === "DRAFT" || detail.status === "RETURNED" : detail.status === "DRAFT";
+                const allowedStatus = operation === "patch" ? detail.status === "DRAFT" || detail.status === "RETURNED" : operation === "resubmit" ? detail.status === "RETURNED" : detail.status === "DRAFT";
                 if (!allowedStatus || !detail.workingRevision) throw new RequestError("INVALID_REQUEST_TRANSITION");
                 if (!("expectedVersion" in body) || detail.version !== body.expectedVersion) throw new RequestError("REQUEST_STALE");
                 if (detail.status === "RETURNED" && operation === "patch" && (body as PatchDraft).formDefinitionVersionId !== undefined && (body as PatchDraft).formDefinitionVersionId!.toLowerCase() !== detail.workingRevision.formDefinitionVersionId.toLowerCase())
                 {
                     throw new RequestError("FORM_DEFINITION_CHANGED");
                 }
+                if (operation === "resubmit" && !detail.department) throw new RequestError("CONFIGURATION_INCOMPLETE");
                 const selectedVersionId = operation === "patch" ? (body as PatchDraft).formDefinitionVersionId?.toLowerCase() ?? detail.workingRevision.formDefinitionVersionId : detail.workingRevision.formDefinitionVersionId;
-                const config = await repository.Configuration(detail.typeId, selectedVersionId, actor.account.id);
+                const config = await repository.Configuration(detail.typeId, selectedVersionId, actor.account.id, operation === "resubmit" ? detail.department ?? undefined : undefined);
                 const targetDefinition = assertPublishedDefinition(config.definition, { typeId: detail.typeId, versionId: selectedVersionId });
                 const originalRaw = selectedVersionId === detail.workingRevision.formDefinitionVersionId ? targetDefinition : await repository.TypeVersion(detail.typeId, detail.workingRevision.formDefinitionVersionId);
                 if (!originalRaw) throw new RequestError("NOT_FOUND");
@@ -81,9 +82,9 @@ export class RequestService
                     content = { ...content, ...changes };
                 }
                 if (operation === "submit" && content.formDefinitionVersionId !== config.activeVersionId) throw new RequestError("FORM_DEFINITION_CHANGED");
-                const amount = assertContent(targetDefinition, content, operation === "submit");
+                const amount = assertContent(targetDefinition, content, operation === "submit" || operation === "resubmit");
                 if (operation === "patch") await repository.Patch(id!, actor.account.id, content, amount, "lineItems" in body);
-                else await repository.Submit(id!, actor.account.id, resolvePlan({ ...config, definition: targetDefinition }, actor.account.id, amount));
+                else await repository.Submit(id!, actor.account.id, resolvePlan({ ...config, definition: targetDefinition }, actor.account.id, amount, { allowDisabledType: operation === "resubmit" }));
                 resultId = id!;
             }
             const result = (await repository.Read(resultId))!;
@@ -96,6 +97,29 @@ export class RequestService
         const detail = await repository.Read(id);
         if (!detail || detail.requester.id !== actor.account.id && !(actor.roles.includes("REVIEWER") && detail.status === "PENDING" && detail.currentApprovers.some((slot) => slot.reviewer.id === actor.account.id && ["ACTIONABLE", "WAITING"].includes(slot.status)))) throw new RequestError("NOT_FOUND");
         return detail;
+    }
+    public async Revisions(actor: IActor, id: string, query: import("@workflow/contracts").RevisionQuery)
+    {
+        return this.unit.Run(async (repository) =>
+        {
+            actor = await repository.CurrentActor(actor);
+            await repository.Read(id, true);
+            await this.Readable(repository, actor, id);
+            return repository.Revisions(id, query);
+        });
+    }
+    public async Revision(actor: IActor, id: string, revisionId: string)
+    {
+        return this.unit.Run(async (repository) =>
+        {
+            actor = await repository.CurrentActor(actor);
+            const detail = await repository.Read(id, true);
+            if (!detail) throw new RequestError("NOT_FOUND");
+            const current = detail.requester.id === actor.account.id || actor.roles.includes("REVIEWER") && detail.status === "PENDING" && detail.currentApprovers.some((slot) => slot.reviewer.id === actor.account.id && ["ACTIONABLE", "WAITING"].includes(slot.status));
+            const revision = await repository.SubmittedRevision(id, revisionId, actor.account.id, current);
+            if (!revision) throw new RequestError("NOT_FOUND");
+            return revision;
+        });
     }
     public async TypeVersion(actor: IActor, id: string, versionId: string, requestId?: string)
     {
