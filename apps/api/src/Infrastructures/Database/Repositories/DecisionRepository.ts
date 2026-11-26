@@ -12,7 +12,7 @@ import { RequestRepository } from "./RequestRepository";
 
 type Connection = Database["connection"];
 type Transaction = Parameters<Parameters<Connection["transaction"]>[0]>[0];
-const planSchema = z.object({ policy: z.object({ stages: z.array(z.object({ stageNumber: z.union([z.literal(1), z.literal(2)]), reviewerAssignmentKeys: z.array(z.string()).min(1) })).min(1).max(2) }) });
+const planSchema = z.object({ policy: z.object({ stages: z.array(z.object({ stageNumber: z.union([z.literal(1), z.literal(2)]), reviewerAssignmentKeys: z.array(z.string()).min(1) })).min(1).max(2) }), assignments: z.array(z.object({ assignmentKey: z.string(), reviewerId: z.string() })) });
 export class DecisionRepository implements IDecisionRepository
 {
     constructor(private readonly db: Transaction)
@@ -49,6 +49,13 @@ export class DecisionRepository implements IDecisionRepository
         if (slot.reviewerId !== actor.account.id) throw new ApprovalTaskError("NOT_FOUND");
         const plan = planSchema.safeParse(cycle.snapshot);
         if (!plan.success || plan.data.policy.stages.length !== stages.length) throw new ApprovalTaskError("INVALID_REQUEST_TRANSITION");
+        for (const stage of stages)
+        {
+            const keys = plan.data.policy.stages.find((configured) => configured.stageNumber === stage.stageNumber)?.reviewerAssignmentKeys ?? [];
+            const expected = new Set(plan.data.assignments.filter((item) => keys.includes(item.assignmentKey)).map((item) => JSON.stringify([item.assignmentKey, item.reviewerId])));
+            const actual = slots.filter((item) => item.stageId === stage.id);
+            if (actual.length !== expected.size || actual.some((item) => !expected.has(JSON.stringify([item.assignmentKey, item.reviewerId])))) throw new ApprovalTaskError("INVALID_REQUEST_TRANSITION");
+        }
         return { requestId: request.id, cycleId: cycle.id, revisionId: cycle.revisionId, requestVersion: request.version,
             stages: stages.map((item) => ({ ...item, requiredKeys: plan.data.policy.stages.find((configured) => configured.stageNumber === item.stageNumber)?.reviewerAssignmentKeys ?? [] })), slots,
             context: { actorId: actor.account.id, roles: actor.roles, isActive: actor.account.isActive, requesterId: request.requesterId, requestStatus: request.status,
@@ -62,6 +69,13 @@ export class DecisionRepository implements IDecisionRepository
         await this.db.insert(approvalDecisions).values({ id: decisionId, slotId: taskId, actorId, decision: body.decision, reason: body.reason ?? null, decidedAt: now });
         await this.db.update(approvalSlots).set({ status: body.decision === "APPROVE" ? "APPROVED" : body.decision === "RETURN" ? "RETURNED" : "REJECTED", version: body.expectedVersion + 1 }).where(eq(approvalSlots.id, taskId));
         if (transition.stageComplete) await this.db.update(approvalStages).set({ status: body.decision === "REJECT" ? "REJECTED" : body.decision === "RETURN" ? "CANCELLED" : "COMPLETED" }).where(eq(approvalStages.id, transition.stageId));
+        if (body.decision === "APPROVE" && transition.stageComplete && transition.requestStatus === "PENDING")
+        {
+            const next = state.stages.find((item) => item.stageNumber === transition.currentStageNumber)!;
+            await this.db.update(approvalStages).set({ status: "ACTIVE", activatedAt: now }).where(and(eq(approvalStages.id, next.id), eq(approvalStages.status, "WAITING")));
+            await this.db.update(approvalSlots).set({ status: "ACTIONABLE", version: sql`${approvalSlots.version} + 1` }).where(and(eq(approvalSlots.stageId, next.id), eq(approvalSlots.status, "WAITING")));
+            await this.db.insert(requestOutboxEvents).values({ id: randomUUID(), eventKey: `stage-activated:${next.id}`, eventType: "APPROVAL_STAGE_ACTIVATED", payload: { requestId: state.requestId, cycleId: state.cycleId } });
+        }
         if (transition.requestStatus !== "PENDING")
         {
             await this.db.update(approvalCycles).set({ isActive: false }).where(eq(approvalCycles.id, state.cycleId));
