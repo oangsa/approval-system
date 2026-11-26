@@ -3,7 +3,7 @@ import { RequestEditingSession, resumeDraft, WithdrawalAttempt } from "../../app
 import { requestApi } from "../../app/api/requests";
 import { definition, draft, id } from "../helpers/requestLifecycle";
 import { ApiFailure } from "../../app/api/errors";
-vi.mock("../../app/api/requests", () => ({ requestApi: { read: vi.fn(), version: vi.fn(), create: vi.fn(), patch: vi.fn(), submit: vi.fn(), withdraw: vi.fn() } }));
+vi.mock("../../app/api/requests", () => ({ requestApi: { read: vi.fn(), version: vi.fn(), create: vi.fn(), patch: vi.fn(), submit: vi.fn(), resubmit: vi.fn(), withdraw: vi.fn() } }));
 afterEach(() => vi.resetAllMocks());
 test("resume initializes saved session and PATCH sends only changed fields with current version", async () =>
 {
@@ -150,4 +150,20 @@ test("B05 changed field value with reordered keys still sends PATCH with updated
     vi.mocked(requestApi.patch).mockResolvedValue({ ...draft, version: 3 });
     await session.Save({ typeId: id, formDefinitionVersionId: definition.versionId, fields: { category: "OPERATIONS", reason: "Updated" } });
     expect(requestApi.patch).toHaveBeenCalledWith(id, { fields: { category: "OPERATIONS", reason: "Updated" }, expectedVersion: 2 }, expect.any(String));
+});
+
+
+test("RR-AC-08 returned unchanged save and lost resubmit response preserve the attempt", async () =>
+{
+    const returned = { ...draft, status: "RETURNED" as const, requestNumber: "REQ-1" };
+    const content = { typeId: id, formDefinitionVersionId: definition.versionId };
+    const session = new RequestEditingSession(returned, content);
+    vi.mocked(requestApi.read).mockResolvedValue(returned);
+    expect(await session.Save(content)).toEqual(returned);
+    const pending = { ...returned, status: "PENDING" as const, workingRevision: null, version: 3 };
+    vi.mocked(requestApi.resubmit).mockRejectedValueOnce(new Error("network")).mockResolvedValueOnce(pending);
+    await expect(session.Submit(content)).rejects.toThrow("network");
+    expect(await session.Submit(content)).toEqual(pending);
+    expect(vi.mocked(requestApi.resubmit).mock.calls[0]).toEqual(vi.mocked(requestApi.resubmit).mock.calls[1]);
+    expect(requestApi.submit).not.toHaveBeenCalled();
 });

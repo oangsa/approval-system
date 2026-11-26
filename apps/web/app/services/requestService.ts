@@ -43,7 +43,7 @@ export class RequestEditingSession
         if (this.saved && this.savedContent === serialized)
         {
             const current = await requestApi.read(this.saved.id);
-            if (current.status !== "DRAFT" || !current.workingRevision) throw new ApiFailure({ kind: "http", status: 409, code: "INVALID_REQUEST_TRANSITION", message: "This request is no longer an editable draft." });
+            if (current.status !== this.saved.status || !["DRAFT", "RETURNED"].includes(current.status) || !current.workingRevision) throw new ApiFailure({ kind: "http", status: 409, code: "INVALID_REQUEST_TRANSITION", message: "This request is no longer an editable draft." });
             if (!current.availableActions.includes("EDIT_DRAFT")) throw new ApiFailure({ kind: "http", status: 403, code: "FORBIDDEN", message: "You no longer have permission to edit this draft." });
             if (current.version !== this.saved.version) throw new ApiFailure({ kind: "http", status: 409, code: "REQUEST_STALE", message: "This draft has changed. Reload the saved draft before editing." });
             this.saved = current;
@@ -66,7 +66,8 @@ export class RequestEditingSession
     {
         // Submit performs its own authoritative checks and must replay an accepted lost response.
         const draft = this.saved && this.savedContent === canonical(createRequestSchema.parse(content)) ? this.saved : await this.Save(content);
-        this.saved = await requestApi.submit(draft.id, draft.version, this.Key("submit", { id: draft.id, expectedVersion: draft.version }));
+        const operation = draft.status === "RETURNED" ? "resubmit" : "submit";
+        this.saved = await requestApi[operation](draft.id, draft.version, this.Key(operation, { id: draft.id, expectedVersion: draft.version }));
         return this.saved;
     }
     public SavedId(): string | null
@@ -101,7 +102,7 @@ export function searchRequestTypes(term: string, page: number, signal: AbortSign
 export async function readRequestResult(id: string, signal?: AbortSignal, generation?: number)
 {
     const detail = await requestApi.read(id, signal, generation);
-    const revision = detail.submittedRevision ?? detail.workingRevision;
+    const revision = detail.status === "RETURNED" ? detail.workingRevision : detail.submittedRevision ?? detail.workingRevision;
     const definition = revision ? await requestApi.version(detail.typeId, revision.formDefinitionVersionId, detail.id, signal, generation) : null;
     return { detail, definition };
 }
@@ -116,7 +117,7 @@ export async function resumeDraft(id: string, signal: AbortSignal, generation?: 
 {
     const result = await readRequestResult(id, signal, generation);
     const { detail, definition } = result;
-    if (detail.status !== "DRAFT" || !detail.workingRevision || !definition || !detail.availableActions.includes("EDIT_DRAFT")) throw new Error("This draft cannot be edited.");
+    if (!["DRAFT", "RETURNED"].includes(detail.status) || !detail.workingRevision || !definition || !detail.availableActions.includes("EDIT_DRAFT")) throw new Error("This draft cannot be edited.");
     const revision = detail.workingRevision;
     const content: CreateRequest = {
         typeId: detail.typeId, formDefinitionVersionId: revision.formDefinitionVersionId,
@@ -142,4 +143,14 @@ export class WithdrawalAttempt
 export function readRequestState(id: string, generation?: number)
 {
     return requestApi.read(id, undefined, generation);
+}
+
+export function readRevisions(id: string, page: number, signal?: AbortSignal, generation?: number)
+{
+    return requestApi.revisions(id, page, signal, generation);
+}
+
+export function readRevision(id: string, revisionId: string, signal?: AbortSignal, generation?: number)
+{
+    return requestApi.revision(id, revisionId, signal, generation);
 }

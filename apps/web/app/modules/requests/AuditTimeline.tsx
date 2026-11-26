@@ -12,6 +12,7 @@ const eventLabels: Record<string, string> = {
     REQUEST_CREATED: "Request created",
     DRAFT_UPDATED: "Draft updated",
     REQUEST_SUBMITTED: "Request submitted",
+    REQUEST_RESUBMITTED: "Request resubmitted",
     DECISION_APPROVE: "Decision: approved",
     DECISION_REJECT: "Decision: rejected",
     DECISION_RETURN: "Decision: returned",

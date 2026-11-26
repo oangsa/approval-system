@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { publishedRequestTypeSchema, requestDetailSchema, requestSummarySchema, type RequestTypeSearch, type RequestSearchQuery, type CreateRequest, type PatchDraft, type WithdrawRequest } from "@workflow/contracts";
+import { publishedRequestTypeSchema, requestDetailSchema, requestRevisionSchema, revisionMetadataSchema, requestSummarySchema, type RequestTypeSearch, type RequestSearchQuery, type CreateRequest, type PatchDraft, type WithdrawRequest } from "@workflow/contracts";
 import { httpFor, httpPageFor } from "./http";
 
 export const requestApi = {
@@ -8,9 +8,12 @@ export const requestApi = {
     searchTypes: (body: RequestTypeSearch, signal: AbortSignal, generation: number) => httpPageFor("/v1/request-types/search", z.array(publishedRequestTypeSchema), { method: "POST", body, signal, generation }),
     type: (id: string, signal?: AbortSignal, generation?: number) => httpFor(`/v1/request-types/${id}`, publishedRequestTypeSchema, { signal, generation }),
     version: (id: string, versionId: string, requestId: string, signal?: AbortSignal, generation?: number) => httpFor(`/v1/request-types/${id}/versions/${versionId}?requestId=${requestId}`, publishedRequestTypeSchema, { signal, generation }),
+    revisions: (id: string, pageNumber: number, signal?: AbortSignal, generation?: number) => httpPageFor(`/v1/requests/${id}/revisions?pageNumber=${pageNumber}&pageSize=20`, z.array(revisionMetadataSchema), { signal, generation }),
+    revision: (id: string, revisionId: string, signal?: AbortSignal, generation?: number) => httpFor(`/v1/requests/${id}/revisions/${revisionId}`, requestRevisionSchema, { signal, generation }),
     read: (id: string, signal?: AbortSignal, generation?: number) => httpFor(`/v1/requests/${id}`, requestDetailSchema, { signal, generation }),
     create: (body: CreateRequest, key: string) => httpFor("/v1/requests", requestDetailSchema, { method: "POST", body, headers: { "Idempotency-Key": key } }),
     patch: (id: string, body: PatchDraft, key: string) => httpFor(`/v1/requests/${id}/draft`, requestDetailSchema, { method: "PATCH", body, headers: { "Idempotency-Key": key } }),
     withdraw: (id: string, body: WithdrawRequest, key: string, generation?: number) => httpFor(`/v1/requests/${id}/withdraw`, requestDetailSchema, { method: "POST", body, headers: { "Idempotency-Key": key }, generation }),
+    resubmit: (id: string, expectedVersion: number, key: string) => httpFor(`/v1/requests/${id}/resubmit`, requestDetailSchema, { method: "POST", body: { expectedVersion }, headers: { "Idempotency-Key": key } }),
     submit: (id: string, expectedVersion: number, key: string) => httpFor(`/v1/requests/${id}/submit`, requestDetailSchema, { method: "POST", body: { expectedVersion }, headers: { "Idempotency-Key": key } }),
 };

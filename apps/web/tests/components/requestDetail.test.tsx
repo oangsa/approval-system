@@ -4,6 +4,7 @@ import { MemoryRouter, Route, Routes, useLocation } from "react-router";
 import { http, HttpResponse } from "msw";
 import { afterAll, afterEach, beforeAll, expect, test, vi } from "vitest";
 import type { PublishedRequestType, RequestDetail } from "@workflow/contracts";
+import { RequestResult } from "../../app/modules/requests/RequestResult";
 import { RequestDetailPage } from "../../app/modules/requests/RequestDetailPage";
 import { requestApi } from "../../app/api/requests";
 import { server } from "../helpers/server";
@@ -235,4 +236,18 @@ test("RequestDetailTabs uses browser locale for type name with English fallback"
     );
     render(<MemoryRouter initialEntries={[`/requests/${id}`]}><Routes><Route path="/requests/:id" element={<RequestDetailPage />} /></Routes></MemoryRouter>);
     expect(await screen.findByText("Operations", { selector: "dd" })).toBeVisible();
+});
+
+test.each(["RETURNED", "DRAFT", "PENDING"] as const)("%s overview selects the appropriate revision", (status) =>
+{
+    const working = { ...detail.submittedRevision!, fields: { category: "NEW" }, lineItems: [{ id, description: "Working item", quantity: "2", unitAmount: "5.00", totalAmount: "10.00" }], amount: "10.00", currency: "THB" };
+    const submitted = { ...detail.submittedRevision!, fields: { category: "OPS" }, lineItems: [{ id, description: "Submitted item", quantity: "1", unitAmount: "3.00", totalAmount: "3.00" }], amount: "3.00", currency: "THB" };
+    const choices: PublishedRequestType = { ...definition, fields: [{ ...definition.fields[0]!, constraints: { options: [{ value: "OPS", label: { en: "Old option" } }, { value: "NEW", label: { en: "New option" } }] } }] };
+    render(<RequestResult detail={{ ...detail, status, title: "Edited title", workingRevision: working, submittedRevision: status === "DRAFT" ? null : submitted }} definition={choices} />);
+    const workingShown = status !== "PENDING";
+    expect(screen.getByText("Edited title")).toBeVisible();
+    expect(screen.getByText(workingShown ? "New option" : "Old option")).toBeVisible();
+    expect(screen.getByText(workingShown ? "Working item" : "Submitted item")).toBeVisible();
+    expect(screen.queryByText(workingShown ? "Old option" : "New option")).not.toBeInTheDocument();
+    expect(screen.getByText(workingShown ? /Total:.*10\.00/ : /Total:.*3\.00/)).toBeVisible();
 });

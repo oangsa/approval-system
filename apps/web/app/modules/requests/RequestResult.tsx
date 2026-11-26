@@ -13,7 +13,7 @@ export function RequestStatus({ status, ref, tabIndex }: IRequestStatusProps)
 }
 export function RequestResult({ detail, definition, showSummary = true }: IRequestResultProps)
 {
-    const revision = detail.submittedRevision ?? detail.workingRevision;
+    const revision = detail.status === "RETURNED" ? detail.workingRevision : detail.submittedRevision ?? detail.workingRevision;
     const SectionHeading = showSummary ? "h3" : "h2";
     const fields = Object.entries(revision?.fields ?? {});
     const locale = preferredBrowserLocale();

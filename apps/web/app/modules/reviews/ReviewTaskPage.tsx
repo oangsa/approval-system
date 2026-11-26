@@ -4,6 +4,7 @@ import { AuditTimeline } from "~/modules/requests/AuditTimeline";
 import { useEffect, useState } from "react";
 import { useParams } from "react-router";
 import { useSession } from "~/modules/auth/sessionContext";
+import { RevisionViewer } from "~/modules/requests/RevisionViewer";
 import { RequestResult } from "~/modules/requests/RequestResult";
 import { readApprovalTaskResult } from "~/services/approvalTaskService";
 import { formatInstant } from "~/modules/reviews/formatDue";
@@ -51,7 +52,7 @@ export function ReviewTaskPage()
     const approved = slots.filter((slot) => slot.status === "APPROVED").length;
     return <div className="mx-auto max-w-3xl space-y-6">
         <h1 className="text-2xl font-semibold">Review task</h1>
-        {!eligible && status !== "loading" && status !== "idle" ? <p role="alert">This task is unavailable.</p> : result && !result.task.canCurrentUserDecide ? <><section aria-label="Handled task" className="space-y-3 rounded-lg border bg-card p-6"><h2 className="text-xl font-semibold">Read-only handled task</h2><p>Stage {result.task.stageNumber} · {approverSlotLabel(result.task.status)}</p><p>Only your handled decision is available here. Current request contents are not included.</p></section><AuditTimeline requestId={result.task.requestId} /></> : result && !validStage ? <div role="alert" className="space-y-3"><p>This task is unavailable.</p><Button onClick={() => setAttempt((value) => value + 1)}>Reload task</Button></div> : current?.error ? <div role="alert" className="space-y-3"><p>{current.error}</p>{current.requestId && <p className="select-text">Request ID: {current.requestId}</p>}{current.retryable && <Button onClick={() => setAttempt((value) => value + 1)}>Retry</Button>}</div> : result?.detail ? <>
+        {!eligible && status !== "loading" && status !== "idle" ? <p role="alert">This task is unavailable.</p> : result && !result.task.canCurrentUserDecide ? <><section aria-label="Handled task" className="space-y-3 rounded-lg border bg-card p-6"><h2 className="text-xl font-semibold">Read-only handled task</h2><p>Stage {result.task.stageNumber} · {approverSlotLabel(result.task.status)}</p><p>Only your handled decision is available here. Current request contents are not included.</p></section>{result.revision && <RevisionViewer revision={result.revision} cycleId={result.task.cycleId} />}<AuditTimeline requestId={result.task.requestId} /></> : result && !validStage ? <div role="alert" className="space-y-3"><p>This task is unavailable.</p><Button onClick={() => setAttempt((value) => value + 1)}>Reload task</Button></div> : current?.error ? <div role="alert" className="space-y-3"><p>{current.error}</p>{current.requestId && <p className="select-text">Request ID: {current.requestId}</p>}{current.retryable && <Button onClick={() => setAttempt((value) => value + 1)}>Retry</Button>}</div> : result?.detail ? <>
             {acceptedScope !== scope && <section aria-label="Task summary" className="space-y-4 rounded-lg border bg-card p-6">
                 <h2 className="text-xl font-semibold">Task summary</h2>
                 <dl className="grid gap-4 sm:grid-cols-2">
