@@ -1,6 +1,6 @@
 # Verification
 
-Status: implementation and final automated verification complete. Fresh independent local [review](review.md) approved with no open findings. Human delivery gates remain separate.
+Status: teammate P1 TP-R2 code correction and automated verification are complete; fresh independent local review approved with no findings. Human teammate re-review remains pending. Earlier local approvals and results below remain historical and did not cover effective-reviewer reassignment compatibility. See the latest repair section and [review record](review.md).
 
 Baseline `e011d1a49163d5b01e9304aeae72cc2cb28161e9`; Node 24.22.1, npm 11.19.1. Task-owned disposable PostgreSQL 17 instances use ports 55435 (integration, `.env.issue10`) and 55436 (browser, `.env.issue10-browser`). Existing instances on 55433/55434 were left untouched. Credentials remain in ignored local environment files. Required coverage and delivery gates are in [STS](sts.md) and [DoD](dod.md).
 
@@ -52,3 +52,29 @@ The full browser run completed 52/52 in 4.7 minutes, including policy configurat
 The earlier authorization and uncommitted-tree statements above describe the original implementation run. Subsequent delivery work recorded seven scoped commits, ending at `4e2ca4334fc502b94c7292c45d3ca0cb05140470`, and published [PR #92](https://github.com/oangsa/approval-system/pull/92) from `feature/10-sprint-2-full-stack-two-stage-parallel-approvals` to `sprint-2-staging`.
 
 On the current request to continue, commit, push and create a PR, GitHub readback confirmed that PR is open and its head matches the clean local branch. All 27 source/test/configuration manifest entries were rechecked with zero mismatches. This follow-up updates delivery and assistance records only; it preserves the existing source commits and reuses PR #92. Application tests were not repeated because the reviewed implementation is unchanged. The recorded automated results above are historical verification, not newly executed checks or a claim about current hosted CI. Human teammate approval, merging and reviewed promotions to `dev` and `main` remain pending.
+
+## TP-R2 reassignment compatibility repair — 2026-11-26
+
+Base `1edf70f7784e352b6e33545ba96ef99bab129cff`. The submitted teammate P1 review was discovered after the preceding delivery confirmation; passing CI and unchanged hashes did not cover the missing compatibility scenario. See [review provenance and requirement](review.md). The explicit user-requested branch name remains intentional.
+
+The production change is limited to slot validation in `DecisionRepository.Lock`: derive required counts per stage/key from distinct original snapshot reviewer entries, then compare persisted counts without requiring the effective reviewer to equal the original reviewer. Current reviewer authorization, self/role/version checks, persisted slot IDs, request-first locks, unique votes, snapshots and the decision transaction remain unchanged. No schema or endpoint is added.
+
+Real PostgreSQL RED run: three replacement journeys failed with `INVALID_REQUEST_TRANSITION` and four malformed-count cases passed (50 unrelated tests filtered). After the repair, all seven TP-R2 cases passed (50 unrelated filtered). These cover active/waiting replacements, grouped ALL, snapshot/identity/deadline preservation, original/foreign/stale denial without effects, one terminal audit, inactive final cycle, exact replay and missing/extra/unknown/balanced counts. Logs: `artifacts/issue10/reassignment-{red,green}.log`.
+
+An initial two-file diagnostic invocation from the repository root reported 75 passes and one `Listener stopped` failure. Its raw log was inadvertently overwritten by the later focused GREEN run; the result and stack were captured in the orchestrator's tool output and are disclosed here as reported evidence, not a retained raw artifact. The existing restart test resolves `dist/index.js` from its working directory: that file exists under `apps/api`, not the repository root. The correct invocation `npm run test:integration --workspace @workflow/api -- decisions.test.ts -t 'API process restart'` passed one test (56 filtered) after the current build. A root-wrapper forwarding attempt was interrupted before that successful direct workspace run; log `reassignment-listener-workspace.log` preserves both. No product/test timeout or assertion was changed.
+
+The ordinary two-worker run reported 533/534 passes, failing only the unchanged request-type filter mocked selection/undefined-promise case already recorded in the original baseline. The unchanged suite passed 534/534 with one worker and the previously disclosed local timeout allowance; no assertion or repository check configuration changed. Initial log: `reassignment-tests.log`; passing full rerun: `reassignment-tests-serial.log`.
+
+| Repair check | Command / environment | Result | Log under `artifacts/issue10/` |
+| --- | --- | --- | --- |
+| Typecheck | `npm run typecheck` | PASS | `reassignment-typecheck.log` |
+| Lint | `npm run lint` | PASS | `reassignment-lint.log` |
+| Build | `npm run build` | PASS | `reassignment-build.log` |
+| Ordinary suite | `npm test -- --maxWorkers=1 --testTimeout=20000` | PASS, 63 files / 534 tests, zero failures/skips | `reassignment-tests-serial.log` |
+| Real PostgreSQL | `RUN_BUILT_HTTP_SMOKE=1 npm run test:integration`, root `.env.issue10`, normal workspace script | PASS, 16 files / 198 tests, zero failures/skips | `reassignment-postgres-final.log` |
+| Full browser | `npm run test:e2e`, root `.env.issue10-browser` | PASS, 52 Chromium tests, zero failures/skips | `reassignment-e2e-final.log` |
+| Release tooling | `npm run test:release`, Git Bash first in process PATH | PASS, 13/13 | `reassignment-release.log` |
+
+The [TP-R2 source manifest](source-manifest-reassignment-fix.sha256) records the same 27 implementation/test/configuration paths with repaired contents; the original manifest remains historical evidence of the earlier tree. Direct fixture updates exercise compatibility with the supported persisted reassignment postcondition. No administrator reassignment writer exists here, so its endpoint authorization, audit orchestration and reassignment-versus-vote endpoint races are not claimed; existing independent decision races and transactional rollback remain required and are executed in the full suite.
+
+The repair manifest SHA-256 is `b0467cf73ba914fa0dc132315b8939a7e8ac80c151de21efefc2387e941c63fd`. The independent reviewer verified its 27 entries with zero mismatches. Final assertion additions were also checked with `npm run typecheck --workspace @workflow/api` and scoped ESLint on the two changed code files, both exit 0 (`reassignment-final-api-typecheck.log`, `reassignment-final-scoped-lint.log`). No source/test edits followed these checks. All repair suites above have completed; the submitted human CHANGES_REQUESTED review is not dismissed by these local results.

@@ -52,9 +52,10 @@ export class DecisionRepository implements IDecisionRepository
         for (const stage of stages)
         {
             const keys = plan.data.policy.stages.find((configured) => configured.stageNumber === stage.stageNumber)?.reviewerAssignmentKeys ?? [];
-            const expected = new Set(plan.data.assignments.filter((item) => keys.includes(item.assignmentKey)).map((item) => JSON.stringify([item.assignmentKey, item.reviewerId])));
+            // Snapshot tuples determine immutable required counts; persisted slots hold the effective reviewer.
+            const expected = new Map(keys.map((key) => [key, new Set(plan.data.assignments.filter((item) => item.assignmentKey === key).map((item) => item.reviewerId)).size]));
             const actual = slots.filter((item) => item.stageId === stage.id);
-            if (actual.length !== expected.size || actual.some((item) => !expected.has(JSON.stringify([item.assignmentKey, item.reviewerId])))) throw new ApprovalTaskError("INVALID_REQUEST_TRANSITION");
+            if (actual.length !== [...expected.values()].reduce((total, count) => total + count, 0) || [...expected].some(([key, count]) => count === 0 || actual.filter((item) => item.assignmentKey === key).length !== count) || actual.some((item) => !expected.has(item.assignmentKey))) throw new ApprovalTaskError("INVALID_REQUEST_TRANSITION");
         }
         return { requestId: request.id, cycleId: cycle.id, revisionId: cycle.revisionId, requestVersion: request.version,
             stages: stages.map((item) => ({ ...item, requiredKeys: plan.data.policy.stages.find((configured) => configured.stageNumber === item.stageNumber)?.reviewerAssignmentKeys ?? [] })), slots,

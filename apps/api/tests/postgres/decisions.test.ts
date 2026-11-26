@@ -926,3 +926,96 @@ test("RR-AC-07b decision constraint permits historical short REJECT reasons", as
     const item = await pending();
     await expect(db.insert(approvalDecisions).values({ id: randomUUID(), slotId: item.slot, actorId: item.reviewerId, decision: "REJECT", reason: "old", decidedAt: new Date() })).resolves.toBeDefined();
 });
+
+test("TP-R2 actionable replacement retains slot and replay", async () =>
+{
+    const item = await pending(), foreign = await pending(), before = await evidence(item.submitted.id);
+    const original = before.slots.find((slot) => slot.id === item.slot)!;
+    await db.update(approvalSlots).set({ reviewerId: item.other.account.id, version: 1 }).where(eq(approvalSlots.id, item.slot));
+    const reassigned = await evidence(item.submitted.id);
+    expect(reassigned.slots.find((slot) => slot.id === item.slot)).toEqual({ ...original, reviewerId: item.other.account.id, version: 1 });
+    expect(reassigned.cycles[0]!.snapshot).toEqual(before.cycles[0]!.snapshot);
+    await expect(decisions.Decide(item.reviewer, item.slot, approve, randomUUID())).rejects.toMatchObject({ code: "NOT_FOUND" });
+    await expect(decisions.Decide(foreign.reviewer, item.slot, approve, randomUUID())).rejects.toMatchObject({ code: "NOT_FOUND" });
+    await expect(decisions.Decide(item.other, item.slot, approve, randomUUID())).rejects.toMatchObject({ code: "APPROVAL_TASK_STALE" });
+    expect(await evidence(item.submitted.id)).toEqual(reassigned);
+    const key = randomUUID(), body = { ...approve, expectedVersion: 1 };
+    const result = await decisions.Decide(item.other, item.slot, body, key);
+    expect(result).toMatchObject({ requestStatus: "APPROVED", taskVersion: 2, decidedBy: item.other.account.id });
+    const saved = await evidence(item.submitted.id);
+    expect(saved.votes).toHaveLength(1);
+    expect(saved.cycles[0]).toMatchObject({ snapshot: before.cycles[0]!.snapshot, isActive: false });
+    expect(saved.audit.filter((event) => event.eventType === "REQUEST_APPROVED")).toHaveLength(1);
+    expect(await independent.Decide(item.other, item.slot, body, key)).toEqual(result);
+    expect(await evidence(item.submitted.id)).toEqual(saved);
+});
+
+test("TP-R2 waiting replacement survives activation", async () =>
+{
+    const item = await pending(false, true), before = await evidence(item.submitted.id);
+    const future = item.submitted.currentApprovers.find((slot) => slot.stageNumber === 2)!;
+    const original = before.slots.find((slot) => slot.id === future.slotId)!;
+    await db.update(approvalSlots).set({ reviewerId: item.other.account.id, version: 1 }).where(eq(approvalSlots.id, future.slotId));
+    const reassigned = await evidence(item.submitted.id);
+    expect(reassigned.slots.find((slot) => slot.id === future.slotId)).toEqual({ ...original, reviewerId: item.other.account.id, version: 1 });
+    expect(reassigned.cycles[0]!.snapshot).toEqual(before.cycles[0]!.snapshot);
+    expect(await decisions.Decide(item.reviewer, item.slot, approve, randomUUID())).toMatchObject({ requestStatus: "PENDING", currentStageNumber: 2 });
+    const activated = await evidence(item.submitted.id);
+    expect(activated.slots.find((slot) => slot.id === future.slotId)).toMatchObject({ reviewerId: item.other.account.id, status: "ACTIONABLE", version: 2, dueAt: null });
+    expect(activated.outbox.filter((event) => event.eventType === "APPROVAL_STAGE_ACTIVATED")).toHaveLength(1);
+    await expect(decisions.Decide(item.reviewer, future.slotId, approve, randomUUID())).rejects.toMatchObject({ code: "NOT_FOUND" });
+    await expect(decisions.Decide(item.other, future.slotId, { ...approve, expectedVersion: 1 }, randomUUID())).rejects.toMatchObject({ code: "APPROVAL_TASK_STALE" });
+    expect(await evidence(item.submitted.id)).toEqual(activated);
+    const key = randomUUID(), body = { ...approve, expectedVersion: 2 };
+    const result = await decisions.Decide(item.other, future.slotId, body, key);
+    expect(result).toMatchObject({ requestStatus: "APPROVED", taskVersion: 3, decidedBy: item.other.account.id });
+    const saved = await evidence(item.submitted.id);
+    expect(saved.votes).toHaveLength(2);
+    expect(saved.cycles[0]).toMatchObject({ snapshot: before.cycles[0]!.snapshot, isActive: false });
+    expect(saved.audit.filter((event) => event.eventType === "REQUEST_APPROVED")).toHaveLength(1);
+    expect(await independent.Decide(item.other, future.slotId, body, key)).toEqual(result);
+    expect(await evidence(item.submitted.id)).toEqual(saved);
+});
+
+async function groupedPending()
+{
+    const item = await fixture(), peer = await fixture(), replacement = await fixture();
+    await db.update(reviewerAssignmentRules).set({ reviewerUserIds: [item.reviewerId, peer.reviewerId] }).where(eq(reviewerAssignmentRules.id, item.assignmentId));
+    async function actor(id: string)
+    {
+        const familyId = randomUUID();
+        await db.insert(sessionFamilies).values({ id: familyId, userId: id, authVersion: 0, createdAt: new Date(), expiresAt: new Date(Date.now() + 3600000) });
+        return (await new IdentityRepository(db).ReadCurrentIdentity(id, familyId))!;
+    }
+    const reviewer = await actor(item.reviewerId), third = await actor(replacement.reviewerId);
+    const draft = await item.draft(), submitted = await service.Mutate(item.actor, "submit", draft.id, { expectedVersion: 0 }, randomUUID());
+    return { ...item, reviewer, third, submitted, slot: submitted.currentApprovers.find((slot) => slot.reviewer.id === item.reviewerId)!.slotId, peerSlot: submitted.currentApprovers.find((slot) => slot.reviewer.id === peer.reviewerId)!.slotId };
+}
+
+test("TP-R2 grouped assignment requires both votes after replacement", async () =>
+{
+    const item = await groupedPending(), before = await evidence(item.submitted.id);
+    expect(before.slots).toHaveLength(2);
+    await db.update(approvalSlots).set({ reviewerId: item.third.account.id, version: 1 }).where(eq(approvalSlots.id, item.peerSlot));
+    expect(await decisions.Decide(item.reviewer, item.slot, approve, randomUUID())).toMatchObject({ requestStatus: "PENDING" });
+    expect(await decisions.Decide(item.third, item.peerSlot, { ...approve, expectedVersion: 1 }, randomUUID())).toMatchObject({ requestStatus: "APPROVED" });
+    const saved = await evidence(item.submitted.id);
+    expect(saved.votes).toHaveLength(2);
+    expect(saved.cycles[0]!.snapshot).toEqual(before.cycles[0]!.snapshot);
+});
+
+test.each(["missing", "extra", "unknown", "balanced"] as const)("TP-R2 rejects malformed %s slot counts without writes", async (kind) =>
+{
+    const item = kind === "balanced" ? await pending(true) : await groupedPending();
+    const before = await evidence(item.submitted.id), slot = before.slots.find((row) => row.id === item.slot)!;
+    if (kind === "missing") await db.delete(approvalSlots).where(eq(approvalSlots.id, item.peerSlot!));
+    if (kind === "extra" || kind === "unknown")
+    {
+        const extra = await fixture();
+        await db.insert(approvalSlots).values({ ...slot, id: randomUUID(), reviewerId: extra.reviewerId, assignmentKey: kind === "unknown" ? "unknown" : slot.assignmentKey });
+    }
+    if (kind === "balanced") await db.update(approvalSlots).set({ assignmentKey: "review" }).where(eq(approvalSlots.id, item.peerSlot!));
+    const malformed = await evidence(item.submitted.id);
+    await expect(decisions.Decide(item.reviewer, item.slot, approve, randomUUID())).rejects.toMatchObject({ code: "INVALID_REQUEST_TRANSITION" });
+    expect(await evidence(item.submitted.id)).toEqual(malformed);
+});
