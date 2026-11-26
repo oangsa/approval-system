@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { publishedRequestTypeSchema, requestDetailSchema, requestRevisionSchema, revisionMetadataSchema, requestSummarySchema, type RequestTypeSearch, type RequestSearchQuery, type CreateRequest, type PatchDraft, type WithdrawRequest } from "@workflow/contracts";
+import { approverSummarySchema, publishedRequestTypeSchema, requestDetailSchema, requestRevisionSchema, revisionMetadataSchema, requestSummarySchema, type RequestTypeSearch, type RequestSearchQuery, type CreateRequest, type PatchDraft, type WithdrawRequest } from "@workflow/contracts";
 import { httpFor, httpPageFor } from "./http";
 
 export const requestApi = {
@@ -10,6 +10,7 @@ export const requestApi = {
     version: (id: string, versionId: string, requestId: string, signal?: AbortSignal, generation?: number) => httpFor(`/v1/request-types/${id}/versions/${versionId}?requestId=${requestId}`, publishedRequestTypeSchema, { signal, generation }),
     revisions: (id: string, pageNumber: number, signal?: AbortSignal, generation?: number) => httpPageFor(`/v1/requests/${id}/revisions?pageNumber=${pageNumber}&pageSize=20`, z.array(revisionMetadataSchema), { signal, generation }),
     revision: (id: string, revisionId: string, signal?: AbortSignal, generation?: number) => httpFor(`/v1/requests/${id}/revisions/${revisionId}`, requestRevisionSchema, { signal, generation }),
+    approvers: (id: string, signal?: AbortSignal, generation?: number) => httpFor(`/v1/requests/${id}/approvers`, z.array(approverSummarySchema), { signal, generation }),
     read: (id: string, signal?: AbortSignal, generation?: number) => httpFor(`/v1/requests/${id}`, requestDetailSchema, { signal, generation }),
     create: (body: CreateRequest, key: string) => httpFor("/v1/requests", requestDetailSchema, { method: "POST", body, headers: { "Idempotency-Key": key } }),
     patch: (id: string, body: PatchDraft, key: string) => httpFor(`/v1/requests/${id}/draft`, requestDetailSchema, { method: "PATCH", body, headers: { "Idempotency-Key": key } }),

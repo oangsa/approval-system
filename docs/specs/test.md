@@ -657,3 +657,7 @@ Issue #11 test mapping and actual execution status are in [the feature STS](../f
 ### Issue #7 planned test reference
 
 [Return/revision/resubmission STS](../features/return-revision-resubmission/sts.md) maps RR test cases to the applicable assertions and test layers. The cases are planned, not evidence of execution.
+
+## Issue #10 coverage
+
+[Issue #10 STS](../features/two-stage-parallel-approvals/sts.md) maps FT-025/027/032, EP-042/046/053, UT-02/13, DB-05/09, CX-02/03/14, SEC-05, UI-09/10/11/13 and E2E-05/08 to required checks. [Verification](../features/two-stage-parallel-approvals/verification.md) records actual commands, results, failures and reruns; test plans alone do not establish passing behavior.

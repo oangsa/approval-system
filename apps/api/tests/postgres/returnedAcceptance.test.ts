@@ -21,7 +21,7 @@ afterAll(async () =>
  await database.Close(); await observer.Close();
 });
 
-async function pending(twoStages = false, monetary = false)
+async function pending(twoStages = false, monetary = false, parallelReviewerId?: string)
 {
     const ownerId = randomUUID(), reviewerId = randomUUID(), departmentId = randomUUID(), typeId = randomUUID(), versionId = randomUUID(), policyId = randomUUID();
     const definition: PublishedRequestType = { ...seededDefinition, id: typeId, versionId, code: `T${typeId}`, monetary, supportsLineItems: false };
@@ -35,7 +35,7 @@ async function pending(twoStages = false, monetary = false)
         await tx.insert(requestTypeVersions).values({ id: versionId, typeId, versionNumber: 1, definition });
         await tx.update(requestTypes).set({ publishedVersionId: versionId }).where(eq(requestTypes.id, typeId));
         await tx.insert(approvalPolicyVersions).values({ id: policyId, typeId, code: policyId, versionNumber: 1, priority: 1, stages: [{ stageNumber: 1, reviewerAssignmentKeys: ["review"], slaBusinessMinutes: 480 }, ...(twoStages ? [{ stageNumber: 2 as const, reviewerAssignmentKeys: ["review"], slaBusinessMinutes: 480 }] : [])] });
-        await tx.insert(reviewerAssignmentRules).values({ id: randomUUID(), assignmentKey: "review", departmentId, reviewerId });
+        await tx.insert(reviewerAssignmentRules).values({ id: randomUUID(), assignmentKey: "review", departmentId, reviewerId, ...(parallelReviewerId ? { reviewerUserIds: [reviewerId, parallelReviewerId] } : {}) });
     });
     async function actor(userId: string)
     {
@@ -47,7 +47,7 @@ async function pending(twoStages = false, monetary = false)
     const content: CreateRequest = { typeId, formDefinitionVersionId: versionId, title: "Operational request", justification: "Needed for the team", priority: "HIGH", fields: { category: "OPERATIONS" }, ...(monetary ? { monetaryAmount: "10.00" } : {}) };
     const draft = await service.Mutate(owner, "create", null, content, randomUUID());
     const submitted = await service.Mutate(owner, "submit", draft.id, { expectedVersion: 0 }, randomUUID());
-    return { owner, reviewer, typeId, versionId, policyId, departmentId, submitted, slot: submitted.currentApprovers[0]!.slotId };
+    return { owner, reviewer, typeId, versionId, policyId, departmentId, submitted, slot: submitted.currentApprovers.find((slot) => slot.stageNumber === 1 && slot.reviewer.id === reviewerId)!.slotId };
 }
 async function returned(monetary = false)
 {
@@ -155,9 +155,18 @@ test("RR-T-01b RETURN from active stage two preserves completed prior evidence",
     expect(after.votes).toHaveLength(2);
 });
 
-test("RR-T-04b historical handler has only its exact snapshot and current participants retain access", async () =>
+test.each(["APPROVE", "RETURN"] as const)("forged cancelled assignment rejects %s without writes", async (decision) =>
 {
     const f = await pending();
+    const initial = await evidence(f.submitted.id, f.reviewer.account.id);
+    await db.insert(approvalSlots).values({ id: randomUUID(), stageId: initial.stages[0]!.id, reviewerId: f.reviewer.account.id, assignmentKey: "unknown", status: "CANCELLED" });
+    const before = await evidence(f.submitted.id, f.reviewer.account.id);
+    await expect(decisions.Decide(f.reviewer, f.slot, { decision, ...(decision === "RETURN" ? { reason: "Revise" } : {}), expectedVersion: 0 }, randomUUID())).rejects.toMatchObject({ code: "INVALID_REQUEST_TRANSITION" });
+    expect(await evidence(f.submitted.id, f.reviewer.account.id)).toEqual(before);
+});
+
+test("RR-T-04b historical handler has only its exact snapshot and current participants retain access", async () =>
+{
     async function actor(role: "REVIEWER" | "ADMINISTRATOR")
     {
         const id = randomUUID(), familyId = randomUUID();
@@ -167,12 +176,25 @@ test("RR-T-04b historical handler has only its exact snapshot and current partic
         return (await new IdentityRepository(db).ReadCurrentIdentity(id, familyId))!;
     }
     const formerAssignee = await actor("REVIEWER"), administrator = await actor("ADMINISTRATOR"), current = await actor("REVIEWER");
+    const f = await pending(false, false, formerAssignee.account.id);
     const initial = await evidence(f.submitted.id, f.owner.account.id);
-    await db.insert(approvalSlots).values({ id: randomUUID(), stageId: initial.stages[0]!.id, reviewerId: formerAssignee.account.id, assignmentKey: "cancelled", status: "CANCELLED" });
+    expect(initial.slots).toHaveLength(2);
+    expect(initial.slots.map((slot) => slot.reviewerId).sort()).toEqual([f.reviewer.account.id, formerAssignee.account.id].sort());
+    expect(initial.slots.every((slot) => slot.status === "ACTIONABLE" && slot.assignmentKey === "review")).toBe(true);
+    const peerSlot = initial.slots.find((slot) => slot.reviewerId === formerAssignee.account.id)!;
     await decisions.Decide(f.reviewer, f.slot, { decision: "RETURN", reason: "Revise", expectedVersion: 0 }, randomUUID());
+    const history = await evidence(f.submitted.id, f.owner.account.id);
+    expect(history.slots.find((slot) => slot.id === peerSlot.id)).toMatchObject({ status: "CANCELLED", version: 1 });
+    expect(history.votes.some((vote) => vote.slotId === peerSlot.id)).toBe(false);
+    expect(history.cycles[0]!.snapshot).toEqual(initial.cycles[0]!.snapshot);
     const returnedDetail = await service.Read(f.owner, f.submitted.id);
-    await db.update(reviewerAssignmentRules).set({ reviewerId: current.account.id }).where(eq(reviewerAssignmentRules.departmentId, f.departmentId));
+    await db.update(reviewerAssignmentRules).set({ reviewerId: current.account.id, reviewerUserIds: null }).where(eq(reviewerAssignmentRules.departmentId, f.departmentId));
     const next = await service.Mutate(f.owner, "resubmit", f.submitted.id, { expectedVersion: returnedDetail.version }, randomUUID());
+    expect(next.currentApprovers).toHaveLength(1);
+    expect(next.currentApprovers[0]!.reviewer.id).toBe(current.account.id);
+    const resubmitted = await evidence(f.submitted.id, f.owner.account.id);
+    expect(resubmitted.slots.find((slot) => slot.id === peerSlot.id)).toEqual(history.slots.find((slot) => slot.id === peerSlot.id));
+    expect(resubmitted.cycles.find((cycle) => cycle.id === initial.cycles[0]!.id)!.snapshot).toEqual(initial.cycles[0]!.snapshot);
     const oldId = f.submitted.submittedRevision!.id, newId = next.submittedRevision!.id;
     expect(await service.Revision(f.owner, next.id, oldId)).toEqual(f.submitted.submittedRevision);
     expect((await service.Revisions(f.owner, next.id, { pageNumber: 1, pageSize: 20 })).items).toHaveLength(2);
@@ -257,7 +279,6 @@ test("RR-T-04b historical revision HTTP authorization returns safe 404s", async 
     const env = readEnvironment({ NODE_ENV: "test", DATABASE_URL: process.env.TEST_DATABASE_URL, AUTH_JWT_SECRET: "lab7-local-http-test-only-secret-32-bytes", AUTH_JWT_ISSUER: "lab7-tests", AUTH_JWT_AUDIENCE: "lab7-api", AUTH_ALLOWED_ORIGINS: "http://localhost:3000", AUTH_COOKIE_SECURE: "false" });
     const app = createApplication(undefined, await createIdentityComposition(env, database), service, new ApprovalTaskService(new ApprovalTaskUnitOfWork(db)), decisions);
     const tokens = new TokenProvider(env.AUTH_JWT_SECRET, { Now: () => new Date() }, env.AUTH_JWT_ISSUER, env.AUTH_JWT_AUDIENCE);
-    const f = await pending(), foreign = await pending();
     async function actor(role: "REVIEWER" | "ADMINISTRATOR")
     {
         const id = randomUUID(), family = randomUUID();
@@ -267,12 +288,25 @@ test("RR-T-04b historical revision HTTP authorization returns safe 404s", async 
         return (await new IdentityRepository(db).ReadCurrentIdentity(id, family))!;
     }
     const cancelled = await actor("REVIEWER"), admin = await actor("ADMINISTRATOR"), current = await actor("REVIEWER");
+    const f = await pending(false, false, cancelled.account.id), foreign = await pending();
     const initial = await evidence(f.submitted.id, f.owner.account.id);
-    await db.insert(approvalSlots).values({ id: randomUUID(), stageId: initial.stages[0]!.id, reviewerId: cancelled.account.id, assignmentKey: "cancelled", status: "CANCELLED" });
+    expect(initial.slots).toHaveLength(2);
+    expect(initial.slots.map((slot) => slot.reviewerId).sort()).toEqual([f.reviewer.account.id, cancelled.account.id].sort());
+    expect(initial.slots.every((slot) => slot.status === "ACTIONABLE" && slot.assignmentKey === "review")).toBe(true);
+    const peerSlot = initial.slots.find((slot) => slot.reviewerId === cancelled.account.id)!;
     await decisions.Decide(f.reviewer, f.slot, { decision: "RETURN", reason: "Revise", expectedVersion: 0 }, randomUUID());
+    const history = await evidence(f.submitted.id, f.owner.account.id);
+    expect(history.slots.find((slot) => slot.id === peerSlot.id)).toMatchObject({ status: "CANCELLED", version: 1 });
+    expect(history.votes.some((vote) => vote.slotId === peerSlot.id)).toBe(false);
+    expect(history.cycles[0]!.snapshot).toEqual(initial.cycles[0]!.snapshot);
     const firstReturn = await service.Read(f.owner, f.submitted.id);
-    await db.update(reviewerAssignmentRules).set({ reviewerId: current.account.id }).where(eq(reviewerAssignmentRules.departmentId, f.departmentId));
+    await db.update(reviewerAssignmentRules).set({ reviewerId: current.account.id, reviewerUserIds: null }).where(eq(reviewerAssignmentRules.departmentId, f.departmentId));
     const next = await service.Mutate(f.owner, "resubmit", f.submitted.id, { expectedVersion: firstReturn.version }, randomUUID());
+    expect(next.currentApprovers).toHaveLength(1);
+    expect(next.currentApprovers[0]!.reviewer.id).toBe(current.account.id);
+    const resubmitted = await evidence(f.submitted.id, f.owner.account.id);
+    expect(resubmitted.slots.find((slot) => slot.id === peerSlot.id)).toEqual(history.slots.find((slot) => slot.id === peerSlot.id));
+    expect(resubmitted.cycles.find((cycle) => cycle.id === initial.cycles[0]!.id)!.snapshot).toEqual(initial.cycles[0]!.snapshot);
     await decisions.Decide(current, next.currentApprovers[0]!.slotId, { decision: "RETURN", reason: "Again", expectedVersion: 0 }, randomUUID());
     const working = (await service.Read(f.owner, f.submitted.id)).workingRevision!.id;
     async function get(path: string, who: typeof f.owner)

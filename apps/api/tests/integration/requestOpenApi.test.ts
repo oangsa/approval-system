@@ -52,3 +52,10 @@ test("RR-AC revision and resubmit OpenAPI documents strict bounded contracts", (
     expect(paths["/api/v1/requests/{id}/revisions"]?.get).toMatchObject({ responses: { "200": { headers: { "X-Pagination": expect.anything() }, content: { "application/json": { schema: { type: "array" } } } } } });
     expect(paths["/api/v1/requests/{id}/revisions/{revisionId}"]?.get).toMatchObject({ parameters: expect.arrayContaining([expect.objectContaining({ name: "revisionId", required: true })]) });
 });
+
+test("approvers OpenAPI exposes a strict direct array", () =>
+{
+    expect(createRequestOpenApi().paths["/api/v1/requests/{id}/approvers"]?.get).toMatchObject({
+        security: [{ bearerAuth: [] }], responses: { "200": { content: { "application/json": { schema: { type: "array", items: { additionalProperties: false, required: ["slotId", "stageNumber", "reviewer", "status"] } } } } } },
+    });
+});

@@ -16,7 +16,7 @@ test("ALL votes, future stages and rejection never prematurely finalize", () =>
     item.slots[1]!.status = "APPROVED";
     item.stages.push({ id: "future", stageNumber: 2, status: "WAITING", requiredKeys: ["future"] });
     item.slots.push({ id: "future", stageId: "future", assignmentKey: "future", status: "WAITING", version: 0 });
-    expect(() => decideTransition(item, "slot", { decision: "APPROVE", expectedVersion: 0 })).toThrow("INVALID_REQUEST_TRANSITION");
+    expect(decideTransition(item, "slot", { decision: "APPROVE", expectedVersion: 0 })).toMatchObject({ requestStatus: "PENDING", stageComplete: true, currentStageNumber: 2 });
     expect(decideTransition(item, "slot", { decision: "REJECT", reason: "Missing information", expectedVersion: 0 })).toMatchObject({ requestStatus: "REJECTED", currentStageNumber: null });
 });
 
@@ -54,17 +54,17 @@ test("RETURN and unsupported stage-two approval", () =>
     expect(() => decideTransition(item, "slot", { decision: "APPROVE", expectedVersion: 0 })).toThrow("INVALID_REQUEST_TRANSITION");
 });
 
-test("two-stage partial approval remains allowed but the completing vote fails closed", () =>
+test("two-stage partial approval stays pending and the completing vote advances", () =>
 {
     const item = state();
     item.stages.push({ id: "future", stageNumber: 2, status: "WAITING", requiredKeys: ["future"] });
     item.slots.push({ id: "future", stageId: "future", assignmentKey: "future", status: "WAITING", version: 0 });
-    expect(() => decideTransition(item, "slot", { decision: "APPROVE", expectedVersion: 0 })).toThrow("INVALID_REQUEST_TRANSITION");
+    expect(decideTransition(item, "slot", { decision: "APPROVE", expectedVersion: 0 })).toMatchObject({ requestStatus: "PENDING", stageComplete: true, currentStageNumber: 2 });
     item.stages[0]!.requiredKeys.push("peer");
     item.slots.push({ id: "peer", stageId: "stage", assignmentKey: "peer", status: "ACTIONABLE", version: 0 });
     expect(decideTransition(item, "slot", { decision: "APPROVE", expectedVersion: 0 })).toMatchObject({ requestStatus: "PENDING", stageComplete: false, currentStageNumber: 1 });
     item.slots[2]!.status = "APPROVED";
-    expect(() => decideTransition(item, "slot", { decision: "APPROVE", expectedVersion: 0 })).toThrow("INVALID_REQUEST_TRANSITION");
+    expect(decideTransition(item, "slot", { decision: "APPROVE", expectedVersion: 0 })).toMatchObject({ requestStatus: "PENDING", stageComplete: true, currentStageNumber: 2 });
 });
 
 test("RR-AC-01b RETURN permits valid active stage two and rejects invalid reasons", () =>
@@ -78,4 +78,28 @@ test("RR-AC-01b RETURN permits valid active stage two and rejects invalid reason
     for (const reason of [undefined, " ", "x".repeat(4001)]) expect(() => decideTransition(item, "second-slot", { decision: "RETURN", reason, expectedVersion: 0 })).toThrow("VALIDATION_ERROR");
     item.stages[0]!.status = "ACTIVE";
     expect(() => decideTransition(item, "second-slot", { decision: "RETURN", reason: "Fix", expectedVersion: 0 })).toThrow("APPROVAL_TASK_STALE");
+});
+
+test("stage two ALL completes only after each slot approves", () =>
+{
+    const item = state();
+    item.stages[0]!.status = "COMPLETED";
+    item.slots[0]!.status = "APPROVED";
+    item.stages.push({ id: "second", stageNumber: 2, status: "ACTIVE", requiredKeys: ["a", "b"] });
+    item.slots.push({ id: "a", stageId: "second", assignmentKey: "a", status: "ACTIONABLE", version: 0 }, { id: "b", stageId: "second", assignmentKey: "b", status: "ACTIONABLE", version: 0 });
+    expect(decideTransition(item, "a", { decision: "APPROVE", expectedVersion: 0 })).toMatchObject({ requestStatus: "PENDING", currentStageNumber: 2 });
+    item.slots[2]!.status = "APPROVED";
+    expect(decideTransition(item, "a", { decision: "APPROVE", expectedVersion: 0 })).toMatchObject({ requestStatus: "APPROVED", currentStageNumber: null });
+});
+
+test("rejects slots outside snapshot and incomplete predecessors", () =>
+{
+    const item = state();
+    item.slots.push({ id: "extra", stageId: "stage", assignmentKey: "unexpected", status: "APPROVED", version: 0 });
+    expect(() => decideTransition(item, "slot", { decision: "APPROVE", expectedVersion: 0 })).toThrow("INVALID_REQUEST_TRANSITION");
+    item.slots.pop();
+    item.stages[0]!.status = "COMPLETED";
+    item.stages.push({ id: "second", stageNumber: 2, status: "ACTIVE", requiredKeys: ["next"] });
+    item.slots.push({ id: "next", stageId: "second", assignmentKey: "next", status: "ACTIONABLE", version: 0 });
+    expect(() => decideTransition(item, "next", { decision: "APPROVE", expectedVersion: 0 })).toThrow("APPROVAL_TASK_STALE");
 });

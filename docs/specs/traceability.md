@@ -369,3 +369,7 @@ R09/O10/O18/O19, FR-026/031/035/036, AC-026/031/035/036 and BR-018/021/023–025
 ### Issue #7 feature traceability reference
 
 [RR acceptance criteria](../features/return-revision-resubmission/acceptance-criteria.md) and [STS](../features/return-revision-resubmission/sts.md) map M11, R02, R03, R04 and R11 and their source clauses to planned checks. [Verification](../features/return-revision-resubmission/verification.md) records actual status; planning is not passing evidence.
+
+## Issue #10 traceability
+
+[R08 / FR-025 / AC-025 / FT-025, R10 / FR-027 / AC-027 / FT-027, and O13 / FR-032 / AC-032 / FT-032](../features/two-stage-parallel-approvals/acceptance-criteria.md) map to the [STS](../features/two-stage-parallel-approvals/sts.md) and [verification record](../features/two-stage-parallel-approvals/verification.md). The record distinguishes implemented behavior, actual checks and pending delivery gates.

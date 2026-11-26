@@ -84,7 +84,7 @@ export const approvalCycles = pgTable("approval_cycles", {
 }, (t) => [uniqueIndex("one_active_cycle").on(t.requestId).where(sql`${t.isActive}`)]);
 export const approvalStages = pgTable("approval_stages", {
     id: uuid().primaryKey(), cycleId: uuid("cycle_id").notNull().references(() => approvalCycles.id), stageNumber: integer("stage_number").$type<1 | 2>().notNull(),
-    status: text().notNull(), slaBusinessMinutes: integer("sla_business_minutes").notNull(),
+    status: text().notNull(), slaBusinessMinutes: integer("sla_business_minutes").notNull(), activatedAt: timestamp("activated_at", { withTimezone: true }),
 }, (t) => [unique().on(t.cycleId, t.stageNumber), check("stage_number_range", sql`${t.stageNumber} in (1,2)`)]);
 export const approvalSlots = pgTable("approval_slots", {
     id: uuid().primaryKey(), stageId: uuid("stage_id").notNull().references(() => approvalStages.id), reviewerId: uuid("reviewer_id").notNull().references(() => users.id),

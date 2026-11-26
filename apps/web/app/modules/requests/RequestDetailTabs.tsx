@@ -9,7 +9,8 @@ import type { PublishedRequestType, RequestDetail } from "@workflow/contracts";
 import { resolveLocalizedText } from "@workflow/contracts";
 import { PriorityBadge } from "~/components/status/PriorityBadge";
 import { RequestResult, RequestStatus } from "./RequestResult";
-import { approverSlotLabel, preferredBrowserLocale, requestTypeLabel } from "./requestPresentation";
+import { preferredBrowserLocale, requestTypeLabel } from "./requestPresentation";
+import { ApprovalTab } from "./ApprovalTab";
 
 const tabs = ["Overview", "Approval", "History", "Discussion / Files"] as const;
 const tabKeys = ["overview", "approval", "history", "discussion"] as const;
@@ -33,7 +34,6 @@ export function RequestDetailTabs({ detail, definition, onChanged, onUnavailable
     const refs = useRef<(HTMLButtonElement | null)[]>([]);
     const statusRef = useRef<HTMLSpanElement>(null);
     const locale = preferredBrowserLocale();
-    const stages = [...new Set(detail.currentApprovers.map((slot) => slot.stageNumber))].sort((a, b) => a - b);
     function navigate(event: KeyboardEvent<HTMLButtonElement>, index: number)
     {
         let next = index;
@@ -71,26 +71,7 @@ export function RequestDetailTabs({ detail, definition, onChanged, onUnavailable
         }} type="button" role="tab" id={`request-tab-${index}`} aria-controls={`request-panel-${index}`} aria-selected={selected === index} tabIndex={selected === index ? 0 : -1} onClick={() => setSelected(index)} onKeyDown={(event) => navigate(event, index)} className="min-h-11 rounded-md px-3 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring motion-reduce:transition-none aria-selected:bg-card aria-selected:text-foreground aria-selected:shadow-sm">{tab}</button>)}</div>
         {tabs.map((tab, index) => <section key={tab} role="tabpanel" id={`request-panel-${index}`} aria-labelledby={`request-tab-${index}`} hidden={selected !== index} tabIndex={0} className="rounded-xl focus-visible:outline-2 focus-visible:outline-ring">
             {index === 0 && <RequestResult detail={detail} definition={definition} showSummary={false} />}
-            {index === 1 && <div className="space-y-5 rounded-xl border bg-card p-5 sm:p-8">
-                <div className="space-y-1">
-                    <h2 className="text-lg font-semibold">Current approval</h2>
-                    <p className="text-sm text-muted-foreground">{detail.currentStageNumber === null ? "No active stage" : `Stage ${detail.currentStageNumber} active`}</p>
-                </div>
-                {detail.currentApprovers.length === 0 ? <p className="border-t pt-5 text-sm text-muted-foreground">No current approvers.</p> : stages.map((stage) =>
-                {
-                    const slots = detail.currentApprovers.filter((slot) => slot.stageNumber === stage);
-                    const approved = slots.filter((slot) => slot.status === "APPROVED").length;
-                    return <section key={stage} aria-label={`Stage ${stage}`} className="space-y-3 rounded-lg border p-4 sm:p-5">
-                        <h3 className="font-semibold">Stage {stage}{detail.currentStageNumber === stage ? " (active)" : ""}</h3>
-                        <p className="text-sm text-muted-foreground">All approvers must approve · {approved} of {slots.length} approved</p>
-                        <ul className="divide-y border-t">{slots.map((slot) => <li key={slot.slotId} className="flex flex-wrap items-center gap-x-4 gap-y-2 py-3 text-sm">
-                            <span className="min-w-0 flex-1 font-medium wrap-anywhere">{slot.reviewer.displayName}</span>
-                            <span className="text-muted-foreground">{approverSlotLabel(slot.status)}</span>
-                            {slot.status === "ACTIONABLE" && slot.reviewer.id === user?.id && <Link className="text-primary underline underline-offset-4" to={`/reviews/${slot.slotId}`}>Review task</Link>}
-                        </li>)}</ul>
-                    </section>;
-                })}
-            </div>}
+            {index === 1 && selected === 1 && <ApprovalTab detail={detail} />}
             {index === 2 && selected === 2 && <div className="space-y-6 rounded-xl border bg-card p-5 sm:p-8"><RevisionHistory key={`${detail.id}:${detail.version}`} detail={detail} definition={definition} /><AuditTimeline key={`${detail.id}:${detail.version}`} requestId={detail.id} /></div>}
             {index === 3 && <div className="space-y-2 rounded-xl border bg-card p-5 sm:p-8">
                 <h2 className="text-lg font-semibold">Discussion / Files</h2>

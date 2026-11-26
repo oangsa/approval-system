@@ -92,9 +92,9 @@ export class RequestService
             return result;
         });
     }
-    private async Readable(repository: IRequestRepository, actor: IActor, id: string): Promise<RequestDetail>
+    private async Readable(repository: IRequestRepository, actor: IActor, id: string, lock = false): Promise<RequestDetail>
     {
-        const detail = await repository.Read(id);
+        const detail = await repository.Read(id, lock);
         if (!detail || detail.requester.id !== actor.account.id && !(actor.roles.includes("REVIEWER") && detail.status === "PENDING" && detail.currentApprovers.some((slot) => slot.reviewer.id === actor.account.id && ["ACTIONABLE", "WAITING"].includes(slot.status)))) throw new RequestError("NOT_FOUND");
         return detail;
     }
@@ -147,6 +147,14 @@ export class RequestService
             actor = await repository.CurrentActor(actor);
             const detail = await this.Readable(repository, actor, id);
             return { ...detail, availableActions: detail.requester.id === actor.account.id && actor.roles.includes("REQUESTER") ? detail.availableActions : [] };
+        });
+    }
+    public async Approvers(actor: IActor, id: string)
+    {
+        return this.unit.Run(async (repository) =>
+        {
+            actor = await repository.CurrentActor(actor);
+            return (await this.Readable(repository, actor, id.toLowerCase(), true)).currentApprovers;
         });
     }
     public async Search(actor: IActor, query: RequestSearchQuery)

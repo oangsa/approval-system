@@ -1,5 +1,6 @@
 import { z } from "zod";
 import {
+    approverSummarySchema,
     adminRequestTypeDetailSchema,
     adminRequestTypeSearchSchema,
     adminRequestTypeSummarySchema,
@@ -26,7 +27,7 @@ import { HttpError } from "../errors";
 const requestRoutes = [
         ["GET", "/api/v1/request-types/:id/versions/:versionId", "typeVersion"],
         ["POST", "/api/v1/requests/search", "search"], ["POST", "/api/v1/requests", "create"], ["PATCH", "/api/v1/requests/:id/draft", "patch"], ["POST", "/api/v1/requests/:id/submit", "submit"],
-        ["POST", "/api/v1/requests/:id/resubmit", "resubmit"], ["GET", "/api/v1/requests/:id/revisions", "revisions"], ["GET", "/api/v1/requests/:id/revisions/:revisionId", "revision"], ["POST", "/api/v1/requests/:id/withdraw", "withdraw"], ["GET", "/api/v1/requests/:id", "read"], ["POST", "/api/v1/request-types/search", "types"], ["GET", "/api/v1/request-types/:id", "type"],
+        ["POST", "/api/v1/requests/:id/resubmit", "resubmit"], ["GET", "/api/v1/requests/:id/revisions", "revisions"], ["GET", "/api/v1/requests/:id/revisions/:revisionId", "revision"], ["POST", "/api/v1/requests/:id/withdraw", "withdraw"], ["GET", "/api/v1/requests/:id/approvers", "approvers"], ["GET", "/api/v1/requests/:id", "read"], ["POST", "/api/v1/request-types/search", "types"], ["GET", "/api/v1/request-types/:id", "type"],
     ] as const;
 
 export function createRequestOpenApi()
@@ -47,7 +48,9 @@ export function createRequestOpenApi()
                             : action === "search"
                                 ? requestSearchSchema
                                 : null;
-        const response = action === "types"
+        const response = action === "approvers"
+            ? z.array(approverSummarySchema)
+            : action === "types"
             ? z.union([z.array(publishedRequestTypeSchema), z.array(adminRequestTypeSummarySchema)])
             : action === "revisions"
                 ? z.array(revisionMetadataSchema)
@@ -121,6 +124,7 @@ export function registerRequestRoutes(app: {
                 if (!z.uuid().safeParse(params.revisionId).success) throw new HttpError("NOT_FOUND");
                 return Response.json(requestRevisionSchema.parse(await service.Revision(actor, params.id!.toLowerCase(), params.revisionId!.toLowerCase())));
             }
+            if (action === "approvers") return Response.json(z.array(approverSummarySchema).parse(await service.Approvers(actor, params.id!)), { headers: { "Cache-Control": "private, no-store" } });
             if (action === "read") return Response.json(requestDetailSchema.parse(await service.Read(actor, params.id!)));
             let value: unknown;
             if (method !== "GET")

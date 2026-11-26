@@ -48,7 +48,7 @@ GRANT UPDATE (
 ) ON public.request_revisions TO approval_runtime;
 GRANT DELETE ON public.request_items TO approval_runtime;
 GRANT UPDATE (is_active) ON public.approval_cycles TO approval_runtime;
-GRANT UPDATE (status) ON public.approval_stages TO approval_runtime;
+GRANT UPDATE (status, activated_at) ON public.approval_stages TO approval_runtime;
 GRANT UPDATE (status, version) ON public.approval_slots TO approval_runtime;
 GRANT USAGE ON SEQUENCE public.request_number_sequence TO approval_runtime;
 

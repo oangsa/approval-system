@@ -213,7 +213,7 @@ export class RequestRepository implements IRequestRepository
         {
             const stageId = randomUUID();
             const active = stage.stageNumber === 1;
-            await this.db.insert(approvalStages).values({ id: stageId, cycleId, stageNumber: stage.stageNumber, status: active ? "ACTIVE" : "WAITING", slaBusinessMinutes: stage.slaBusinessMinutes });
+            await this.db.insert(approvalStages).values({ id: stageId, cycleId, stageNumber: stage.stageNumber, status: active ? "ACTIVE" : "WAITING", slaBusinessMinutes: stage.slaBusinessMinutes, activatedAt: active ? now : null });
             for (const key of stage.reviewerAssignmentKeys)
             {
                 for (const assignment of plan.assignments.filter((item, index, all) => item.assignmentKey === key && all.findIndex((other) => other.id === item.id && other.reviewerId === item.reviewerId) === index))

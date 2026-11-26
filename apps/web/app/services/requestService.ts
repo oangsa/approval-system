@@ -145,6 +145,11 @@ export function readRequestState(id: string, generation?: number)
     return requestApi.read(id, undefined, generation);
 }
 
+export function readApprovers(id: string, signal: AbortSignal, generation: number)
+{
+    return requestApi.approvers(id, signal, generation);
+}
+
 export function readRevisions(id: string, page: number, signal?: AbortSignal, generation?: number)
 {
     return requestApi.revisions(id, page, signal, generation);
