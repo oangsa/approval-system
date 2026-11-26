@@ -62,12 +62,14 @@ export const requestRevisionSchema = z.strictObject({
     id: z.uuid(), revisionNumber: z.number().int().positive(), formDefinitionVersionId: z.uuid(), fields: z.record(z.string(), z.unknown()),
     lineItems: z.array(editableLineItemSchema.extend({ id: z.uuid(), totalAmount: moneySchema })), amount: moneySchema.nullable(), currency: z.string().nullable(), submittedAt: z.iso.datetime().nullable(), submittedBy: z.uuid().nullable(),
 });
+export const approverSummarySchema = z.strictObject({ slotId: z.uuid(), stageNumber: z.union([z.literal(1), z.literal(2)]), reviewer: userSummarySchema.pick({ id: true, displayName: true }), status: z.enum(["WAITING", "ACTIONABLE", "APPROVED", "REJECTED", "RETURNED", "CANCELLED"]) });
+export type ApproverSummary = z.infer<typeof approverSummarySchema>;
 export const requestDetailSchema = z.strictObject({
     id: z.uuid(), requestNumber: z.string().nullable(), typeId: z.uuid(), typeCode: z.string(), title: z.string(), priority: prioritySchema, status: requestStatusSchema,
     requester: userSummarySchema, department: departmentSummarySchema.nullable(), revisionNumber: z.number().int().positive().nullable(), currentCycleId: z.uuid().nullable(),
     createdAt: z.iso.datetime(), updatedAt: z.iso.datetime(), submittedAt: z.iso.datetime().nullable(), version: z.number().int().nonnegative(), justification: z.string(),
     workingRevision: requestRevisionSchema.nullable(), submittedRevision: requestRevisionSchema.nullable(), currentStageNumber: z.union([z.literal(1), z.literal(2)]).nullable(),
-    currentApprovers: z.array(z.strictObject({ slotId: z.uuid(), stageNumber: z.union([z.literal(1), z.literal(2)]), reviewer: userSummarySchema.pick({ id: true, displayName: true }), status: z.enum(["WAITING", "ACTIONABLE", "APPROVED", "REJECTED", "RETURNED", "CANCELLED"]) })), availableActions: z.array(z.string()),
+    currentApprovers: z.array(approverSummarySchema), availableActions: z.array(z.string()),
 });
 export const requestSummarySchema = requestDetailSchema.pick({ id: true, requestNumber: true, typeId: true, typeCode: true, title: true, priority: true, status: true, requester: true, department: true, revisionNumber: true, currentCycleId: true, createdAt: true, updatedAt: true, submittedAt: true, version: true });
 export type RequestSummary = z.infer<typeof requestSummarySchema>;
