@@ -1,10 +1,10 @@
 import { beforeEach, expect, test, vi } from "vitest";
 import { approvalTaskApi } from "../../app/api/approvalTasks";
-import { readRequestResult } from "../../app/services/requestService";
+import { readRequestResult, readRevision } from "../../app/services/requestService";
 import { readApprovalTaskResult } from "../../app/services/approvalTaskService";
 
 vi.mock("../../app/api/approvalTasks", () => ({ approvalTaskApi: { read: vi.fn(), search: vi.fn() } }));
-vi.mock("../../app/services/requestService", () => ({ readRequestResult: vi.fn() }));
+vi.mock("../../app/services/requestService", () => ({ readRequestResult: vi.fn(), readRevision: vi.fn() }));
 const task = { id: "task", requestId: "request", cycleId: "cycle", revisionId: "revision", canCurrentUserDecide: true };
 beforeEach(() => vi.resetAllMocks());
 test("reads the task before requesting private content", async () =>
@@ -30,7 +30,9 @@ test("rejects content from a different submitted revision", async () =>
 test("handled task read never requests broad current request content", async () =>
 {
     vi.mocked(approvalTaskApi.read).mockResolvedValue({ ...task, status: "APPROVED", canCurrentUserDecide: false } as never);
+    vi.mocked(readRevision).mockResolvedValue({ id: "revision" } as never);
     const result = await readApprovalTaskResult("task");
+    expect(readRevision).toHaveBeenCalledWith("request", "revision", undefined, 0);
     expect(result.task.canCurrentUserDecide).toBe(false);
     expect(result.detail).toBeNull();
     expect(readRequestResult).not.toHaveBeenCalled();

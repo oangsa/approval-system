@@ -17,10 +17,12 @@ test("REQ-E2E-01 and REQ-E2E-02: requester list and persisted detail", async ({ 
     expect(title).not.toContain(" ");
     const searchTerm = title.slice(0, 90);
     const futureCalls: string[] = [];
+    const revisionCalls: string[] = [];
     page.on("request", (outgoing) =>
     {
         const pathname = new URL(outgoing.url()).pathname;
-        if (/^\/api\/v1\/requests\/[^/]+\/(revisions|comments|attachments|history|discussion|files)(\/|$)/.test(pathname) || /^\/api\/v1\/attachments\/[^/]+\/download$/.test(pathname)) futureCalls.push(outgoing.url());
+        if (/^\/api\/v1\/requests\/[^/]+\/revisions(\/|$)/.test(pathname)) revisionCalls.push(outgoing.url());
+        if (/^\/api\/v1\/requests\/[^/]+\/(comments|attachments|history|discussion|files)(\/|$)/.test(pathname) || /^\/api\/v1\/attachments\/[^/]+\/download$/.test(pathname)) futureCalls.push(outgoing.url());
     });
     await signIn(page, "requester-a@example.test");
     await page.goto("/requests");
@@ -118,17 +120,37 @@ test("REQ-E2E-01 and REQ-E2E-02: requester list and persisted detail", async ({ 
     await expect(page.getByText(number!, { exact: true })).toBeVisible();
     await expect(page.getByText("Pending approval", { exact: true })).toBeVisible();
     expect(futureCalls).toEqual([]);
+    expect(revisionCalls).toEqual([]);
 
     const overview = page.getByRole("tab", { name: "Overview" });
     await overview.focus();
     for (const name of ["Approval", "History", "Discussion / Files"])
     {
+        const revisionResponse = name === "History" ? page.waitForResponse((response) =>
+        {
+            const url = new URL(response.url());
+            return url.pathname === `/api/v1${new URL(detailUrl).pathname}/revisions` && response.request().method() === "GET";
+        }) : null;
         await page.keyboard.press("ArrowRight");
         const tab = page.getByRole("tab", { name, exact: true });
         await expect(tab).toBeFocused();
         await expect(tab).toHaveAttribute("aria-selected", "true");
         await expect(page.getByRole("tabpanel")).toBeVisible();
-        if (name === "History") await expect(page.getByRole("tabpanel")).toContainText("REQUEST SUBMITTED");
+        if (revisionResponse)
+        {
+            const response = await revisionResponse;
+            expect(response.status()).toBe(200);
+            expect(revisionCalls).toEqual([response.url()]);
+            const url = new URL(response.url());
+            expect(url.searchParams.get("pageNumber")).toBe("1");
+            expect(url.searchParams.get("pageSize")).toBe("20");
+            const metadata = await response.json();
+            expect(Array.isArray(metadata)).toBe(true);
+            expect(metadata).toEqual(expect.arrayContaining([expect.objectContaining({ revisionNumber: 1 })]));
+            expect(response.headers()["x-pagination"]).toBeTruthy();
+            await expect(page.getByLabel("Select revision")).toBeVisible();
+            await expect(page.getByRole("tabpanel")).toContainText("REQUEST SUBMITTED");
+        }
     }
     await page.keyboard.press("Home");
     await expect(overview).toBeFocused();
@@ -198,4 +220,5 @@ test("REQ-E2E-01 and REQ-E2E-02: requester list and persisted detail", async ({ 
     await expect(page.getByRole("button", { name: "Retry" })).toHaveCount(0);
     await expect(page.getByText(title)).toHaveCount(0);
     expect(futureCalls).toEqual([]);
+    expect(revisionCalls.every((url) => new URL(url).pathname === `/api/v1${new URL(detailUrl).pathname}/revisions`)).toBe(true);
 });

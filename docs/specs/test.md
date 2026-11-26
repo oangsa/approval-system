@@ -646,3 +646,18 @@ The [bounded specification](../features/request-search-polish/spec.md) defines A
 Retain FT-010 and existing DEC-AC identifiers. Add AC-L7-01–07 and STS-L7-01–13 as specified in docs/labs/lab-07/contract-draft.md and sts-draft.md: 9/10, missing/blank, 11/4000/4001, trim/UTF-16, unchanged APPROVE/RETURN, permissions/state/rollback/races, readable short history and accepted short-body replay, real browser feedback and persisted rejection. Record actual RED/GREEN and distinct full-suite outcomes; filtered skips are not regression passes.
 
 Approval evidence: [record](../labs/lab-07/approval-record.md). Original sections remain historical baseline wording where superseded above; no unrelated behavior is changed.
+
+Issue #11 test mapping and actual execution status are in [the feature STS](../features/reporting-dashboard-timeline/sts.md) and [verification](../features/reporting-dashboard-timeline/verification.md).
+
+## Issue #6 bounded verification plan
+
+[Draft/withdraw STS v1](../features/draft-withdraw-lifecycle/sts.md) maps FT-019/023, EP-033/035/038, API-08, DB-02/08, CX-04/14, SEC-02, UI-05/06 and E2E-01/06 to DW-AC-01–09. New service/component tests cover resume and changes-only PATCH; real PostgreSQL tests cover incomplete persistence, owner isolation, cancellation, immutable votes/snapshots, rollback, replay and simultaneous decisions. Playwright covers reload/resume, warning/retry, optional confirmation and stale reviewer. [Actual results](../features/draft-withdraw-lifecycle/verification.md) remain separate from this plan.
+
+
+### Issue #7 planned test reference
+
+[Return/revision/resubmission STS](../features/return-revision-resubmission/sts.md) maps RR test cases to the applicable assertions and test layers. The cases are planned, not evidence of execution.
+
+## Issue #10 coverage
+
+[Issue #10 STS](../features/two-stage-parallel-approvals/sts.md) maps FT-025/027/032, EP-042/046/053, UT-02/13, DB-05/09, CX-02/03/14, SEC-05, UI-09/10/11/13 and E2E-05/08 to required checks. [Verification](../features/two-stage-parallel-approvals/verification.md) records actual commands, results, failures and reruns; test plans alone do not establish passing behavior.

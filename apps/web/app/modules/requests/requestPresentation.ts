@@ -24,6 +24,13 @@ export function approverSlotLabel(status: string): string
 {
     return approverSlotLabels[status] ?? status;
 }
+export function preferredBrowserLocale(): "en" | "th"
+{
+    if (typeof navigator === "undefined") return "en";
+    const candidates = navigator.languages?.length ? navigator.languages : navigator.language ? [navigator.language] : [];
+    const preferred = candidates.find((lang) => lang.startsWith("th") || lang.startsWith("en"));
+    return preferred?.startsWith("th") ? "th" : "en";
+}
 
 export interface IViewError
 {

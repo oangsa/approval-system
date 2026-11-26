@@ -1,0 +1,1 @@
+ALTER TABLE "approval_stages" ADD COLUMN "activated_at" timestamp with time zone;

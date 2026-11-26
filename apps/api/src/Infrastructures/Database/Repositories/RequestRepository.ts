@@ -1,12 +1,12 @@
 import { randomUUID } from "node:crypto";
-import { and, asc, count, desc, eq, ilike, inArray, or, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, isNull, ilike, inArray, or, sql } from "drizzle-orm";
 import { itemTotal, requestDetailSchema, requestSummarySchema, type CreateRequest, type RequestRevision, type RequestTypeSearch, type RequestSearchQuery } from "@workflow/contracts";
 import { isCurrentIdentity, type IActor } from "../../../Domains/Identity/Identity";
 import type { IRequestRepository, IRequestUnitOfWork } from "../../../Domains/Requests/Ports";
 import { businessDueAt, RequestError, type IConfiguration, type IPlan } from "../../../Domains/Requests/RequestRules";
 import type { Database } from "../Database";
 import { IdentityRepository } from "./IdentityRepository";
-import { approvalCycles, approvalPolicyVersions, approvalSlots, approvalStages, budgetPolicies, departmentMemberships, departments, idempotencyRecords, requestAuditEvents, requestItems, requestOutboxEvents, requestRevisions, requests, requestTypes, requestTypeVersions, reviewerAssignmentRules, userRoles, users } from "../schema";
+import { approvalCycles, approvalDecisions, approvalPolicyVersions, approvalSlots, approvalStages, budgetPolicies, departmentMemberships, departments, idempotencyRecords, requestAuditEvents, requestItems, requestOutboxEvents, requestRevisions, requests, requestTypes, requestTypeVersions, reviewerAssignmentRules, userRoles, users } from "../schema";
 
 type Connection = Database["connection"];
 type Transaction = Parameters<Parameters<Connection["transaction"]>[0]>[0];
@@ -18,7 +18,8 @@ export class RequestRepository implements IRequestRepository
     public async CurrentActor(actor: IActor): Promise<IActor>
     {
         const identity = new IdentityRepository(this.db);
-        await identity.LockUser(actor.account.id);
+        // Share the identity lock with configuration reads while blocking identity changes.
+        await this.db.select().from(users).where(eq(users.id, actor.account.id)).for("share");
         const current = await identity.ReadCurrentIdentity(actor.account.id, actor.family.id);
         if (!current || !current.roles.length || !isCurrentIdentity(current, actor.account.authVersion, new Date())) throw new RequestError("UNAUTHENTICATED");
         return current;
@@ -39,7 +40,7 @@ export class RequestRepository implements IRequestRepository
     {
         if (!id) return null;
         const revision = (await this.db.select().from(requestRevisions).where(eq(requestRevisions.id, id)))[0]!;
-        const items = await this.db.select().from(requestItems).where(eq(requestItems.revisionId, id)).orderBy(asc(requestItems.id));
+        const items = await this.db.select().from(requestItems).where(eq(requestItems.revisionId, id)).orderBy(asc(requestItems.sortOrder), asc(requestItems.id));
         return { id, revisionNumber: revision.revisionNumber, formDefinitionVersionId: revision.formDefinitionVersionId, fields: revision.fields, amount: revision.amount, currency: revision.currency,
             submittedAt: revision.submittedAt?.toISOString() ?? null, submittedBy: revision.submittedBy,
             lineItems: items.map(({ id, description, quantity, unitAmount, totalAmount }) => ({ id, description, quantity, unitAmount, totalAmount })) };
@@ -62,8 +63,27 @@ export class RequestRepository implements IRequestRepository
             department: row.departmentSnapshot, revisionNumber: submittedRevision?.revisionNumber ?? null, currentCycleId: row.currentCycleId,
             createdAt: row.createdAt.toISOString(), updatedAt: row.updatedAt.toISOString(), submittedAt: row.submittedAt?.toISOString() ?? null, version: row.version,
             workingRevision, submittedRevision, currentStageNumber: slots.find((item) => item.stage.status === "ACTIVE")?.stage.stageNumber ?? null,
-            currentApprovers: slots.map(({ slot, stage, reviewer }) => ({ slotId: slot.id, stageNumber: stage.stageNumber, reviewer, status: slot.status })), availableActions: row.status === "DRAFT" ? ["EDIT_DRAFT", "SUBMIT"] : [],
+            currentApprovers: slots.map(({ slot, stage, reviewer }) => ({ slotId: slot.id, stageNumber: stage.stageNumber, reviewer, status: slot.status })), availableActions: row.status === "DRAFT" ? ["EDIT_DRAFT", "SUBMIT"] : row.status === "RETURNED" ? ["EDIT_DRAFT", "RESUBMIT"] : row.status === "PENDING" ? ["WITHDRAW"] : [],
         });
+    }
+    public async Revisions(id: string, query: import("@workflow/contracts").RevisionQuery)
+    {
+        const where = and(eq(requestRevisions.requestId, id), sql`${requestRevisions.submittedAt} is not null`);
+        const total = (await this.db.select({ value: count() }).from(requestRevisions).innerJoin(approvalCycles, eq(approvalCycles.revisionId, requestRevisions.id)).where(where))[0]!.value;
+        const rows = await this.db.select({ revision: requestRevisions, cycleId: approvalCycles.id }).from(requestRevisions).innerJoin(approvalCycles, eq(approvalCycles.revisionId, requestRevisions.id)).where(where).orderBy(desc(requestRevisions.revisionNumber), asc(requestRevisions.id)).limit(query.pageSize).offset((query.pageNumber - 1) * query.pageSize);
+        const totalPages = Math.ceil(total / query.pageSize);
+        return { items: rows.map(({ revision, cycleId }) => ({ id: revision.id, revisionNumber: revision.revisionNumber, formDefinitionVersionId: revision.formDefinitionVersionId, submittedAt: revision.submittedAt!.toISOString(), submittedBy: revision.submittedBy!, cycleId })), pagination: { currentPage: query.pageNumber, pageSize: query.pageSize, totalPages, totalCount: total, hasPrevious: query.pageNumber > 1, hasNext: query.pageNumber < totalPages } };
+    }
+    public async SubmittedRevision(id: string, revisionId: string, actorId: string, current: boolean)
+    {
+        const revision = (await this.db.select({ id: requestRevisions.id }).from(requestRevisions).innerJoin(approvalCycles, eq(approvalCycles.revisionId, requestRevisions.id)).where(and(eq(requestRevisions.id, revisionId), eq(requestRevisions.requestId, id), sql`${requestRevisions.submittedAt} is not null`)))[0];
+        if (!revision) return null;
+        if (!current)
+        {
+            const handled = (await this.db.select({ id: approvalDecisions.id }).from(approvalDecisions).innerJoin(approvalSlots, eq(approvalDecisions.slotId, approvalSlots.id)).innerJoin(approvalStages, eq(approvalSlots.stageId, approvalStages.id)).innerJoin(approvalCycles, eq(approvalStages.cycleId, approvalCycles.id)).where(and(eq(approvalDecisions.actorId, actorId), eq(approvalCycles.requestId, id), eq(approvalCycles.revisionId, revisionId))).limit(1))[0];
+            if (!handled) return null;
+        }
+        return this.Revision(revisionId);
     }
     public async Search(ownerId: string, query: RequestSearchQuery)
     {
@@ -112,25 +132,25 @@ export class RequestRepository implements IRequestRepository
         const totalPages = Math.ceil(total / query.pageSize);
         return { items, pagination: { currentPage: query.pageNumber, pageSize: query.pageSize, totalPages, totalCount: total, hasPrevious: query.pageNumber > 1, hasNext: query.pageNumber < totalPages } };
     }
-    public async Configuration(typeId: string, versionId: string, actorId: string): Promise<IConfiguration>
+    public async Configuration(typeId: string, versionId: string, actorId: string, historicalDepartment?: import("@workflow/contracts").DepartmentSummary): Promise<IConfiguration>
     {
         const type = (await this.db.select().from(requestTypes).where(eq(requestTypes.id, typeId)).for("share"))[0];
         const version = (await this.db.select().from(requestTypeVersions).where(and(eq(requestTypeVersions.id, versionId), eq(requestTypeVersions.typeId, typeId))).for("share"))[0];
         if (!type || !version) throw new RequestError("NOT_FOUND");
-        const membership = (await this.db.select().from(departmentMemberships).where(and(eq(departmentMemberships.userId, actorId), eq(departmentMemberships.isActive, true), eq(departmentMemberships.isPrimary, true))).for("share"))[0];
+        const membership = (await this.db.select().from(departmentMemberships).where(and(eq(departmentMemberships.userId, actorId), eq(departmentMemberships.isActive, true), historicalDepartment ? eq(departmentMemberships.departmentId, historicalDepartment.id) : eq(departmentMemberships.isPrimary, true))).for("share"))[0];
         const department = membership ? (await this.db.select().from(departments).where(eq(departments.id, membership.departmentId)).for("share"))[0] ?? null : null;
         const policies = await this.db.select().from(approvalPolicyVersions).where(and(eq(approvalPolicyVersions.typeId, typeId), eq(approvalPolicyVersions.isActive, true))).orderBy(asc(approvalPolicyVersions.id)).for("share");
-        const rules = department ? await this.db.select().from(reviewerAssignmentRules).where(and(eq(reviewerAssignmentRules.departmentId, department.id), eq(reviewerAssignmentRules.isActive, true))).orderBy(asc(reviewerAssignmentRules.id)).for("share") : [];
-        const reviewerIds = [...new Set(rules.map((rule) => rule.reviewerId))].sort();
+        const rules = department ? await this.db.select().from(reviewerAssignmentRules).where(and(or(eq(reviewerAssignmentRules.departmentId, department.id), isNull(reviewerAssignmentRules.departmentId)))).orderBy(asc(reviewerAssignmentRules.id)).for("share") : [];
+        const reviewerIds = [...new Set(rules.flatMap((rule) => rule.reviewerUserIds ?? [rule.reviewerId]))].sort();
         const reviewers = reviewerIds.length ? await this.db.select().from(users).where(inArray(users.id, reviewerIds)).orderBy(asc(users.id)).for("share") : [];
         const roles = reviewerIds.length ? await this.db.select().from(userRoles).where(inArray(userRoles.userId, reviewerIds)).for("share") : [];
         const budgets = await this.db.select().from(budgetPolicies).where(and(eq(budgetPolicies.typeId, typeId), eq(budgetPolicies.isActive, true))).for("share");
         return { definition: version.definition, activeVersionId: type.publishedVersionId, isEnabled: type.isEnabled, department, policies, budgets,
-            assignments: rules.map((rule) => ({ ...rule, displayName: reviewers.find((user) => user.id === rule.reviewerId)?.displayName ?? "", isEligible: !!reviewers.find((user) => user.id === rule.reviewerId)?.isActive && roles.some((role) => role.userId === rule.reviewerId && role.roleCode === "REVIEWER") })) };
+            assignments: rules.flatMap((rule) => (rule.reviewerUserIds ?? [rule.reviewerId]).map((reviewerId) => ({ id: rule.id, assignmentKey: rule.assignmentKey, departmentId: rule.departmentId, reviewerId, version: rule.version, displayName: reviewers.find((user) => user.id === reviewerId)?.displayName ?? "", isEligible: rule.isActive && !!reviewers.find((user) => user.id === reviewerId)?.isActive && roles.some((role) => role.userId === reviewerId && role.roleCode === "REVIEWER") }))) };
     }
     private async Items(revisionId: string, content: CreateRequest): Promise<void>
     {
-        const items = (content.lineItems ?? []).map((item) => ({ ...item, id: randomUUID(), revisionId, totalAmount: itemTotal(item.quantity, item.unitAmount) }));
+        const items = (content.lineItems ?? []).map((item, sortOrder) => ({ ...item, id: randomUUID(), revisionId, sortOrder, totalAmount: itemTotal(item.quantity, item.unitAmount) }));
         if (items.length) await this.db.insert(requestItems).values(items);
     }
     public async Create(actor: IActor, content: CreateRequest, amount: string | null): Promise<string>
@@ -138,20 +158,41 @@ export class RequestRepository implements IRequestRepository
         const id = randomUUID();
         const revisionId = randomUUID();
         await this.db.insert(requests).values({ id, requesterId: actor.account.id, typeId: content.typeId, title: content.title ?? "", justification: content.justification ?? "", priority: content.priority ?? "MEDIUM" });
-        await this.db.insert(requestRevisions).values({ id: revisionId, requestId: id, typeId: content.typeId, formDefinitionVersionId: content.formDefinitionVersionId, revisionNumber: 1, fields: content.fields ?? {}, amount, currency: amount === null ? null : "THB" });
+        await this.db.insert(requestRevisions).values({ id: revisionId, requestId: id, typeId: content.typeId, formDefinitionVersionId: content.formDefinitionVersionId, revisionNumber: 1, fields: Object.fromEntries(Object.entries(content.fields ?? {})), amount, currency: amount === null ? null : "THB" });
         await this.Items(revisionId, content);
         await this.db.update(requests).set({ workingRevisionId: revisionId }).where(eq(requests.id, id));
         await this.db.insert(requestAuditEvents).values({ id: randomUUID(), requestId: id, actorId: actor.account.id, eventType: "REQUEST_CREATED", revisionId });
         return id;
     }
-    public async Patch(id: string, actorId: string, content: CreateRequest, amount: string | null): Promise<void>
+    public async Patch(id: string, actorId: string, content: CreateRequest, amount: string | null, replaceLineItems: boolean): Promise<void>
     {
         const row = (await this.db.select().from(requests).where(eq(requests.id, id)))[0]!;
-        await this.db.update(requestRevisions).set({ fields: content.fields ?? {}, formDefinitionVersionId: content.formDefinitionVersionId, amount, currency: amount === null ? null : "THB" }).where(eq(requestRevisions.id, row.workingRevisionId!));
-        await this.db.delete(requestItems).where(eq(requestItems.revisionId, row.workingRevisionId!));
-        await this.Items(row.workingRevisionId!, content);
+        await this.db.update(requestRevisions).set({ fields: Object.fromEntries(Object.entries(content.fields ?? {})), formDefinitionVersionId: content.formDefinitionVersionId, amount, currency: amount === null ? null : "THB" }).where(eq(requestRevisions.id, row.workingRevisionId!));
+        if (replaceLineItems)
+        {
+            await this.db.delete(requestItems).where(eq(requestItems.revisionId, row.workingRevisionId!));
+            await this.Items(row.workingRevisionId!, content);
+        }
         await this.db.update(requests).set({ title: content.title ?? "", justification: content.justification ?? "", priority: content.priority ?? "MEDIUM", version: row.version + 1, updatedAt: new Date() }).where(eq(requests.id, id));
         await this.db.insert(requestAuditEvents).values({ id: randomUUID(), requestId: id, actorId, eventType: "DRAFT_UPDATED", revisionId: row.workingRevisionId });
+    }
+    public async Withdraw(detail: import("@workflow/contracts").RequestDetail, actorId: string, reason?: string): Promise<void>
+    {
+        const now = new Date();
+        const cycleId = detail.currentCycleId!;
+        await this.db.select().from(approvalCycles).where(eq(approvalCycles.id, cycleId)).for("update");
+        const stages = await this.db.select().from(approvalStages).where(eq(approvalStages.cycleId, cycleId)).orderBy(asc(approvalStages.stageNumber)).for("update");
+        const stageIds = stages.map((stage) => stage.id);
+        if (stageIds.length)
+        {
+            await this.db.select().from(approvalSlots).where(inArray(approvalSlots.stageId, stageIds)).orderBy(asc(approvalSlots.id)).for("update");
+            await this.db.update(approvalSlots).set({ status: "CANCELLED", version: sql`${approvalSlots.version} + 1` }).where(and(inArray(approvalSlots.stageId, stageIds), inArray(approvalSlots.status, ["ACTIONABLE", "WAITING"])));
+        }
+        await this.db.update(approvalStages).set({ status: "CANCELLED" }).where(and(eq(approvalStages.cycleId, cycleId), inArray(approvalStages.status, ["ACTIVE", "WAITING"])));
+        await this.db.update(approvalCycles).set({ isActive: false }).where(eq(approvalCycles.id, cycleId));
+        await this.db.update(requests).set({ status: "WITHDRAWN", version: detail.version + 1, updatedAt: now }).where(eq(requests.id, detail.id));
+        await this.db.insert(requestAuditEvents).values({ id: randomUUID(), requestId: detail.id, actorId, eventType: "REQUEST_WITHDRAWN", revisionId: detail.submittedRevision!.id, cycleId, occurredAt: now, note: reason ?? null });
+        await this.db.insert(requestOutboxEvents).values({ id: randomUUID(), eventKey: `REQUEST_WITHDRAWN:${cycleId}`, eventType: "REQUEST_WITHDRAWN", payload: { requestId: detail.id, cycleId } });
     }
     public async Submit(id: string, actorId: string, plan: IPlan): Promise<void>
     {
@@ -159,38 +200,44 @@ export class RequestRepository implements IRequestRepository
         const revisionId = row.workingRevisionId!;
         const cycleId = randomUUID();
         const now = new Date();
-        const numbers = await this.db.execute<{ value: string }>(sql`select nextval('request_number_sequence')::text as value`);
-        const number = `REQ-${String(numbers[0]!.value).padStart(8, "0")}`;
+        const resubmit = row.status === "RETURNED";
+        let number = row.requestNumber;
+        if (!resubmit)
+        {
+            const numbers = await this.db.execute<{ value: string }>(sql`select nextval('request_number_sequence')::text as value`);
+            number = `REQ-${String(numbers[0]!.value).padStart(8, "0")}`;
+        }
         await this.db.update(requestRevisions).set({ submittedAt: now, submittedBy: actorId }).where(eq(requestRevisions.id, revisionId));
         await this.db.insert(approvalCycles).values({ id: cycleId, requestId: id, revisionId, policyVersionId: plan.policy.id, snapshot: { policy: plan.policy, assignments: plan.assignments, department: plan.department, title: row.title, justification: row.justification, priority: row.priority } });
         for (const stage of plan.policy.stages)
         {
             const stageId = randomUUID();
             const active = stage.stageNumber === 1;
-            await this.db.insert(approvalStages).values({ id: stageId, cycleId, stageNumber: stage.stageNumber, status: active ? "ACTIVE" : "WAITING", slaBusinessMinutes: stage.slaBusinessMinutes });
+            await this.db.insert(approvalStages).values({ id: stageId, cycleId, stageNumber: stage.stageNumber, status: active ? "ACTIVE" : "WAITING", slaBusinessMinutes: stage.slaBusinessMinutes, activatedAt: active ? now : null });
             for (const key of stage.reviewerAssignmentKeys)
             {
-                const assignment = plan.assignments.find((item) => item.assignmentKey === key)!;
-                await this.db.insert(approvalSlots).values({ id: randomUUID(), stageId, assignmentKey: key, reviewerId: assignment.reviewerId, status: active ? "ACTIONABLE" : "WAITING", dueAt: active ? businessDueAt(now, stage.slaBusinessMinutes) : null });
+                for (const assignment of plan.assignments.filter((item, index, all) => item.assignmentKey === key && all.findIndex((other) => other.id === item.id && other.reviewerId === item.reviewerId) === index))
+                {
+                    await this.db.insert(approvalSlots).values({ id: randomUUID(), stageId, assignmentKey: key, reviewerId: assignment.reviewerId, status: active ? "ACTIONABLE" : "WAITING", dueAt: active ? businessDueAt(now, stage.slaBusinessMinutes) : null });
+                }
             }
         }
-        await this.db.update(requests).set({ status: "PENDING", requestNumber: number, departmentId: plan.department.id, departmentSnapshot: plan.department, submittedAt: now, updatedAt: now, version: row.version + 1, workingRevisionId: null, submittedRevisionId: revisionId, currentCycleId: cycleId }).where(eq(requests.id, id));
-        await this.db.insert(requestAuditEvents).values({ id: randomUUID(), requestId: id, actorId, eventType: "REQUEST_SUBMITTED", revisionId, cycleId });
-        await this.db.insert(requestOutboxEvents).values({ id: randomUUID(), eventKey: `REQUEST_SUBMITTED:${cycleId}`, eventType: "REQUEST_SUBMITTED", payload: { requestId: id, cycleId } });
+        await this.db.update(requests).set({ status: "PENDING", requestNumber: number, departmentId: resubmit ? row.departmentId : plan.department.id, departmentSnapshot: resubmit ? row.departmentSnapshot : plan.department, submittedAt: resubmit ? row.submittedAt : now, updatedAt: now, version: row.version + 1, workingRevisionId: null, submittedRevisionId: revisionId, currentCycleId: cycleId }).where(eq(requests.id, id));
+        await this.db.insert(requestAuditEvents).values({ id: randomUUID(), requestId: id, actorId, eventType: resubmit ? "REQUEST_RESUBMITTED" : "REQUEST_SUBMITTED", revisionId, cycleId });
+        await this.db.insert(requestOutboxEvents).values({ id: randomUUID(), eventKey: `${resubmit ? "REQUEST_RESUBMITTED" : "REQUEST_SUBMITTED"}:${cycleId}`, eventType: resubmit ? "REQUEST_RESUBMITTED" : "REQUEST_SUBMITTED", payload: { requestId: id, cycleId } });
     }
     public async TypeVersion(id: string, versionId: string)
     {
-        const row = (await this.db.select({ definition: requestTypeVersions.definition }).from(requestTypeVersions).where(and(eq(requestTypeVersions.typeId, id), eq(requestTypeVersions.id, versionId))))[0];
-        return row?.definition ?? null;
+        return (await this.db.select().from(requestTypeVersions).where(and(eq(requestTypeVersions.typeId, id), eq(requestTypeVersions.id, versionId))))[0]?.definition ?? null;
     }
     public async Type(id: string)
     {
-        const row = (await this.db.select({ definition: requestTypeVersions.definition }).from(requestTypes).innerJoin(requestTypeVersions, eq(requestTypes.publishedVersionId, requestTypeVersions.id)).where(and(eq(requestTypes.id, id), eq(requestTypes.isEnabled, true))))[0];
-        return row?.definition ?? null;
+        const row = (await this.db.select({ definition: requestTypeVersions.definition, isEnabled: requestTypes.isEnabled }).from(requestTypes).innerJoin(requestTypeVersions, eq(requestTypes.publishedVersionId, requestTypeVersions.id)).where(and(eq(requestTypes.id, id), eq(requestTypes.isEnabled, true))))[0];
+        return row ? { ...row.definition, isEnabled: row.isEnabled } : null;
     }
-    public async Types(query: RequestTypeSearch)
+    public async Types(query: RequestTypeSearch, allowDisabled = false)
     {
-        const predicates = [eq(requestTypes.isEnabled, true)];
+        const predicates = allowDisabled ? [] : [eq(requestTypes.isEnabled, true)];
         for (const filter of query.search)
         {
             predicates.push(filter.name === "code" ? eq(requestTypes.code, String(filter.value)) : eq(requestTypes.isEnabled, filter.value === true));
@@ -201,13 +248,13 @@ export class RequestRepository implements IRequestRepository
             const columns = query.searchTerm.name.split(",");
             predicates.push(or(...columns.map((column) => column === "code" ? ilike(requestTypes.code, term) : or(ilike(sql`${requestTypeVersions.definition}->'name'->>'en'`, term), ilike(sql`${requestTypeVersions.definition}->'name'->>'th'`, term))))!);
         }
-        const where = and(...predicates);
+        const where = predicates.length ? and(...predicates) : undefined;
         const order = query.orderBy.endsWith("desc") ? desc : asc;
         const field = query.orderBy.startsWith("name") ? sql`${requestTypeVersions.definition}->'name'->>'en'` : requestTypes.code;
         const total = (await this.db.select({ count: count() }).from(requestTypes).innerJoin(requestTypeVersions, eq(requestTypes.publishedVersionId, requestTypeVersions.id)).where(where))[0]!.count;
-        const rows = await this.db.select({ definition: requestTypeVersions.definition }).from(requestTypes).innerJoin(requestTypeVersions, eq(requestTypes.publishedVersionId, requestTypeVersions.id)).where(where).orderBy(order(field), asc(requestTypes.id)).limit(query.pageSize).offset((query.pageNumber - 1) * query.pageSize);
+        const rows = await this.db.select({ definition: requestTypeVersions.definition, isEnabled: requestTypes.isEnabled }).from(requestTypes).innerJoin(requestTypeVersions, eq(requestTypes.publishedVersionId, requestTypeVersions.id)).where(where).orderBy(order(field), asc(requestTypes.id)).limit(query.pageSize).offset((query.pageNumber - 1) * query.pageSize);
         const totalPages = Math.ceil(total / query.pageSize);
-        return { items: rows.map((row) => row.definition), pagination: { currentPage: query.pageNumber, pageSize: query.pageSize, totalPages, totalCount: total, hasPrevious: query.pageNumber > 1, hasNext: query.pageNumber < totalPages } };
+        return { items: rows.map((row) => ({ ...row.definition, isEnabled: row.isEnabled })), pagination: { currentPage: query.pageNumber, pageSize: query.pageSize, totalPages, totalCount: total, hasPrevious: query.pageNumber > 1, hasNext: query.pageNumber < totalPages } };
     }
 }
 export class RequestUnitOfWork implements IRequestUnitOfWork
@@ -217,6 +264,10 @@ export class RequestUnitOfWork implements IRequestUnitOfWork
     }
     public Run<T>(operation: (repository: IRequestRepository) => Promise<T>): Promise<T>
     {
-        return this.db.transaction((tx) => operation(new RequestRepository(tx)));
+        return this.db.transaction(async (tx) =>
+        {
+            await tx.execute(sql`select pg_advisory_xact_lock_shared(941309)`);
+            return operation(new RequestRepository(tx));
+        });
     }
 }

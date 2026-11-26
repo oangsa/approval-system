@@ -1,107 +1,165 @@
 import { z } from "zod";
 import { departmentSummarySchema, userSummarySchema } from "./auth";
+import {
+    compareDecimals,
+    conditionAtomSchema,
+    conditionSchema,
+    decimalSchema,
+    formatMoney,
+    itemTotal,
+    moneySchema,
+    normalizeMoney,
+    publishedRequestTypeSchema,
+    requestFieldSchema,
+    safeItemTotal,
+    sumAmounts,
+    type Condition,
+    type IFieldIssue,
+    type PublishedRequestType,
+    type RequestField,
+} from "./requestTypes";
 
-export const decimalSchema = z.string().max(24).regex(/^-?(?:0|[1-9]\d*)(?:\.\d{1,6})?$/);
-export const moneySchema = z.string().regex(/^(?:0|[1-9]\d{0,15})(?:\.\d{1,2})?$/);
+export {
+    compareDecimals,
+    conditionSchema,
+    decimalSchema,
+    formatMoney,
+    itemTotal,
+    moneySchema,
+    normalizeMoney,
+    publishedRequestTypeSchema,
+    requestFieldSchema,
+    safeItemTotal,
+    sumAmounts,
+    type Condition,
+    type IFieldIssue,
+    type PublishedRequestType,
+    type RequestField,
+};
+
 export const prioritySchema = z.enum(["LOW", "MEDIUM", "HIGH", "URGENT"]);
 export const requestStatusSchema = z.enum(["DRAFT", "PENDING", "RETURNED", "APPROVED", "REJECTED", "WITHDRAWN"]);
-const localizedSchema = z.strictObject({ en: z.string().min(1), th: z.string().optional() });
-const atomSchema = z.strictObject({
-    fieldKey: z.string(), operator: z.enum(["EQ", "NE", "GT", "GTE", "LT", "LTE", "IN", "PRESENT"]),
-    value: z.union([z.string(), z.boolean(), z.array(z.union([z.string(), z.boolean()]))]).optional(),
-});
-export const conditionSchema = z.strictObject({ all: z.array(atomSchema).min(1).max(16).optional(), any: z.array(atomSchema).min(1).max(16).optional() }).refine((value) => value.all || value.any);
-export const requestFieldSchema = z.strictObject({
-    key: z.string().regex(/^[a-z][a-zA-Z0-9_]{0,63}$/), kind: z.enum(["TEXT", "TEXTAREA", "DECIMAL", "DATE", "SELECT", "BOOLEAN"]),
-    label: localizedSchema, description: localizedSchema.optional(), required: z.boolean(), defaultValue: z.unknown().optional(),
-    constraints: z.strictObject({ min: z.string().optional(), max: z.string().optional(), minLength: z.number().int().nonnegative().optional(), maxLength: z.number().int().nonnegative().optional(), options: z.array(z.strictObject({ value: z.string(), label: localizedSchema })).max(20).optional() }).optional(),
-    visibleWhen: conditionSchema.optional(), requiredWhen: conditionSchema.optional(),
-});
-export const publishedRequestTypeSchema = z.strictObject({
-    id: z.uuid(), code: z.string().min(1), name: localizedSchema, description: localizedSchema.optional(), versionId: z.uuid(), versionNumber: z.number().int().positive(),
-    isEnabled: z.boolean(), supportsLineItems: z.boolean(), monetary: z.boolean(), fields: z.array(requestFieldSchema).max(50), publishedAt: z.iso.datetime(),
-});
-export const editableLineItemSchema = z.strictObject({ description: z.string().trim().max(1000), quantity: decimalSchema.refine((value) => compareDecimals(value, "0") > 0 && value.split(".")[0]!.length <= 18), unitAmount: moneySchema });
+export const editableLineItemSchema = z.strictObject({ description: z.string().trim().max(1000), quantity: decimalSchema.refine((value) => decimalSchema.safeParse(value).success && compareDecimals(value, "0") > 0 && value.split(".")[0]!.length <= 17), unitAmount: moneySchema });
 const editable = {
     title: z.string().trim().max(200, "Title must be 200 characters or fewer.").optional(), justification: z.string().trim().max(10000).optional(), priority: prioritySchema.optional(),
     fields: z.record(z.string().max(64), z.unknown()).refine((fields) => Object.keys(fields).length <= 50).optional(), lineItems: z.array(editableLineItemSchema).max(100).optional(), monetaryAmount: moneySchema.nullable().optional(),
 };
 export const createRequestSchema = z.strictObject({ typeId: z.uuid(), formDefinitionVersionId: z.uuid(), ...editable });
 export const patchDraftSchema = z.strictObject({ expectedVersion: z.number().int().nonnegative(), formDefinitionVersionId: z.uuid().optional(), ...editable });
+export const withdrawRequestSchema = z.strictObject({ expectedVersion: z.number().int().nonnegative(), reason: z.string().optional() });
+export type WithdrawRequest = z.infer<typeof withdrawRequestSchema>;
 export const submitRequestSchema = z.strictObject({ expectedVersion: z.number().int().nonnegative() });
+export const resubmitRequestSchema = submitRequestSchema;
+export const revisionQuerySchema = z.strictObject({
+    pageNumber: z.coerce.number().int().min(1).max(10000).default(1), pageSize: z.coerce.number().int().min(1).max(100).default(20),
+});
+export const revisionMetadataSchema = z.strictObject({
+    id: z.uuid(), revisionNumber: z.number().int().positive(), formDefinitionVersionId: z.uuid(), submittedAt: z.iso.datetime(), submittedBy: z.uuid(), cycleId: z.uuid(),
+});
+export type RevisionQuery = z.infer<typeof revisionQuerySchema>;
+export type RevisionMetadata = z.infer<typeof revisionMetadataSchema>;
 export const requestRevisionSchema = z.strictObject({
     id: z.uuid(), revisionNumber: z.number().int().positive(), formDefinitionVersionId: z.uuid(), fields: z.record(z.string(), z.unknown()),
     lineItems: z.array(editableLineItemSchema.extend({ id: z.uuid(), totalAmount: moneySchema })), amount: moneySchema.nullable(), currency: z.string().nullable(), submittedAt: z.iso.datetime().nullable(), submittedBy: z.uuid().nullable(),
 });
+export const approverSummarySchema = z.strictObject({ slotId: z.uuid(), stageNumber: z.union([z.literal(1), z.literal(2)]), reviewer: userSummarySchema.pick({ id: true, displayName: true }), status: z.enum(["WAITING", "ACTIONABLE", "APPROVED", "REJECTED", "RETURNED", "CANCELLED"]) });
+export type ApproverSummary = z.infer<typeof approverSummarySchema>;
 export const requestDetailSchema = z.strictObject({
     id: z.uuid(), requestNumber: z.string().nullable(), typeId: z.uuid(), typeCode: z.string(), title: z.string(), priority: prioritySchema, status: requestStatusSchema,
     requester: userSummarySchema, department: departmentSummarySchema.nullable(), revisionNumber: z.number().int().positive().nullable(), currentCycleId: z.uuid().nullable(),
     createdAt: z.iso.datetime(), updatedAt: z.iso.datetime(), submittedAt: z.iso.datetime().nullable(), version: z.number().int().nonnegative(), justification: z.string(),
     workingRevision: requestRevisionSchema.nullable(), submittedRevision: requestRevisionSchema.nullable(), currentStageNumber: z.union([z.literal(1), z.literal(2)]).nullable(),
-    currentApprovers: z.array(z.strictObject({ slotId: z.uuid(), stageNumber: z.union([z.literal(1), z.literal(2)]), reviewer: userSummarySchema.pick({ id: true, displayName: true }), status: z.enum(["WAITING", "ACTIONABLE", "APPROVED", "REJECTED", "RETURNED", "CANCELLED"]) })), availableActions: z.array(z.string()),
+    currentApprovers: z.array(approverSummarySchema), availableActions: z.array(z.string()),
 });
 export const requestSummarySchema = requestDetailSchema.pick({ id: true, requestNumber: true, typeId: true, typeCode: true, title: true, priority: true, status: true, requester: true, department: true, revisionNumber: true, currentCycleId: true, createdAt: true, updatedAt: true, submittedAt: true, version: true });
 export type RequestSummary = z.infer<typeof requestSummarySchema>;
-export type PublishedRequestType = z.infer<typeof publishedRequestTypeSchema>;
-export type RequestField = z.infer<typeof requestFieldSchema>;
-export type Condition = z.infer<typeof conditionSchema>;
 export type CreateRequest = z.infer<typeof createRequestSchema>;
 export type PatchDraft = z.infer<typeof patchDraftSchema>;
 export type RequestRevision = z.infer<typeof requestRevisionSchema>;
 export type RequestDetail = z.infer<typeof requestDetailSchema>;
-export interface IFieldIssue { field: string; code: string; message: string; }
 
-function scaled(value: string): bigint
+export function hasOwnField(values: Record<string, unknown> | null | undefined, key: string): boolean
 {
-    const negative = value.startsWith("-");
-    const [whole = "0", fraction = ""] = value.replace(/^-/, "").split(".");
-    const result = BigInt(whole) * 1000000n + BigInt(fraction.padEnd(6, "0"));
-    return negative ? -result : result;
+    return Boolean(values) && Object.prototype.hasOwnProperty.call(values, key);
 }
-export function compareDecimals(left: string, right: string): number
+
+export function getFieldValue(values: Record<string, unknown> | null | undefined, key: string): unknown
 {
-    const difference = scaled(left) - scaled(right);
-    return difference < 0n ? -1 : difference > 0n ? 1 : 0;
+    return hasOwnField(values, key) ? values![key] : undefined;
 }
-export function itemTotal(quantity: string, unitAmount: string): string
+
+export function createFieldRecord(source?: Iterable<readonly [string, unknown]> | Record<string, unknown> | null): Record<string, unknown>
 {
-    const cents = (scaled(quantity) * scaled(unitAmount) + 5000000000n) / 10000000000n;
-    return `${cents / 100n}.${String(cents % 100n).padStart(2, "0")}`;
+    const record = Object.create(null) as Record<string, unknown>;
+    if (!source) return record;
+    const entries = Symbol.iterator in Object(source)
+        ? (source as Iterable<readonly [string, unknown]>)
+        : Object.entries(source as Record<string, unknown>);
+    for (const [key, value] of entries)
+    {
+        if (value !== undefined) record[key] = value;
+    }
+    return record;
 }
-export function sumAmounts(values: string[]): string
+
+export function setFieldValue(values: Record<string, unknown> | null | undefined, key: string, value: unknown): Record<string, unknown>
 {
-    const cents = values.reduce((sum, value) => sum + scaled(value) / 10000n, 0n);
-    return `${cents / 100n}.${String(cents % 100n).padStart(2, "0")}`;
+    const next = createFieldRecord(values);
+    if (value === undefined) delete next[key];
+    else next[key] = value;
+    return next;
 }
+
 export function isPresent(value: unknown): boolean
 {
-    return value !== undefined && value !== null && value !== "";
+    if (value === undefined || value === null) return false;
+    if (typeof value === "string") return value.trim() !== "";
+    return true;
 }
+
+function isTypedValue(kind: RequestField["kind"] | undefined, value: unknown): boolean
+{
+    if (kind === "BOOLEAN") return typeof value === "boolean";
+    if (typeof value !== "string") return false;
+    if (kind === "DECIMAL") return decimalSchema.safeParse(value).success;
+    if (kind === "DATE") return z.iso.date().safeParse(value).success;
+    return true;
+}
+
 export function matchesCondition(condition: Condition | undefined, values: Record<string, unknown>, fields: RequestField[]): boolean
 {
     if (!condition) return true;
-    const atom = (rule: z.infer<typeof atomSchema>): boolean =>
+    const atom = (rule: z.infer<typeof conditionAtomSchema>): boolean =>
     {
-        const value = values[rule.fieldKey];
+        const value = getFieldValue(values, rule.fieldKey);
         if (rule.operator === "PRESENT") return isPresent(value);
         if (!isPresent(value)) return false;
         const kind = fields.find((field) => field.key === rule.fieldKey)?.kind;
-        const equal = (candidate: unknown) => kind === "DECIMAL" && typeof value === "string" && typeof candidate === "string" && decimalSchema.safeParse(value).success && decimalSchema.safeParse(candidate).success ? compareDecimals(value, candidate) === 0 : value === candidate;
+        if (!isTypedValue(kind, value)) return false;
+        const equal = (candidate: unknown) =>
+        {
+            if (!isTypedValue(kind, candidate)) return false;
+            return kind === "DECIMAL" && typeof value === "string" && typeof candidate === "string"
+                ? compareDecimals(value, candidate) === 0
+                : value === candidate;
+        };
         if (rule.operator === "EQ") return equal(rule.value);
-        if (rule.operator === "NE") return !equal(rule.value);
+        if (rule.operator === "NE") return isTypedValue(kind, rule.value) && !equal(rule.value);
         if (rule.operator === "IN") return Array.isArray(rule.value) && rule.value.some(equal);
-        if (typeof value !== "string" || typeof rule.value !== "string") return false;
-        const order = kind === "DECIMAL" && decimalSchema.safeParse(value).success && decimalSchema.safeParse(rule.value).success ? compareDecimals(value, rule.value) : kind === "DATE" ? value.localeCompare(rule.value) : NaN;
+        if (typeof value !== "string" || typeof rule.value !== "string" || !isTypedValue(kind, rule.value)) return false;
+        if (kind !== "DECIMAL" && kind !== "DATE") return false;
+        const order = kind === "DECIMAL" ? compareDecimals(value, rule.value) : value.localeCompare(rule.value);
         return rule.operator === "GT" ? order > 0 : rule.operator === "GTE" ? order >= 0 : rule.operator === "LT" ? order < 0 : order <= 0;
     };
     return (condition.all?.every(atom) ?? true) && (condition.any?.some(atom) ?? true);
 }
+
 export function applicableFields(fields: RequestField[], values: Record<string, unknown>): RequestField[]
 {
     const done = new Set<string>();
     const visiting = new Set<string>();
-    const applicable: RequestField[] = [];
-    const effective: Record<string, unknown> = {};
+    const resolved = new Map<string, RequestField>();
+    const effective = createFieldRecord();
     const visit = (field: RequestField): void =>
     {
         if (done.has(field.key)) return;
@@ -118,15 +176,21 @@ export function applicableFields(fields: RequestField[], values: Record<string, 
         }
         if (matchesCondition(field.visibleWhen, effective, fields))
         {
-            effective[field.key] = values[field.key];
-            applicable.push({ ...field, required: field.required || !!field.requiredWhen && matchesCondition(field.requiredWhen, effective, fields) });
+            const rawValue = getFieldValue(values, field.key);
+            if (rawValue !== undefined) effective[field.key] = rawValue;
+            resolved.set(field.key, { ...field, required: field.required || !!field.requiredWhen && matchesCondition(field.requiredWhen, effective, fields) });
         }
         visiting.delete(field.key);
         done.add(field.key);
     };
     fields.forEach(visit);
-    return applicable;
+    return fields.flatMap((field) =>
+    {
+        const resolvedField = resolved.get(field.key);
+        return resolvedField ? [resolvedField] : [];
+    });
 }
+
 export function validateFields(definition: PublishedRequestType, values: Record<string, unknown>, complete: boolean): IFieldIssue[]
 {
     const visible = applicableFields(definition.fields, values);
@@ -134,19 +198,32 @@ export function validateFields(definition: PublishedRequestType, values: Record<
     const add = (key: string, code: string, message: string) => issues.push({ field: `fields.${key}`, code, message });
     for (const key of Object.keys(values))
     {
-        if (!visible.some((field) => field.key === key)) add(key, "FORM_FIELD_NOT_APPLICABLE", "This field is not applicable.");
+        if (getFieldValue(values, key) !== undefined && !visible.some((field) => field.key === key))
+        {
+            add(key, "FORM_FIELD_NOT_APPLICABLE", "This field is not applicable.");
+        }
     }
     for (const field of visible)
     {
-        const value = values[field.key];
-        if (!isPresent(value))
+        const supplied = hasOwnField(values, field.key) && values[field.key] !== undefined;
+        if (!supplied)
         {
             if (complete && field.required) add(field.key, "REQUIRED", `${field.label.en} is required.`);
             continue;
         }
+        const value = values[field.key];
         const constraints = field.constraints;
-        const valid = field.kind === "BOOLEAN" ? typeof value === "boolean" : typeof value === "string" && (
-            field.kind === "DECIMAL" ? decimalSchema.safeParse(value).success : field.kind === "DATE" ? z.iso.date().safeParse(value).success : field.kind === "SELECT" ? !!constraints?.options?.some((option) => option.value === value) : true);
+        const valid = field.kind === "BOOLEAN"
+            ? typeof value === "boolean"
+            : typeof value === "string" && (
+                field.kind === "DECIMAL"
+                    ? decimalSchema.safeParse(value).success
+                    : field.kind === "DATE"
+                        ? z.iso.date().safeParse(value).success
+                        : field.kind === "SELECT"
+                            ? !!constraints?.options?.some((option) => option.value === value)
+                            : value.trim().length > 0
+            );
         if (!valid)
         {
             add(field.key, "INVALID_VALUE", `${field.label.en} has an invalid value.`);

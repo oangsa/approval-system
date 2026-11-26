@@ -350,3 +350,26 @@ assets; the sequential rerun passed.
 M10 → FR-010 → AC-010 / DEC-AC-03,07 → additive AC-L7-01–07 → STS-L7-01–13 → shared decisions schemas, DecisionRules/DecisionService/DecisionRoutes, DecisionDialog and existing persistence. Supporting M03/M09/M12/M13/M14/M17 guards and history remain unchanged. The original reviewed contract/STS revision is 332a2b3; PR #79 approved head 5d2e8d8. See docs/labs/lab-07 for approval and actual execution records.
 
 Approval evidence: [record](../labs/lab-07/approval-record.md). Original sections remain historical baseline wording where superseded above; no unrelated behavior is changed.
+
+Issue #11 child criteria and clause ledger are in [acceptance criteria](../features/reporting-dashboard-timeline/acceptance-criteria.md) and [plan](../features/reporting-dashboard-timeline/plan.md); actual working-tree execution and review results are recorded in [verification](../features/reporting-dashboard-timeline/verification.md).
+
+## Issue #6 — draft and withdrawal implementation slice
+
+R01/R05, FR-019/023, AC-019/023 and BR-026/028/029/033/034/044 map to [versioned design](../features/draft-withdraw-lifecycle/sds.md), [DW-AC-01–09](../features/draft-withdraw-lifecycle/acceptance-criteria.md), [test specification](../features/draft-withdraw-lifecycle/sts.md) and [verification](../features/draft-withdraw-lifecycle/verification.md). Supporting draft creation/decision infrastructure remains owned by earlier feature slices; no second request engine or expansion into returned/resubmit ownership. Actual execution and independent review status belong in verification, not the frozen acceptance baseline.
+
+### Issue #8 R07/O16/O17 evidence
+
+R07/O16/O17, FR-024/033/034, AC-024/033/034 and BR-013–022/031/032/070 map to [versioned design](../features/configurable-forms-items-priority/sds.md), [CF-AC-01–12](../features/configurable-forms-items-priority/acceptance-criteria.md), [test specification](../features/configurable-forms-items-priority/sts.md), [Definition of Done](../features/configurable-forms-items-priority/dod.md) and [verification](../features/configurable-forms-items-priority/verification.md). PR #88 blocking findings B01–B06 remediation covers runtime stored-definition validation, omitted-vs-invalid-value distinction, prototype-free/own-property condition evaluation, typed `IN` membership controls, `BigInt` locale-aware currency formatting, and E2E conditionally-required rejection/focus/zero-mutation verification; complete returned resubmission lifecycle remains owned by Issue #7. Independent teammate review and branch promotion remain external gates.
+
+### Issue #9 R09/O10/O18/O19 evidence
+
+R09/O10/O18/O19, FR-026/031/035/036, AC-026/031/035/036 and BR-018/021/023–025/031/035/036/045/048/054 map to [feature SDS and contracts](../features/policies-routing-budget/sds.md), [PRB-AC-01–10](../features/policies-routing-budget/acceptance-criteria.md), [STS](../features/policies-routing-budget/sts.md), [DoD](../features/policies-routing-budget/dod.md) and [actual verification](../features/policies-routing-budget/verification.md). Implementation covers versioned policy configuration/publication, reviewer mapping management/eligibility, conditional resolution and exact hard ceilings, admin-only metadata lookup and authenticated client-loaded configuration pages. Supporting initial-submit integration reuses the existing request transaction and cycle snapshots. Owner selected the bounded Issue #7 integration seam on 2026-11-25: current policy resolution with historical department/form is tested; return/resubmit lifecycle and staged execution remain with their primary issues. Teammate review and reviewed sprint staging/dev/main promotions are separate gates.
+
+
+### Issue #7 feature traceability reference
+
+[RR acceptance criteria](../features/return-revision-resubmission/acceptance-criteria.md) and [STS](../features/return-revision-resubmission/sts.md) map M11, R02, R03, R04 and R11 and their source clauses to planned checks. [Verification](../features/return-revision-resubmission/verification.md) records actual status; planning is not passing evidence.
+
+## Issue #10 traceability
+
+[R08 / FR-025 / AC-025 / FT-025, R10 / FR-027 / AC-027 / FT-027, and O13 / FR-032 / AC-032 / FT-032](../features/two-stage-parallel-approvals/acceptance-criteria.md) map to the [STS](../features/two-stage-parallel-approvals/sts.md) and [verification record](../features/two-stage-parallel-approvals/verification.md). The record distinguishes implemented behavior, actual checks and pending delivery gates.

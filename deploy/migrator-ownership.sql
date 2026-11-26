@@ -17,6 +17,9 @@ ALTER TABLE public.roles OWNER TO approval_migrator;
 ALTER TABLE public.session_families OWNER TO approval_migrator;
 ALTER TABLE public.user_roles OWNER TO approval_migrator;
 ALTER TABLE public.users OWNER TO approval_migrator;
+ALTER TABLE public.approval_policies OWNER TO approval_migrator;
+ALTER TABLE public.configuration_audit_events OWNER TO approval_migrator;
+ALTER TABLE public.policy_idempotency_records OWNER TO approval_migrator;
 ALTER TABLE public.approval_cycles OWNER TO approval_migrator;
 ALTER TABLE public.approval_policy_versions OWNER TO approval_migrator;
 ALTER TABLE public.approval_slots OWNER TO approval_migrator;
@@ -33,6 +36,7 @@ ALTER TABLE public.requests OWNER TO approval_migrator;
 ALTER TABLE public.reviewer_assignment_rules OWNER TO approval_migrator;
 ALTER TABLE public.approval_decisions OWNER TO approval_migrator;
 ALTER TABLE public.decision_idempotency_records OWNER TO approval_migrator;
+ALTER TABLE public.request_type_idempotency_records OWNER TO approval_migrator;
 -- PostgreSQL also transfers sequences owned by this table's serial columns.
 ALTER TABLE drizzle.__drizzle_migrations OWNER TO approval_migrator;
 ALTER TYPE public.role_code OWNER TO approval_migrator;

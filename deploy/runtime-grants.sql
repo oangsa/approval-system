@@ -15,7 +15,8 @@ GRANT SELECT ON TABLE
     public.request_items, public.approval_cycles, public.approval_stages,
     public.approval_slots, public.audit_events, public.outbox_events,
     public.idempotency_records, public.approval_decisions,
-    public.decision_idempotency_records
+    public.decision_idempotency_records, public.request_type_idempotency_records, public.approval_policies,
+    public.configuration_audit_events, public.policy_idempotency_records
 TO approval_runtime;
 
 GRANT INSERT ON TABLE
@@ -23,12 +24,20 @@ GRANT INSERT ON TABLE
     public.request_revisions, public.request_items, public.approval_cycles,
     public.approval_stages, public.approval_slots, public.audit_events,
     public.outbox_events, public.idempotency_records, public.approval_decisions,
-    public.decision_idempotency_records
+    public.decision_idempotency_records, public.request_types,
+    public.request_type_versions, public.request_type_idempotency_records, public.approval_policies,
+    public.configuration_audit_events, public.policy_idempotency_records,
+    public.approval_policy_versions, public.reviewer_assignment_rules, public.budget_policies
 TO approval_runtime;
 
+GRANT UPDATE (version, is_enabled, draft, published_version_id) ON public.approval_policies TO approval_runtime;
+GRANT UPDATE (is_active) ON public.approval_policy_versions TO approval_runtime;
+GRANT UPDATE (department_id, reviewer_id, reviewer_user_ids, is_active, version) ON public.reviewer_assignment_rules TO approval_runtime;
+GRANT UPDATE (type_id, department_id, max_amount, is_active, version) ON public.budget_policies TO approval_runtime;
 GRANT UPDATE (auth_version) ON public.users TO approval_runtime;
 GRANT UPDATE (revoked_at) ON public.session_families TO approval_runtime;
 GRANT UPDATE (consumed_at) ON public.refresh_tokens TO approval_runtime;
+GRANT UPDATE (is_enabled, published_version_id, version, draft, updated_at) ON public.request_types TO approval_runtime;
 GRANT UPDATE (
     title, justification, priority, version, updated_at, working_revision_id,
     status, request_number, department_id, department_snapshot, submitted_at,
@@ -39,7 +48,7 @@ GRANT UPDATE (
 ) ON public.request_revisions TO approval_runtime;
 GRANT DELETE ON public.request_items TO approval_runtime;
 GRANT UPDATE (is_active) ON public.approval_cycles TO approval_runtime;
-GRANT UPDATE (status) ON public.approval_stages TO approval_runtime;
+GRANT UPDATE (status, activated_at) ON public.approval_stages TO approval_runtime;
 GRANT UPDATE (status, version) ON public.approval_slots TO approval_runtime;
 GRANT USAGE ON SEQUENCE public.request_number_sequence TO approval_runtime;
 

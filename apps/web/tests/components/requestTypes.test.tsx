@@ -101,3 +101,21 @@ test.each([false, true])("BUG-B02 Save Draft maps local title errors and focuses
     expect(screen.getByRole("alert")).not.toHaveTextContent("required");
     expect(create).not.toHaveBeenCalled();
 });
+
+test("DW-AC-04 unsaved type change warns and cancellation preserves draft input", async () =>
+{
+    vi.stubEnv("VITE_API_BASE_URL", "http://localhost/api");
+    server.use(http.post("http://localhost/api/v1/request-types/search", () => HttpResponse.json(types.slice(0, 2), { headers: { "X-Pagination": JSON.stringify({ currentPage: 1, pageSize: 100, totalPages: 1, totalCount: 2, hasPrevious: false, hasNext: false }) } })));
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+    const user = userEvent.setup();
+    render(<RouterProvider router={createMemoryRouter([{ path: "/", Component: RequestWizard }])} />);
+    await user.selectOptions(await screen.findByRole("combobox", { name: "Request type (required)" }), types[0]!.id);
+    await user.click(screen.getByRole("button", { name: /^Next$/ }));
+    await user.type(screen.getByRole("textbox", { name: "Title (required)" }), "Preserve my draft");
+    await user.click(screen.getByRole("button", { name: "Back" }));
+    await user.selectOptions(screen.getByRole("combobox", { name: "Request type (required)" }), types[1]!.id);
+    expect(confirm).toHaveBeenCalledWith("Changing the type starts a new draft and clears incompatible values. Continue?");
+    expect(screen.getByRole("combobox", { name: "Request type (required)" })).toHaveValue(types[0]!.id);
+    await user.click(screen.getByRole("button", { name: /^Next$/ }));
+    expect(screen.getByRole("textbox", { name: "Title (required)" })).toHaveValue("Preserve my draft");
+});

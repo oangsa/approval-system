@@ -1,0 +1,16 @@
+
+> test:integration
+> npm run test:integration --workspace @workflow/api
+
+
+> test:integration
+> vitest run --config vitest.postgres.config.ts
+
+
+ RUN  v4.1.10 <workspace>/apps/api
+
+
+ Test Files  11 passed (11)
+      Tests  120 passed (120)
+   Start at  11:21:40
+   Duration  173.45s (transform 2.43s, setup 0ms, import 30.28s, tests 135.51s, environment 4ms)

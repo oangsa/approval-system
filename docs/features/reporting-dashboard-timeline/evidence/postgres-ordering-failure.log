@@ -1,0 +1,59 @@
+
+> test:integration
+> npm run test:integration --workspace @workflow/api
+
+
+> test:integration
+> vitest run --config vitest.postgres.config.ts
+
+
+ RUN  v4.1.10 <workspace>/apps/api
+
+ ❯ |postgres| tests/postgres/reportingDashboard.test.ts (11 tests | 1 failed) 14945ms
+   × reports scope and group source rows with literal labels, dates and stable pagination 412ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  |postgres| tests/postgres/reportingDashboard.test.ts > reports scope and group source rows with literal labels, dates and stable pagination
+AssertionError: expected [ …(2) ] to deeply equal [ …(2) ]
+
+- Expected
++ Received
+
+  [
+    {
+      "count": 3,
+      "dimension": "DEPARTMENT",
+-     "key": "ff0688a7-d521-4296-8e26-f55d118c688f",
+-     "label": "Department ff0688a7-d521-4296-8e26-f55d118c688f",
++     "key": "UNASSIGNED",
++     "label": "No department",
+    },
+    {
+      "count": 3,
+      "dimension": "DEPARTMENT",
+-     "key": "UNASSIGNED",
+-     "label": "No department",
++     "key": "ff0688a7-d521-4296-8e26-f55d118c688f",
++     "label": "Department ff0688a7-d521-4296-8e26-f55d118c688f",
+    },
+  ]
+
+ ❯ tests/postgres/reportingDashboard.test.ts:63:63
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed | 10 passed (11)
+      Tests  1 failed | 105 passed (106)
+   Start at  07:32:57
+   Duration  123.33s (transform 1.78s, setup 0ms, import 21.53s, tests 96.18s, environment 2ms)
+
+npm error Lifecycle script `test:integration` failed with error:
+npm error code 1
+npm error path <workspace>\apps\api
+npm error workspace @workflow/api
+npm error location <workspace>\apps\api
+npm error command failed
+npm error command C:\WINDOWS\system32\cmd.exe /d /s /c vitest run --config vitest.postgres.config.ts

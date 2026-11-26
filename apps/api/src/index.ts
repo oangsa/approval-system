@@ -1,9 +1,15 @@
+import { ConfigurationService } from "./Applications/Policies/ConfigurationService";
+import { ConfigurationUnitOfWork } from "./Infrastructures/Database/Repositories/ConfigurationRepository";
+import { ReportingService } from "./Applications/Reporting/ReportingService";
+import { ReportingUnitOfWork } from "./Infrastructures/Database/Repositories/ReportingRepository";
 import { DecisionService } from "./Applications/Approvals/DecisionService";
 import { DecisionUnitOfWork } from "./Infrastructures/Database/Repositories/DecisionRepository";
 import { RequestService } from "./Applications/Requests/RequestService";
+import { RequestTypeService } from "./Applications/RequestTypes/RequestTypeService";
 import { ApprovalTaskService } from "./Applications/Approvals/ApprovalTaskService";
 import { ApprovalTaskUnitOfWork } from "./Infrastructures/Database/Repositories/ApprovalTaskRepository";
 import { RequestUnitOfWork } from "./Infrastructures/Database/Repositories/RequestRepository";
+import { RequestTypeUnitOfWork } from "./Infrastructures/Database/Repositories/RequestTypeRepository";
 import { node } from "@elysia/node";
 import { readEnvironment } from "./Infrastructures/Configuration/environment";
 import { Database } from "./Infrastructures/Database/Database";
@@ -17,7 +23,18 @@ async function main(): Promise<void>
     try
     {
         const identity = await createIdentityComposition(environment, database);
-        const application = new Application(node(), identity, () => database.Close(), new RequestService(new RequestUnitOfWork(database.connection)), new ApprovalTaskService(new ApprovalTaskUnitOfWork(database.connection)), new DecisionService(new DecisionUnitOfWork(database.connection)), () => database.Check());
+        const application = new Application(
+            node(),
+            identity,
+            () => database.Close(),
+            new RequestService(new RequestUnitOfWork(database.connection)),
+            new ApprovalTaskService(new ApprovalTaskUnitOfWork(database.connection)),
+            new DecisionService(new DecisionUnitOfWork(database.connection)),
+            () => database.Check(),
+            new RequestTypeService(new RequestTypeUnitOfWork(database.connection)),
+            new ReportingService(new ReportingUnitOfWork(database.connection)),
+            new ConfigurationService(new ConfigurationUnitOfWork(database.connection)),
+        );
         application.Start(environment.PORT, environment.HOST);
         let shuttingDown = false;
         const shutdown = async () =>

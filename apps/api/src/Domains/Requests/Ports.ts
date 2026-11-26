@@ -8,14 +8,17 @@ export interface IRequestRepository
     Replay(actorId: string, scope: string, key: string, bodyHash: string): Promise<RequestDetail | null>;
     Complete(actorId: string, scope: string, key: string, bodyHash: string, result: RequestDetail): Promise<void>;
     Read(id: string, lock?: boolean): Promise<RequestDetail | null>;
+    Revisions(id: string, query: import("@workflow/contracts").RevisionQuery): Promise<import("@workflow/contracts").IPageResult<import("@workflow/contracts").RevisionMetadata>>;
+    SubmittedRevision(id: string, revisionId: string, actorId: string, current: boolean): Promise<import("@workflow/contracts").RequestRevision | null>;
     Search(ownerId: string, query: RequestSearchQuery): Promise<IPageResult<RequestSummary>>;
-    Configuration(typeId: string, versionId: string, actorId: string): Promise<IConfiguration>;
+    Configuration(typeId: string, versionId: string, actorId: string, historicalDepartment?: import("@workflow/contracts").DepartmentSummary): Promise<IConfiguration>;
     Create(actor: IActor, content: CreateRequest, amount: string | null): Promise<string>;
-    Patch(id: string, actorId: string, content: CreateRequest, amount: string | null): Promise<void>;
+    Patch(id: string, actorId: string, content: CreateRequest, amount: string | null, replaceLineItems: boolean): Promise<void>;
+    Withdraw(detail: RequestDetail, actorId: string, reason?: string): Promise<void>;
     Submit(id: string, actorId: string, plan: IPlan): Promise<void>;
-    Types(query: RequestTypeSearch): Promise<IRequestTypeSearchResult>;
+    Types(query: RequestTypeSearch, allowDisabled?: boolean): Promise<IRequestTypeSearchResult>;
     TypeVersion(id: string, versionId: string): Promise<PublishedRequestType | null>;
     Type(id: string): Promise<PublishedRequestType | null>;
 }
 export interface IRequestUnitOfWork { Run<T>(operation: (repository: IRequestRepository) => Promise<T>): Promise<T>; }
-export type RequestMutation = CreateRequest | PatchDraft | { expectedVersion: number };
+export type RequestMutation = CreateRequest | PatchDraft | import("@workflow/contracts").WithdrawRequest;

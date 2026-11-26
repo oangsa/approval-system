@@ -7,12 +7,12 @@ import { ApprovalTaskError } from "../../../Domains/Approvals/ApprovalTaskRules"
 import type { IDecisionRepository, IDecisionUnitOfWork } from "../../../Domains/Approvals/DecisionPorts";
 import type { IDecisionState, IDecisionTransition } from "../../../Domains/Approvals/DecisionRules";
 import type { Database } from "../Database";
-import { approvalCycles, approvalDecisions, approvalSlots, approvalStages, decisionIdempotencyRecords, requestAuditEvents, requestOutboxEvents, requests, users } from "../schema";
+import { approvalCycles, approvalDecisions, approvalSlots, approvalStages, decisionIdempotencyRecords, requestAuditEvents, requestOutboxEvents, requestItems, requestRevisions, requests, users } from "../schema";
 import { RequestRepository } from "./RequestRepository";
 
 type Connection = Database["connection"];
 type Transaction = Parameters<Parameters<Connection["transaction"]>[0]>[0];
-const planSchema = z.object({ policy: z.object({ stages: z.array(z.object({ stageNumber: z.union([z.literal(1), z.literal(2)]), reviewerAssignmentKeys: z.array(z.string()).min(1) })).min(1).max(2) }) });
+const planSchema = z.object({ policy: z.object({ stages: z.array(z.object({ stageNumber: z.union([z.literal(1), z.literal(2)]), reviewerAssignmentKeys: z.array(z.string()).min(1) })).min(1).max(2) }), assignments: z.array(z.object({ assignmentKey: z.string(), reviewerId: z.string() })) });
 export class DecisionRepository implements IDecisionRepository
 {
     constructor(private readonly db: Transaction)
@@ -49,6 +49,14 @@ export class DecisionRepository implements IDecisionRepository
         if (slot.reviewerId !== actor.account.id) throw new ApprovalTaskError("NOT_FOUND");
         const plan = planSchema.safeParse(cycle.snapshot);
         if (!plan.success || plan.data.policy.stages.length !== stages.length) throw new ApprovalTaskError("INVALID_REQUEST_TRANSITION");
+        for (const stage of stages)
+        {
+            const keys = plan.data.policy.stages.find((configured) => configured.stageNumber === stage.stageNumber)?.reviewerAssignmentKeys ?? [];
+            // Snapshot tuples determine immutable required counts; persisted slots hold the effective reviewer.
+            const expected = new Map(keys.map((key) => [key, new Set(plan.data.assignments.filter((item) => item.assignmentKey === key).map((item) => item.reviewerId)).size]));
+            const actual = slots.filter((item) => item.stageId === stage.id);
+            if (actual.length !== [...expected.values()].reduce((total, count) => total + count, 0) || [...expected].some(([key, count]) => count === 0 || actual.filter((item) => item.assignmentKey === key).length !== count) || actual.some((item) => !expected.has(item.assignmentKey))) throw new ApprovalTaskError("INVALID_REQUEST_TRANSITION");
+        }
         return { requestId: request.id, cycleId: cycle.id, revisionId: cycle.revisionId, requestVersion: request.version,
             stages: stages.map((item) => ({ ...item, requiredKeys: plan.data.policy.stages.find((configured) => configured.stageNumber === item.stageNumber)?.reviewerAssignmentKeys ?? [] })), slots,
             context: { actorId: actor.account.id, roles: actor.roles, isActive: actor.account.isActive, requesterId: request.requesterId, requestStatus: request.status,
@@ -59,9 +67,16 @@ export class DecisionRepository implements IDecisionRepository
     public async Save(actorId: string, taskId: string, body: DecisionRequest, state: IDecisionState, transition: IDecisionTransition)
     {
         const decisionId = randomUUID(), now = new Date();
-        await this.db.insert(approvalDecisions).values({ id: decisionId, slotId: taskId, actorId, decision: body.decision === "APPROVE" ? "APPROVE" : "REJECT", reason: body.reason ?? null, decidedAt: now });
-        await this.db.update(approvalSlots).set({ status: body.decision === "APPROVE" ? "APPROVED" : "REJECTED", version: body.expectedVersion + 1 }).where(eq(approvalSlots.id, taskId));
-        if (transition.stageComplete) await this.db.update(approvalStages).set({ status: body.decision === "REJECT" ? "REJECTED" : "COMPLETED" }).where(eq(approvalStages.id, transition.stageId));
+        await this.db.insert(approvalDecisions).values({ id: decisionId, slotId: taskId, actorId, decision: body.decision, reason: body.reason ?? null, decidedAt: now });
+        await this.db.update(approvalSlots).set({ status: body.decision === "APPROVE" ? "APPROVED" : body.decision === "RETURN" ? "RETURNED" : "REJECTED", version: body.expectedVersion + 1 }).where(eq(approvalSlots.id, taskId));
+        if (transition.stageComplete) await this.db.update(approvalStages).set({ status: body.decision === "REJECT" ? "REJECTED" : body.decision === "RETURN" ? "CANCELLED" : "COMPLETED" }).where(eq(approvalStages.id, transition.stageId));
+        if (body.decision === "APPROVE" && transition.stageComplete && transition.requestStatus === "PENDING")
+        {
+            const next = state.stages.find((item) => item.stageNumber === transition.currentStageNumber)!;
+            await this.db.update(approvalStages).set({ status: "ACTIVE", activatedAt: now }).where(and(eq(approvalStages.id, next.id), eq(approvalStages.status, "WAITING")));
+            await this.db.update(approvalSlots).set({ status: "ACTIONABLE", version: sql`${approvalSlots.version} + 1` }).where(and(eq(approvalSlots.stageId, next.id), eq(approvalSlots.status, "WAITING")));
+            await this.db.insert(requestOutboxEvents).values({ id: randomUUID(), eventKey: `stage-activated:${next.id}`, eventType: "APPROVAL_STAGE_ACTIVATED", payload: { requestId: state.requestId, cycleId: state.cycleId } });
+        }
         if (transition.requestStatus !== "PENDING")
         {
             await this.db.update(approvalCycles).set({ isActive: false }).where(eq(approvalCycles.id, state.cycleId));
@@ -69,7 +84,16 @@ export class DecisionRepository implements IDecisionRepository
             if (unfinished.length) await this.db.update(approvalSlots).set({ status: "CANCELLED", version: sql`${approvalSlots.version} + 1` }).where(inArray(approvalSlots.id, unfinished.map((item) => item.id)));
             await this.db.update(approvalStages).set({ status: "CANCELLED" }).where(and(eq(approvalStages.cycleId, state.cycleId), inArray(approvalStages.status, ["ACTIVE", "WAITING"])));
         }
-        await this.db.update(requests).set({ status: transition.requestStatus, version: state.requestVersion + 1, updatedAt: now }).where(eq(requests.id, state.requestId));
+        let workingRevisionId: string | undefined;
+        if (body.decision === "RETURN")
+        {
+            const source = (await this.db.select().from(requestRevisions).where(eq(requestRevisions.id, state.revisionId)))[0]!;
+            workingRevisionId = randomUUID();
+            await this.db.insert(requestRevisions).values({ ...source, id: workingRevisionId, revisionNumber: source.revisionNumber + 1, submittedAt: null, submittedBy: null });
+            const items = await this.db.select().from(requestItems).where(eq(requestItems.revisionId, source.id));
+            if (items.length) await this.db.insert(requestItems).values(items.map((item) => ({ ...item, id: randomUUID(), revisionId: workingRevisionId! })));
+        }
+        await this.db.update(requests).set({ status: transition.requestStatus, workingRevisionId, version: state.requestVersion + 1, updatedAt: now }).where(eq(requests.id, state.requestId));
         await this.db.insert(requestAuditEvents).values({ id: randomUUID(), requestId: state.requestId, actorId, eventType: `DECISION_${body.decision}`, revisionId: state.revisionId, cycleId: state.cycleId, decisionId, occurredAt: now });
         if (transition.requestStatus !== state.context.requestStatus)
         {
@@ -92,8 +116,8 @@ export class DecisionRepository implements IDecisionRepository
         if (!current && !total) throw new ApprovalTaskError("NOT_FOUND");
         const rows = await this.db.select({ event: requestAuditEvents, actor: { id: users.id, displayName: users.displayName }, decision: approvalDecisions }).from(requestAuditEvents)
             .innerJoin(users, eq(requestAuditEvents.actorId, users.id)).leftJoin(approvalDecisions, eq(requestAuditEvents.decisionId, approvalDecisions.id))
-            .where(scope).orderBy(asc(requestAuditEvents.occurredAt), asc(requestAuditEvents.id)).limit(query.pageSize).offset((query.pageNumber - 1) * query.pageSize);
-        const items = rows.map(({ event, actor: eventActor, decision }) => auditTimelineItemSchema.parse({ id: event.id, requestId, cycleId: event.cycleId, revisionId: event.revisionId, eventType: event.eventType, actor: eventActor, occurredAt: event.occurredAt.toISOString(), note: decision?.reason ?? null,
+            .where(scope).orderBy(asc(requestAuditEvents.occurredAt), sql`case when ${requestAuditEvents.eventType} in (${"DECISION_APPROVE"}, ${"DECISION_REJECT"}, ${"DECISION_RETURN"}) then 1 when ${requestAuditEvents.eventType} in (${"REQUEST_APPROVED"}, ${"REQUEST_REJECTED"}, ${"REQUEST_RETURNED"}) then 2 else 0 end`, asc(requestAuditEvents.id)).limit(query.pageSize).offset((query.pageNumber - 1) * query.pageSize);
+        const items = rows.map(({ event, actor: eventActor, decision }) => auditTimelineItemSchema.parse({ id: event.id, requestId, cycleId: event.cycleId, revisionId: event.revisionId, eventType: event.eventType, actor: eventActor, occurredAt: event.occurredAt.toISOString(), note: decision?.reason ?? event.note ?? null,
             metadata: decision ? { decision: decision.decision, slotId: decision.slotId } : {} }));
         const totalPages = Math.ceil(total / query.pageSize);
         return { items, pagination: { currentPage: query.pageNumber, pageSize: query.pageSize, totalPages, totalCount: total, hasPrevious: query.pageNumber > 1, hasNext: query.pageNumber < totalPages } };

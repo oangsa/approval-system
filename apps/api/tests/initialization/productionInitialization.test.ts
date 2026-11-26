@@ -3,7 +3,7 @@ import { afterAll, expect, test } from "vitest";
 import { eq } from "drizzle-orm";
 import { createTestDatabase } from "../helpers/testDatabase";
 import { initializeProduction } from "../../src/Infrastructures/Database/productionInitialization";
-import { approvalPolicyVersions, departmentMemberships, departments, requests, requestTypes, requestTypeVersions, reviewerAssignmentRules, userRoles, users } from "../../src/Infrastructures/Database/schema";
+import { approvalPolicies, approvalPolicyVersions, departmentMemberships, departments, requests, requestTypes, requestTypeVersions, reviewerAssignmentRules, userRoles, users } from "../../src/Infrastructures/Database/schema";
 import { seededTypeId, seededVersionId } from "../../src/Infrastructures/Database/seedRequests";
 import { RequestRepository } from "../../src/Infrastructures/Database/Repositories/RequestRepository";
 import { resolvePlan } from "../../src/Domains/Requests/RequestRules";
@@ -27,6 +27,9 @@ test("fresh initialization is repeatable, preserves existing hashes/data and rol
         const beforeTypes = await tx.select().from(requestTypes);
         const beforeVersions = await tx.select().from(requestTypeVersions);
         const beforePolicies = await tx.select().from(approvalPolicyVersions);
+        const beforePolicyLifecycles = await tx.select().from(approvalPolicies);
+        expect(beforePolicyLifecycles).toHaveLength(1);
+        expect(beforePolicyLifecycles[0]?.publishedVersionId).toBe(beforePolicies[0]?.id);
         const beforeRules = await tx.select().from(reviewerAssignmentRules);
         const beforeDepartments = await tx.select().from(departments);
         expect(beforeUsers).toHaveLength(2);
@@ -48,6 +51,7 @@ test("fresh initialization is repeatable, preserves existing hashes/data and rol
         expect(await tx.select().from(requestTypes)).toEqual(beforeTypes);
         expect(await tx.select().from(requestTypeVersions)).toEqual(beforeVersions);
         expect(await tx.select().from(approvalPolicyVersions)).toEqual(beforePolicies);
+        expect(await tx.select().from(approvalPolicies)).toEqual(beforePolicyLifecycles);
         expect(await tx.select().from(reviewerAssignmentRules)).toEqual(beforeRules);
         expect(await tx.select().from(departments)).toEqual(beforeDepartments);
         expect(await tx.select().from(requests)).toEqual(existingRequests);
