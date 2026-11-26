@@ -52,6 +52,12 @@ test("scoped runtime grants support submission/decision without schema or accoun
         const draft = await requests.Mutate(requester, "create", null, { typeId: seededTypeId, formDefinitionVersionId: seededVersionId, title: "Runtime privilege fixture", justification: "Verify restricted database access", priority: "MEDIUM", fields: { category: "OPERATIONS" } }, randomUUID());
         const submitted = await requests.Mutate(requester, "submit", draft.id, { expectedVersion: 0 }, randomUUID());
         expect(submitted.status).toBe("PENDING");
+        const updatedStages = await tx.execute<{ activatedAt: Date }>(sql`
+            UPDATE public.approval_stages SET activated_at = activated_at
+            WHERE cycle_id = ${submitted.currentCycleId} RETURNING activated_at AS "activatedAt"
+        `);
+        expect(updatedStages).toHaveLength(1);
+        expect(updatedStages[0]!.activatedAt).not.toBeNull();
         const decisions = new DecisionService({ Run: async (operation) => operation(new DecisionRepository(tx)) });
         const decision = await decisions.Decide(reviewer, submitted.currentApprovers[0]!.slotId, { decision: "APPROVE", expectedVersion: 0 }, randomUUID());
         expect(decision.requestStatus).toBe("APPROVED");

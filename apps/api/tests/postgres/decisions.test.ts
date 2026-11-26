@@ -43,9 +43,9 @@ async function fixture(monetary = false, supportsLineItems = false, stages: ISta
     const draft = () => service.Mutate(actor, "create", null, content, randomUUID());
     return { actor, content, draft, ownerId, reviewerId, departmentId, typeId, versionId, policyId, assignmentId };
 }
-async function pending(parallel = false, future = false)
+async function pending(parallel = false, future = false, finalParallel = false)
 {
-    const item = await fixture(false, false, [{ stageNumber: 1, reviewerAssignmentKeys: parallel ? ["review", "peer"] : ["review"], slaBusinessMinutes: 480 }, ...(future ? [{ stageNumber: 2 as const, reviewerAssignmentKeys: ["review"], slaBusinessMinutes: 480 }] : [])]);
+    const item = await fixture(false, false, [{ stageNumber: 1, reviewerAssignmentKeys: parallel ? ["review", "peer"] : ["review"], slaBusinessMinutes: 480 }, ...(future ? [{ stageNumber: 2 as const, reviewerAssignmentKeys: finalParallel ? ["review", "peer"] : ["review"], slaBusinessMinutes: 480 }] : [])]);
     const peer = await fixture();
     if (parallel) await db.insert(reviewerAssignmentRules).values({ id: randomUUID(), assignmentKey: "peer", departmentId: item.departmentId, reviewerId: peer.reviewerId });
     async function actor(id: string)
@@ -57,9 +57,33 @@ async function pending(parallel = false, future = false)
     const reviewer = await actor(item.reviewerId), other = await actor(peer.reviewerId);
     const draft = await item.draft();
     const submitted = await service.Mutate(item.actor, "submit", draft.id, { expectedVersion: 0 }, randomUUID());
-    return { ...item, reviewer, other, submitted, slot: submitted.currentApprovers.find((slot) => slot.stageNumber === 1 && slot.reviewer.id === item.reviewerId)!.slotId, peerSlot: submitted.currentApprovers.find((slot) => slot.reviewer.id === peer.reviewerId)?.slotId };
+    return { ...item, reviewer, other, submitted, slot: submitted.currentApprovers.find((slot) => slot.stageNumber === 1 && slot.reviewer.id === item.reviewerId)!.slotId, peerSlot: submitted.currentApprovers.find((slot) => slot.stageNumber === 1 && slot.reviewer.id === peer.reviewerId)?.slotId };
 }
 const approve: DecisionRequest = { decision: "APPROVE", expectedVersion: 0 };
+async function contend<T>(first: () => Promise<T>, second: () => Promise<T>)
+{
+    let arrivals = 0;
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) =>
+    {
+        release = resolve;
+    });
+    const original = DecisionRepository.prototype.Lock;
+    const spy = vi.spyOn(DecisionRepository.prototype, "Lock").mockImplementation(async function (this: DecisionRepository, actor, taskId)
+    {
+        if (++arrivals === 2) release();
+        await gate;
+        return original.call(this, actor, taskId);
+    });
+    try
+    {
+        return await Promise.allSettled([first(), second()]);
+    }
+    finally
+    {
+        spy.mockRestore();
+    }
+}
 async function evidence(requestId: string)
 {
     const read = observer.connection;
@@ -127,23 +151,161 @@ test("partial ALL approval stays pending and rejection cancels unfinished slots"
     const rows = await db.select({ slot: approvalSlots }).from(approvalSlots).innerJoin(approvalStages, eq(approvalSlots.stageId, approvalStages.id)).where(eq(approvalStages.cycleId, rejection.submitted.currentCycleId!));
     expect(rows.map((row) => row.slot.status).sort()).toEqual(["CANCELLED", "CANCELLED", "REJECTED"]);
 });
-test.each([false, true])("two-stage completion fails closed without writes (parallel=%s)", async (parallel) =>
+test.each([false, true])("two-stage completion activates once and replay preserves activation (parallel=%s)", async (parallel) =>
 {
-    const item = await pending(parallel, true);
+    const item = await pending(parallel, true, parallel);
+    const futureSlot = item.submitted.currentApprovers.find((slot) => slot.stageNumber === 2 && slot.reviewer.id === item.reviewerId)!;
+    const before = await evidence(item.submitted.id);
+    const first = before.stages.find((stage) => stage.stageNumber === 1)!;
+    const future = before.stages.find((stage) => stage.stageNumber === 2)!;
+    expect(first.activatedAt).not.toBeNull();
+    expect(future).toMatchObject({ status: "WAITING", activatedAt: null });
+    await expect(decisions.Decide(item.reviewer, futureSlot.slotId, approve, randomUUID())).rejects.toMatchObject({ code: "APPROVAL_TASK_STALE" });
     if (parallel)
     {
         expect(await independent.Decide(item.other, item.peerSlot!, approve, randomUUID())).toMatchObject({ requestStatus: "PENDING", currentStageNumber: 1 });
+        expect((await evidence(item.submitted.id)).stages.find((stage) => stage.stageNumber === 2)?.activatedAt).toBeNull();
     }
-    const before = await evidence(item.submitted.id), key = randomUUID();
-    expect(before.stages.find((stage) => stage.stageNumber === 1)?.status).toBe("ACTIVE");
-    expect(before.slots.find((slot) => slot.id === item.slot)?.status).toBe("ACTIONABLE");
-    await expect(decisions.Decide(item.reviewer, item.slot, approve, key)).rejects.toMatchObject({ code: "INVALID_REQUEST_TRANSITION" });
+    const key = randomUUID();
+    const result = await decisions.Decide(item.reviewer, item.slot, approve, key);
+    expect(result).toMatchObject({ requestStatus: "PENDING", currentStageNumber: 2 });
+    const activated = await evidence(item.submitted.id);
+    expect(activated.stages.find((stage) => stage.stageNumber === 1)).toMatchObject({ status: "COMPLETED", activatedAt: first.activatedAt });
+    expect(activated.stages.find((stage) => stage.stageNumber === 2)).toMatchObject({ status: "ACTIVE", activatedAt: expect.any(Date) });
+    expect(activated.slots.find((slot) => slot.id === item.slot)?.dueAt).toEqual(before.slots.find((slot) => slot.id === item.slot)?.dueAt);
+    expect(activated.slots.find((slot) => slot.id === futureSlot.slotId)).toMatchObject({ status: "ACTIONABLE", version: 1, dueAt: null });
+    expect(activated.outbox.filter((event) => event.eventType === "APPROVAL_STAGE_ACTIVATED")).toEqual([expect.objectContaining({ eventKey: "stage-activated:" + future.id, payload: { requestId: item.submitted.id, cycleId: item.submitted.currentCycleId } })]);
+    expect(await independent.Decide(item.reviewer, item.slot, approve, key)).toEqual(result);
+    expect(await evidence(item.submitted.id)).toEqual(activated);
+    const finalVote = await independent.Decide(item.reviewer, futureSlot.slotId, { ...approve, expectedVersion: 1 }, randomUUID());
+    if (parallel)
+    {
+        expect(finalVote).toMatchObject({ requestStatus: "PENDING", currentStageNumber: 2 });
+        const futurePeer = item.submitted.currentApprovers.find((slot) => slot.stageNumber === 2 && slot.reviewer.id === item.other.account.id)!;
+        expect(await decisions.Decide(item.other, futurePeer.slotId, { ...approve, expectedVersion: 1 }, randomUUID())).toMatchObject({ requestStatus: "APPROVED", currentStageNumber: null });
+    }
+    else expect(finalVote).toMatchObject({ requestStatus: "APPROVED", currentStageNumber: null });
+});
+test("independent parallel votes activate and finalize each stage once", async () =>
+{
+    const item = await pending(true, true, true);
+    const first = (await contend(
+        () => decisions.Decide(item.reviewer, item.slot, approve, randomUUID()),
+        () => independent.Decide(item.other, item.peerSlot!, approve, randomUUID()),
+    )).map((result) =>
+    {
+        if (result.status === "rejected") throw result.reason;
+        return result.value;
+    });
+    expect(first.map((result) => result.currentStageNumber).sort()).toEqual([1, 2]);
+    const afterFirst = await evidence(item.submitted.id);
+    expect(afterFirst.outbox.filter((event) => event.eventType === "APPROVAL_STAGE_ACTIVATED")).toHaveLength(1);
+    const future = item.submitted.currentApprovers.filter((slot) => slot.stageNumber === 2);
+    const reviewerSlot = future.find((slot) => slot.reviewer.id === item.reviewerId)!;
+    const peerSlot = future.find((slot) => slot.reviewer.id === item.other.account.id)!;
+    const final = (await contend(
+        () => decisions.Decide(item.reviewer, reviewerSlot.slotId, { ...approve, expectedVersion: 1 }, randomUUID()),
+        () => independent.Decide(item.other, peerSlot.slotId, { ...approve, expectedVersion: 1 }, randomUUID()),
+    )).map((result) =>
+    {
+        if (result.status === "rejected") throw result.reason;
+        return result.value;
+    });
+    expect(final.map((result) => result.requestStatus).sort()).toEqual(["APPROVED", "PENDING"]);
+    const saved = await evidence(item.submitted.id);
+    expect(saved.votes).toHaveLength(4);
+    expect(saved.audit.filter((event) => event.decisionId)).toHaveLength(4);
+    expect(saved.outbox.filter((event) => event.eventType === "APPROVAL_STAGE_ACTIVATED")).toHaveLength(1);
+    expect(saved.request?.status).toBe("APPROVED");
+});
+
+test.each([{ stage: 1, terminal: "RETURN" }, { stage: 2, terminal: "REJECT" }] as const)("stage $stage approval versus $terminal serializes distinct slots", async ({ stage, terminal }) =>
+{
+    const item = await pending(true, true, true);
+    if (stage === 2)
+    {
+        await decisions.Decide(item.reviewer, item.slot, approve, randomUUID());
+        await independent.Decide(item.other, item.peerSlot!, approve, randomUUID());
+    }
+    const slots = item.submitted.currentApprovers.filter((slot) => slot.stageNumber === stage);
+    const reviewerSlot = slots.find((slot) => slot.reviewer.id === item.reviewerId)!;
+    const peerSlot = slots.find((slot) => slot.reviewer.id === item.other.account.id)!;
+    const version = stage === 1 ? 0 : 1;
+    const before = await evidence(item.submitted.id);
+    const outcomes = await contend(
+        () => decisions.Decide(item.reviewer, reviewerSlot.slotId, { ...approve, expectedVersion: version }, randomUUID()),
+        () => independent.Decide(item.other, peerSlot.slotId, { decision: terminal, reason: "Please review this request", expectedVersion: version }, randomUUID()),
+    );
+    expect(outcomes[1]).toMatchObject({ status: "fulfilled" });
+    if (outcomes[0]!.status === "rejected") expect(outcomes[0].reason).toMatchObject({ code: "APPROVAL_TASK_STALE" });
+    const saved = await evidence(item.submitted.id);
+    expect(saved.request?.status).toBe(terminal === "RETURN" ? "RETURNED" : "REJECTED");
+    const added = saved.votes.filter((vote) => !before.votes.some((old) => old.decision.id === vote.decision.id));
+    expect(added.map((vote) => vote.decision.decision)).toContain(terminal);
+    expect(added).toHaveLength(outcomes.filter((outcome) => outcome.status === "fulfilled").length);
+    expect(saved.audit.filter((event) => event.decisionId).length - before.audit.filter((event) => event.decisionId).length).toBe(added.length);
+    expect(saved.outbox.filter((event) => event.eventType.startsWith("DECISION")).length - before.outbox.filter((event) => event.eventType.startsWith("DECISION")).length).toBe(added.length);
+    expect(saved.stages.find((value) => value.stageNumber === 2)?.activatedAt).toEqual(before.stages.find((value) => value.stageNumber === 2)?.activatedAt);
+});
+
+test.each(["REJECT", "RETURN"] as const)("%s in stage two preserves prior votes and cancels siblings", async (decision) =>
+{
+    const item = await pending(true, true, true);
+    await decisions.Decide(item.reviewer, item.slot, approve, randomUUID());
+    await independent.Decide(item.other, item.peerSlot!, approve, randomUUID());
+    const future = item.submitted.currentApprovers.filter((slot) => slot.stageNumber === 2);
+    const reviewerSlot = future.find((slot) => slot.reviewer.id === item.reviewerId)!;
+    const peerSlot = future.find((slot) => slot.reviewer.id === item.other.account.id)!;
+    const result = await decisions.Decide(item.reviewer, reviewerSlot.slotId, { decision, reason: "Please revise the request", expectedVersion: 1 }, randomUUID());
+    expect(result.requestStatus).toBe(decision === "REJECT" ? "REJECTED" : "RETURNED");
+    const saved = await evidence(item.submitted.id);
+    expect(saved.votes.map((vote) => vote.decision.decision).sort()).toEqual(["APPROVE", "APPROVE", decision].sort());
+    expect(saved.slots.find((slot) => slot.id === peerSlot.slotId)?.status).toBe("CANCELLED");
+    expect(saved.stages.find((stage) => stage.stageNumber === 1)?.status).toBe("COMPLETED");
+    if (decision === "RETURN") expect(saved.request?.workingRevisionId).not.toBeNull();
+});
+test("approvers endpoint restricts current progress to owner and current participants", async () =>
+{
+    const item = await pending(true, true), http = await decisionHttp();
+    const path = "/requests/" + item.submitted.id + "/approvers";
+    const owner = await http.send("GET", path, item.actor);
+    expect(owner.status).toBe(200);
+    expect(owner.headers.get("cache-control")).toBe("private, no-store");
+    const rows = await owner.json() as Array<{ slotId: string; stageNumber: number; reviewer: { id: string; displayName: string }; status: string }>;
+    expect(rows).toHaveLength(3);
+    for (const row of rows)
+    {
+        expect(Object.keys(row).sort()).toEqual(["reviewer", "slotId", "stageNumber", "status"]);
+        expect(Object.keys(row.reviewer).sort()).toEqual(["displayName", "id"]);
+    }
+    expect(rows.map((row) => row.stageNumber)).toEqual([1, 1, 2]);
+    expect((await http.send("GET", path, item.reviewer)).status).toBe(200);
+    expect((await http.send("GET", path, item.other)).status).toBe(200);
+    expect((await http.send("GET", path, null)).status).toBe(401);
+    const outsider = await fixture();
+    await db.insert(userRoles).values({ userId: outsider.ownerId, roleCode: "ADMINISTRATOR" });
+    expect((await http.send("GET", path, outsider.actor)).status).toBe(404);
+    await decisions.Decide(item.other, item.peerSlot!, approve, randomUUID());
+    expect((await http.send("GET", path, item.other)).status).toBe(404);
+});
+
+test.each(["audit_events", "outbox_events"] as const)("activation failure at %s rolls back all effects and releases key", async (table) =>
+{
+    const item = await pending(false, true), key = randomUUID();
+    const before = await evidence(item.submitted.id);
+    await db.execute(sql.raw("CREATE FUNCTION issue10_activation_fault() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'injected activation fault'; END $$"));
+    await db.execute(sql.raw("CREATE TRIGGER issue10_activation_fault BEFORE INSERT ON " + table + " FOR EACH ROW EXECUTE FUNCTION issue10_activation_fault()"));
+    try
+    {
+        await expect(decisions.Decide(item.reviewer, item.slot, approve, key)).rejects.toThrow();
+    }
+    finally
+    {
+        await db.execute(sql.raw("DROP TRIGGER IF EXISTS issue10_activation_fault ON " + table));
+        await db.execute(sql.raw("DROP FUNCTION IF EXISTS issue10_activation_fault()"));
+    }
     expect(await evidence(item.submitted.id)).toEqual(before);
-    expect(await db.select().from(decisionIdempotencyRecords).where(eq(decisionIdempotencyRecords.key, key))).toHaveLength(0);
-    const futureSlot = item.submitted.currentApprovers.find((slot) => slot.stageNumber === 2)!;
-    await expect(decisions.Decide(item.reviewer, futureSlot.slotId, approve, randomUUID())).rejects.toMatchObject({ code: "APPROVAL_TASK_STALE" });
-    // A failed approval does not claim the key or prevent a recoverable rejection.
-    expect((await decisions.Decide(item.reviewer, item.slot, { ...approve, decision: "REJECT", reason: "Cannot proceed" }, key)).requestStatus).toBe("REJECTED");
+    expect(await decisions.Decide(item.reviewer, item.slot, approve, key)).toMatchObject({ requestStatus: "PENDING", currentStageNumber: 2 });
 });
 test.each(["APPROVE", "REJECT"] as const)("fault immediately before audit rolls decision, state, outbox and key back (%s)", async (decision) =>
 {

@@ -7,6 +7,7 @@ import type { PublishedRequestType, RequestDetail } from "@workflow/contracts";
 import { RequestResult } from "../../app/modules/requests/RequestResult";
 import { RequestDetailPage } from "../../app/modules/requests/RequestDetailPage";
 import { requestApi } from "../../app/api/requests";
+import { ApiFailure } from "../../app/api/errors";
 import { server } from "../helpers/server";
 
 const session = vi.hoisted(() => ({ generation: 0, user: { id: "owner", roles: ["REQUESTER"] } }));
@@ -102,13 +103,14 @@ test("approval tab groups current approvers by stage with readable states", asyn
         { slotId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", stageNumber: 1, reviewer: { id, displayName: "Bob" }, status: "ACTIONABLE" },
         { slotId: "cccccccc-cccc-4ccc-8ccc-cccccccccccc", stageNumber: 2, reviewer: { id, displayName: "Carol" }, status: "WAITING" },
     ] };
-    server.use(http.get(`http://localhost/api/v1/requests/${id}`, () => HttpResponse.json(staged)), http.get(`http://localhost/api/v1/request-types/${id}/versions/${versionId}`, () => HttpResponse.json(definition)));
+    server.use(http.get(`http://localhost/api/v1/requests/${id}`, () => HttpResponse.json(staged)), http.get(`http://localhost/api/v1/requests/${id}/approvers`, () => HttpResponse.json(staged.currentApprovers)), http.get(`http://localhost/api/v1/request-types/${id}/versions/${versionId}`, () => HttpResponse.json(definition)));
     render(<MemoryRouter initialEntries={[`/requests/${id}?tab=approval`]}><Routes><Route path="/requests/:id" element={<RequestDetailPage />} /></Routes></MemoryRouter>);
     expect(await screen.findByRole("region", { name: "Stage 1" })).toBeVisible();
     expect(screen.getByRole("region", { name: "Stage 2" })).toBeVisible();
     expect(screen.getByText("Stage 1 active")).toBeVisible();
-    expect(screen.getByText("All approvers must approve · 1 of 2 approved")).toBeVisible();
-    expect(screen.getByText("All approvers must approve · 0 of 1 approved")).toBeVisible();
+    expect(screen.getByText("All approvers must approve · 1 of 2 approved; 1 remaining")).toBeVisible();
+    expect(screen.getByText("All approvers must approve · 0 of 1 approved; 1 remaining")).toBeVisible();
+    expect(screen.getByText("Stage 2 (waiting)")).toBeVisible();
     expect(screen.getByText("Alice").closest("li")).toHaveTextContent("Approved");
     expect(screen.getByText("Bob").closest("li")).toHaveTextContent("Action required");
     expect(screen.getByText("Carol").closest("li")).toHaveTextContent("Waiting");
@@ -250,4 +252,70 @@ test.each(["RETURNED", "DRAFT", "PENDING"] as const)("%s overview selects the ap
     expect(screen.getByText(workingShown ? "Working item" : "Submitted item")).toBeVisible();
     expect(screen.queryByText(workingShown ? "Old option" : "New option")).not.toBeInTheDocument();
     expect(screen.getByText(workingShown ? /Total:.*10\.00/ : /Total:.*3\.00/)).toBeVisible();
+});
+
+test("approval tab loads, retries failures, and clears results on session change", async () =>
+{
+    const pending: { signal: AbortSignal | undefined; resolve: (value: RequestDetail["currentApprovers"]) => void; reject: (failure: unknown) => void }[] = [];
+    vi.spyOn(requestApi, "read").mockResolvedValue({ ...detail, submittedRevision: null });
+    vi.spyOn(requestApi, "approvers").mockImplementation((_id, signal) => new Promise((resolve, reject) => pending.push({ signal, resolve, reject })));
+    const view = render(<MemoryRouter initialEntries={[`/requests/${id}?tab=approval`]}><Routes><Route path="/requests/:id" element={<RequestDetailPage />} /></Routes></MemoryRouter>);
+    await waitFor(() => expect(pending).toHaveLength(1));
+    expect(screen.getByRole("status")).toHaveTextContent("Loading approval progress");
+    await act(async () => pending[0]!.reject(new Error("private failure")));
+    expect(screen.getByRole("alert")).toHaveTextContent("Could not load approval progress.");
+    expect(screen.queryByText("private failure")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+    await waitFor(() => expect(pending).toHaveLength(2));
+    await act(async () => pending[1]!.resolve([{ slotId: id, stageNumber: 1, reviewer: { id, displayName: "Private reviewer" }, status: "APPROVED" }]));
+    expect(screen.getByText("Stage 1 (completed)")).toBeVisible();
+    session.generation = 1;
+    session.user.id = "other";
+    view.rerender(<MemoryRouter initialEntries={[`/requests/${id}?tab=approval`]}><Routes><Route path="/requests/:id" element={<RequestDetailPage />} /></Routes></MemoryRouter>);
+    expect(screen.queryByText("Private reviewer")).not.toBeInTheDocument();
+    await waitFor(() => expect(pending).toHaveLength(3));
+    await act(async () => pending[2]!.resolve([]));
+    expect(screen.getByText("No current approvers.")).toBeVisible();
+});
+
+test("approval tab denies access without exposing reviewer data or retry", async () =>
+{
+    vi.spyOn(requestApi, "read").mockResolvedValue({ ...detail, submittedRevision: null });
+    vi.spyOn(requestApi, "approvers").mockRejectedValue(new ApiFailure({ kind: "http", status: 403, message: "private" }));
+    render(<MemoryRouter initialEntries={[`/requests/${id}?tab=approval`]}><Routes><Route path="/requests/:id" element={<RequestDetailPage />} /></Routes></MemoryRouter>);
+    expect(await screen.findByRole("alert")).toHaveTextContent("You do not have access to this content.");
+    expect(screen.queryByRole("button", { name: "Retry" })).not.toBeInTheDocument();
+    expect(screen.queryByText("private")).not.toBeInTheDocument();
+});
+
+test("approval summary determines active stage when request detail is stale", async () =>
+{
+    vi.spyOn(requestApi, "read").mockResolvedValue({ ...detail, submittedRevision: null, currentStageNumber: 1 });
+    vi.spyOn(requestApi, "approvers").mockResolvedValue([
+        { slotId: id, stageNumber: 1, reviewer: { id, displayName: "First" }, status: "APPROVED" },
+        { slotId: versionId, stageNumber: 2, reviewer: { id, displayName: "Second" }, status: "ACTIONABLE" },
+    ]);
+    render(<MemoryRouter initialEntries={[`/requests/${id}?tab=approval`]}><Routes><Route path="/requests/:id" element={<RequestDetailPage />} /></Routes></MemoryRouter>);
+    expect(await screen.findByText("Stage 2 (active)")).toBeVisible();
+    expect(screen.getByText("Stage 1 (completed)")).toBeVisible();
+    expect(screen.getByText("Stage 2 active")).toBeVisible();
+});
+
+test("late approval response from a prior session is ignored", async () =>
+{
+    const pending: { signal: AbortSignal | undefined; resolve: (value: RequestDetail["currentApprovers"]) => void }[] = [];
+    vi.spyOn(requestApi, "read").mockResolvedValue({ ...detail, submittedRevision: null });
+    vi.spyOn(requestApi, "approvers").mockImplementation((_id, signal) => new Promise((resolve) => pending.push({ signal, resolve })));
+    const view = render(<MemoryRouter initialEntries={[`/requests/${id}?tab=approval`]}><Routes><Route path="/requests/:id" element={<RequestDetailPage />} /></Routes></MemoryRouter>);
+    await waitFor(() => expect(pending).toHaveLength(1));
+    session.generation = 1;
+    session.user.id = "other";
+    view.rerender(<MemoryRouter initialEntries={[`/requests/${id}?tab=approval`]}><Routes><Route path="/requests/:id" element={<RequestDetailPage />} /></Routes></MemoryRouter>);
+    await waitFor(() => expect(pending).toHaveLength(2));
+    expect(pending[0]!.signal?.aborted).toBe(true);
+    await act(async () => pending[1]!.resolve([{ slotId: id, stageNumber: 1, reviewer: { id, displayName: "Current" }, status: "CANCELLED" }]));
+    expect(screen.getByText("Stage 1 (cancelled)")).toBeVisible();
+    await act(async () => pending[0]!.resolve([{ slotId: id, stageNumber: 1, reviewer: { id, displayName: "Previous" }, status: "ACTIONABLE" }]));
+    expect(screen.queryByText("Previous")).not.toBeInTheDocument();
+    expect(screen.getByText("Current")).toBeVisible();
 });
