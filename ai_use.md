@@ -1173,3 +1173,118 @@ reflection/output: Inspected the current clean branch and existing seven scoped 
 @kittipichcha
 prompt: Have you resolve the blocking? if not fix it
 reflection/output: Retrieved PR #92 submitted reviews and confirmed the missed P1: original reviewer tuple matching rejected supported reassignment, including a WAITING future slot. Delegated bounded diagnosis, test-first implementation and fresh independent review. Changed validation to preserve required per-stage/key counts while authorizing the effective persisted reviewer; retained identity, eligibility, self/version, locking, audit and immutable snapshot guarantees. Real PostgreSQL RED reproduced three failures; all seven new regressions then passed. Final verification passed 534 ordinary tests with one worker and the documented timeout allowance, 198 PostgreSQL tests, 52 browser tests, 13 release-tool tests, typecheck, lint and build. Disclosed the initial known frontend flake and incorrect-CWD listener failure. Fresh local review approved with no findings; prepared the tested repair for PR #92. No reassignment endpoint or schema was added. The submitted human CHANGES_REQUESTED review remains pending teammate re-review.
+
+## Issue #12 assistance
+
+@oangsa
+prompt: what about sprint 3 flow
+reflection/output: Checked live Sprint 3 issue ownership and dependencies for #12–#17. Recommended oangsa #12 then #14 then #16, and kittipichcha #13 then #15 then #17, assuming required earlier-sprint integrations are available. Identified #17's integration dependency on #12 and #11, #14's dependencies on #9 and #10, #15's dependency on #10, and the shared admin routing search coordination between #14 and #15 without imposing a dependency cycle. Existing assignments remain 20 estimated points per person. Created a local chore branch to append this required assistance record instead of developing on sprint-3-staging; no commit, push or GitHub mutations.
+
+## Issue #12 assistance
+
+@oangsa
+prompt: I want you to moved this change in to branch feature/12-request-search-filter-pagination then make it up-to-date with branch sprint-3-staging
+reflection/output: Fetched origin, preserved the uncommitted Sprint 3 assistance record in a temporary stash and a backup patch, switched to feature/12-request-search-filter-pagination, and fast-forwarded it from 23c30f9 to the fetched origin/sprint-3-staging at 3ad347c. Restored the assistance record without conflicts and appended this prompt. Verified the feature branch matches the fetched staging commit and the only working-tree change is the appended ai_use.md records. No new commit or push; application tests were not rerun because this was a clean fast-forward to existing staging code plus documentation only.
+
+## Issue #12 assistance
+
+@oangsa
+prompt: move current change to git fetch origin
+git checkout feature/12-request-search-filter-pagination-v2
+
+Idk how we got feature/12-request-search-filter-pagination from sprint 1
+reflection/output: Fetched origin and switched to the new local feature/12-request-search-filter-pagination-v2 branch tracking its origin counterpart at 3ad347c, preserving all uncommitted ai_use.md additions. The prior assistance record explains that the older feature branch had been reused and fast-forwarded locally from 23c30f9 to sprint-3-staging; its remote tracking branch remained behind. Verified the v2 branch has no committed divergence from origin and only ai_use.md is modified. No commit or push; application checks were not rerun for this branch switch and documentation-only change.
+
+## Issue #12 assistance
+
+@oangsa
+prompt: Implement
+
+## Type
+- Full-stack Feature
+
+## Sprint
+- Sprint 3
+- Planned primary owner: @oangsa — accountable for both API/DB and UI.
+- Planned PR reviewer: @kittipichcha — independent teammate review, never self-review.
+- Ownership allocation (2026-11-24): Balanced by existing issue estimates within each remaining sprint: 20 points per person in Sprint 2 and 20 points per person in Sprint 3, totaling 40 points each. #6 remains assigned to @oangsa at the owner's explicit request. The other teammate provides independent PR review. Estimates and frozen product/API/UI contracts are unchanged.
+- Rebalance unstarted work if actual effort diverges; estimates do not prove equal actual contributions.
+
+## Features
+- `R12` — Search Requests
+- `R13` — Status & Date Filters
+- `R14` — Sorting & Pagination
+
+## Depends on
+- #3
+- #4
+
+## Scope
+- Implement complete backend Domain/Application/Infrastructure/Presentation behavior, Drizzle data changes, shared Zod contracts, and permission validation needed for these features.
+- Implement complete React Router 7 frontend routes, shadcn/ui + Tailwind-only UI, states and integration for the same features. Keep public SSR and authenticated client-loaded data isolated; use the owner-approved D-01 stack from #1: Node.js 24, npm Workspaces, root `package-lock.json`, Elysia through `@elysia/node`, TypeScript, Vitest for unit/API/contract/real-PostgreSQL integration tests and Playwright for browser E2E, with OOP/Clean Architecture, PostgreSQL/Drizzle and shared Zod contracts in `packages/contracts`. This runtime/toolchain amendment overrides obsolete engineering runtime wording only; all 54 features, frozen business/API/UI behavior, ownership and effort estimates remain unchanged.
+- Extend authorized requests/reviewer task queries with shared bounded search/filter/sort/page contracts, exact X-Pagination transport and intentional PostgreSQL indexes.
+- Complete reusable DataTable collection controls, URL query state, debounced search, status/date filter chips and page/sort controls; render same authorized data/actions as desktop table or mobile cards.
+- Maintain owner/reviewer scope before filtering/counting and reuse existing collection/transport primitives; do not add alternative GET query endpoints.
+- Add/update applicable unit, API/contract, real-PostgreSQL integration, security, concurrency and Playwright/E2E tests. Version feature SDS, UI/API/data contract, numbered AC, STS and DoD before implementation; preserve feature traceability and record actual verification evidence in this issue.
+- Dependencies are integration prerequisites, not a ban on parallel implementation against the frozen shared contracts. Coordinate shared contract/schema changes and reuse earlier components; keep supporting consumer integrations separate from primary Feature ID ownership.
+
+## Acceptance criteria
+- [ ] POST `/api/v1/requests/search` and `/api/v1/approval-tasks/search` use pageNumber/pageSize/search/searchTerm/orderBy, return direct arrays and truthful X-Pagination exposed by approved CORS.
+- [ ] Request text search allowlists requestNumber/title; search conditions combine AND, comma-separated allowlisted searchTerm fields combine OR, both groups combine AND. Queue fields remain its own narrower allowed task attributes.
+- [ ] Status and UTC date filters honor requested EQUAL/GREATEROREQUAL/LESSEROREQUAL etc. boundary operators; UI Bangkok date presentation does not alter wire instants/calendar-only values.
+- [ ] One allowlisted sort field plus asc/desc uses stable UUID tiebreaker, giving deterministic equal-value/page-boundary results. Pages are 1-based; adopt documented default size 20/max100 unless recorded compatible default adjustment.
+- [ ] Bad fields/operators, hidden joins/raw SQL paths, malformed dates/page sizes/sort or unbounded query return `422 VALIDATION_ERROR` without query injection or private schema disclosure.
+- [ ] Authorization applies before result filtering, totalCount and pagination. Client requesterId/departmentId cannot widen visibility; foreign owner/task data and counts never leak.
+- [ ] Debounced search, status/date controls, removable chips, Reset filters and page-size/sort changes preserve query state in URL/back navigation and correctly request server pages.
+- [ ] Desktop table and compact mobile cards share result/query/action definitions; cards preserve identity/status/priority/due/actions without whole-page overflow or client-only filtering of paged data.
+- [ ] Distinguish empty dataset/no matches; accessible skeleton/retry/error states, canceled/ignored outdated fetches and logout/account-switch cache isolation prevent stale private display.
+- [ ] Run real query/API/header/allowlist/privacy integration and responsive URL-state/browser checks; record actual results and index/query documentation within issue.
+- [ ] Teammate reviews bounded implementation; feature PR targets `sprint-3-staging`, followed by reviewed promotion to `dev` then release-reviewed `main`. Run applicable typecheck, lint, build and planned tests; record actual commit/environment/results and disclose failures/skips. This planning issue asserts no implementation or passing tests.
+
+## Required branch
+`feature/12-request-search-filter-pagination`
+
+## Traceability
+- Features: `R12`, `R13`, `R14`
+- Functional requirements: `FR-037`, `FR-038`, `FR-039`
+- Business rules: `BR-068`, `BR-069`, `BR-072`, `BR-073`
+- Acceptance criteria: `AC-037`, `AC-038`, `AC-039`
+- Planned tests: `FT-037`, `FT-038`, `FT-039`; `EP-032`, `EP-043`, `UT-12`, `API-04`, `API-05`, `API-06`, `SEC-02`, `SEC-11`, `UI-16`, `UI-20`, `UI-23`, `E2E-13`, `E2E-15`
+- Contracts: `docs/specs/specifications.md` (frozen product v1.0), `docs/specs/api-specs.md` (frozen v1.0.1), `docs/specs/ui-specs.md` (frozen v1.0), `docs/specs/test.md` (planned verification).
+- Supporting design/traceability: `docs/specs/srs.md`, `docs/specs/system-sds.md`, `docs/specs/traceability.md`, `docs/sprints/sprint-3.md`, root `AGENTS.md`.
+- API paths use `/api/v1` unless explicitly stated otherwise; suffixes within a named endpoint family share its prefix. Preserve frozen contracts over older non-frozen sprint suggestions or scaffold defaults; no additional product behavior is implied.
+
+## Estimated effort
+- 4 points (planning estimate, not hours)
+- Includes business rules, backend/API, frontend/UI, shared schemas, migrations/data integration, negative/race testing, documentation and integration review. Planned review workload mirrors the other teammate’s owned effort.
+
+
+The required branch got created from sprint-1-staging idk how. So, I created this v2 instead. And if you got any question please feel free to ask me kindly.
+
+Advance Search and Filter please see these
+
+## maintenance-tracking-system
+- My own code, can be copy
+- https://github.com/oangsa/maintenance-tracking-system
+- https://github.com/oangsa/maintenance-tracking-system-api
+
+[Reference-only section omitted at the requesting owner's explicit direction.]
+reflection/output: Wrote feature SDS/API/UI/data contracts, numbered acceptance criteria, STS and DoD before implementation. Extended existing resource-scoped queries and shared collections on the v2 branch; retained Domain/Application authorization, direct arrays and exposed X-Pagination. Added compatible date equality/suffix operators, precise UTC queue comparison, statement-consistent request counts, intentional generated indexes, review URL validation/date/chip/page-size/sort controls, and regression coverage. Verification results are recorded in docs/features/request-search-filter-pagination/verification.md. No commit, push, issue comment, pull request, merge or deployment was authorized or performed.
+
+## Issue #12 assistance
+
+@oangsa
+prompt: [Owner exclusion instruction omitted verbatim because it names material the owner explicitly requested be excluded from this record.]
+reflection/output: Honored the owner's exclusion of the reference-only source name and code from this assistance record. Existing content was preserved.
+
+## Issue #12 assistance
+
+@oangsa
+prompt: [Continuation of the implementation request recorded above.]
+reflection/output: Final verification passed 559 ordinary tests, all 198 PostgreSQL tests with optional built-listener checks enabled and zero skips, four focused Chromium browser tests, typecheck, lint and build. Corrected a measured mobile chip overflow and preserved existing records. Prepared issue-comment.md and attempted to record the requested evidence on issue #12; automatic approval review rejected the connector's PR-oriented destination parameter as ambiguous. No comment was posted and no alternate write path was attempted. Source remains uncommitted on the v2 branch; teammate review and staged promotion remain pending.
+
+## Issue #12 assistance
+
+@oangsa
+prompt: commit  push and open pr to sprint-3-staging
+reflection/output: Inspected the complete diff and preserved prior assistance records and exclusions. Fetched origin and confirmed the feature starting commit matches sprint-3-staging. Split specifications, backend/contracts with tests, generated database indexes, UI with tests, and verification/assistance documentation into scoped atomic commits. Recorded the tested source commits and prepared the authorized v2 branch push and feature PR to sprint-3-staging with independent teammate review requested from @kittipichcha. Retained the actual 559 ordinary/198 PostgreSQL/four focused browser results and typecheck/lint/build evidence from the implementation session; source behavior was unchanged during publication preparation. No merge or deployment is authorized.
