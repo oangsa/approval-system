@@ -1,0 +1,43 @@
+# Draft and withdrawal lifecycle SDS — v1
+
+Issue #6; R01/R05; FR-019/023; BR-026/028/029/033/034/044; AC-019/023. Design recorded before implementation on 2026-11-24. Frozen product v1.0, API v1.0.1 §6.4, UI v1.0 §§8.2/9 take precedence. Required branch: feature/6-draft-withdraw-lifecycle; owner @oangsa; independent reviewer @kittipichcha.
+
+## API and domain
+
+Reuse RequestService, RequestRepository, strict shared contracts and existing actor/path/key replay. POST /api/v1/requests requires UUID key and published type/version; returns 201 RequestDetail for supplied-value-valid incomplete DRAFT. PATCH /api/v1/requests/:id/draft takes expectedVersion and changed working properties, preserves omissions and replaces the complete fields map when supplied; returns 200 RequestDetail. Hidden keys fail 422. No draft number, submitted snapshot, cycle or review task.
+
+POST /api/v1/requests/:id/withdraw requires UUID key and strict {expectedVersion,reason?}; reason is optional text, including empty text, with no invented mandatory/minimum rule. Returns 200 direct WITHDRAWN RequestDetail. Revalidate current Requester identity, owner, PENDING and expectedVersion. Foreign records return safe 404; invalid state/stale version returns 409. Replay precedes state/version checks; changed semantic body conflicts.
+
+## Data and concurrency
+
+Reuse request/revision/cycle/stage/slot and idempotency tables. Add nullable audit note by versioned Drizzle migration to retain optional withdrawal reason without changing submitted evidence. Lock request row first, matching decision lock order; then close current cycle and unfinished stages/slots. Increment cancelled slot versions and request version. Preserve completed slots, votes, submitted revision, cycle snapshot and number. Append actor/time REQUEST_WITHDRAWN audit and unique outbox event in same transaction as replay completion. Failed writes roll everything back. Simultaneous withdrawal/decision waits on shared request row and rechecks authoritative state; no decision can follow accepted withdrawal.
+
+## UI and service
+
+Authenticated /requests/:id/edit loads owner DRAFT plus authorized pinned definition after hydration and initializes existing editing session. Reuse wizard, service and API layers. Save from each step permits incompleteness, retains errors/inputs and uses POST once then PATCH changed fields with version. Show saved resume link; allow completed-step navigation. Warn on unsaved navigation/type changes. Stale form recovery remains explicit.
+
+Owner detail and list expose resume/withdraw according to authoritative state. Reuse composed dialog and shadcn buttons; optional reason, keyboard focus/escape, busy guard and stable unchanged retry key. Replace/refetch server DTO and list after success. Reload conflict safely, retaining optional reason. Review queue refetches on visibility/focus return; stale reviewer decisions remain server-denied. No sensitive SSR loader.
+
+## Review repair design — v2, 2026-11-24
+
+A single scrutinize pass follows the full draft/withdraw path and adds no new product endpoints. Preserve omitted line-item rows during partial PATCH instead of deleting/reinserting them. Normalize request UUID spelling before deriving durable replay scope. Draft conflict recovery offers an explicit confirmed reload (cancel retains inputs; only confirmation discards local edits); reinitialize the existing session with current version. Treat terminal permission errors as unavailable editor states and retain support Request ID on recoverable server errors. Explicit form-version review warns before excluding obsolete amount/item authority, then sends only applicable values. Withdrawal conflict reload reads request state without fetching unrelated form definitions; both Escape and Cancel propagate refreshed DTO, and permission loss during reload refreshes parent scope. Regression tests must fail before fixes and pass afterward. No second request engine, automatic overwriting of concurrent edits or broad refactor.
+
+The same trace additionally requires safe decimal refinement before BigInt arithmetic at the shared trust boundary, and validation when navigating forward to previously completed steps before rendering totals. Restore the frozen API §6.4 boundary: save the rendered immutable published definition; check active version at first submission rather than adding a premature draft-create gate.
+
+## PR #87 blocker repairs — v3, 2026-11-24
+
+B01: reconstruct saved content with its original immutable definition, apply explicit PATCH properties, then validate against the target definition. Reject incompatible retained monetary authorities without durable changes; clearing/replacement must be explicit. Historical published versions remain valid for draft saves; initial submit enforces the active version.
+
+B02: after a type change creates a different draft from an edit route, replace that route with the authoritative saved ID after clearing dirty state. Restore saved content and current wizard step through the edit route; unchanged retries must not create another draft. Cancelled type changes and the original draft remain untouched.
+
+B03: unchanged Save reads authoritative request state and verifies DRAFT, EDIT_DRAFT permission and the session's version before reporting success. Reuse API failure/recovery paths, retain recoverable inputs and retry keys, and avoid no-op PATCH writes, audit events or version increments. Clear prior success copy before every save attempt.
+
+## B04 review-summary repair — v4, 2026-11-24
+
+After updated-form review is accepted, update the definition and content together: retain compatible values, clear direct monetary amount unless the target uses direct monetary authority, and clear items unless the target supports them. Do not change any original content or definition when the warning is cancelled. Render review values, items and totals from the same canonical payload() used for persistence/submission. Cleared values must not reappear when navigating, saving/resuming, or later restoring a compatible form definition. Reuse existing frontend state/API/service paths; no backend, contracts, dependency or database changes.
+
+## PR #87 B05–B07 repairs — v5, 2026-11-24
+
+- B05: `RequestEditingSession` compares and serializes request content and idempotency bodies using a canonical recursive key-sorted representation so reordered dynamic `fields` keys from PostgreSQL `jsonb` or client normalization still treat unchanged drafts as equal and trigger authoritative `GET` revalidation without a `PATCH` write, version increment or audit event.
+- B06: `RequestRoutes` and `RequestRules` format all validation issue paths using canonical bracket notation (`lineItems[0].quantity`, `lineItems[0].description`), matching frozen API §7/§6.9 contracts; `RequestWizard` maps bracket-form error paths (`lineItems[i].<key>`) to the existing DOM input IDs (`lineItems.<i>.<key>`) for step routing, `aria-invalid` binding and focus restoration.
+- B07: `RequestOwnerActions` retains a direct trigger ref and accepts a parent `onFocusFallback` callback; `RequestDetailTabs` and `RequestListPage` preserve component identity across version updates so closing an unchanged withdrawal dialog restores focus to `Withdraw` when it survives, and focuses the updated detail status badge (`tabIndex={-1}`) or the list search input (`#request-list-search`) when `Withdraw` disappears.

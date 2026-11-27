@@ -17,7 +17,7 @@ test("search defaults and typed filters are strict", () =>
     expect(requestSearchSchema.parse({ search: [{ name: "submittedAt", condition: "GREATER", value: date }, { name: "submittedAt", condition: "ISNULL" }, { name: "title", condition: "CONTAINS", value: " title " }] }).search[2]).toMatchObject({ value: "title" });
     for (const query of [
         { search: [{ name: "requesterId", condition: "EQUAL", value: id }] },
-        { search: [{ name: "createdAt", condition: "EQUAL", value: date }] },
+        { search: [{ name: "createdAt", condition: "CONTAINS", value: date }] },
         { search: [{ name: "createdAt", condition: "ISNULL" }] },
         { search: [{ name: "submittedAt", condition: "ISNULL", value: date }] },
         { search: [{ name: "submittedAt", condition: "LESSER", value: "2026-02-30T00:00:00Z" }] },
@@ -28,4 +28,9 @@ test("search defaults and typed filters are strict", () =>
         { pageSize: 101 }, { orderBy: "id desc" },
     ]) expect(requestSearchSchema.safeParse(query).success).toBe(false);
     expect(requestSearchSchema.safeParse({ search: [{ name: "title", condition: "EQUAL", value: "😀".repeat(200) }] }).success).toBe(true);
+});
+
+test.each(["EQUAL", "NOTEQUAL", "GREATER", "LESSER", "GREATEROREQUAL", "LESSEROREQUAL"])("request dates support %s", (condition) =>
+{
+    expect(requestSearchSchema.safeParse({ search: [{ name: "createdAt", condition, value: date }] }).success).toBe(true);
 });

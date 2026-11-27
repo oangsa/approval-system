@@ -10,7 +10,9 @@ import { PageHeader } from "~/components/layout/PageHeader";
 import { fieldClassName } from "~/components/forms/FieldRenderer";
 import { Input } from "~/components/ui/input";
 import { useSession } from "~/modules/auth/sessionContext";
+import { RequestOwnerActions } from "./RequestOwnerActions";
 import { RequestStatus } from "./RequestResult";
+import { PriorityBadge } from "~/components/status/PriorityBadge";
 import { presentFailure, requestPriorityLabel, requestStatusLabel, requestTypeLabel } from "./requestPresentation";
 import { useRequestTypeSelection } from "./useRequestTypeSelection";
 import { RequestFiltersDialog } from "./RequestFiltersDialog";
@@ -42,6 +44,7 @@ function RequesterListContent({ generation, userId }: IRequesterListContentProps
     const [attempt, setAttempt] = useState(0);
     const scope = `${generation}:${userId}:${serialized}`;
     const recoveryScope = useRef("");
+    const searchInput = useRef<HTMLInputElement>(null);
     const [result, setResult] = useState<{ scope: string; items: RequestSummary[]; pagination: NonNullable<IRequestCollectionProps<RequestSummary>["pagination"]> } | null>(null);
     const [error, setError] = useState<{ scope: string; failure: unknown } | null>(null);
     function update(key: string, value: string)
@@ -118,7 +121,7 @@ function RequesterListContent({ generation, userId }: IRequesterListContentProps
     if (filters.submitted) chips.push({ key: "submitted", label: filters.submitted === "yes" ? "Submitted" : "Not submitted", remove: ["submitted"] });
     for (const [label, key, condition] of [["Number", "number", "numberCondition"], ["Title", "title", "titleCondition"]] as const)
     {
-        if (filters[key].trim()) chips.push({ key, label: `${label} ${filters[condition] === "EQUAL" ? "equals" : filters[condition] === "STARTWITH" ? "starts with" : "contains"} ${filters[key]}`, remove: [key, condition] });
+        if (filters[key].trim()) chips.push({ key, label: `${label} ${filters[condition] === "EQUAL" ? "equals" : filters[condition] === "STARTWITH" ? "starts with" : filters[condition] === "ENDWITH" ? "ends with" : "contains"} ${filters[key]}`, remove: [key, condition] });
     }
     const filtered = !!term || chips.length > 0;
     function link(item: RequestSummary)
@@ -134,7 +137,7 @@ function RequesterListContent({ generation, userId }: IRequesterListContentProps
                     <label htmlFor="request-list-search">Search</label>
                     <span className="relative">
                         <Search aria-hidden="true" className="pointer-events-none absolute left-3 top-3.5 size-4 text-muted-foreground" />
-                        <Input id="request-list-search" className="min-h-11 pl-9" value={input} maxLength={100} onChange={(event) => setInput(event.target.value)} placeholder="Request number or title…" />
+                        <Input ref={searchInput} id="request-list-search" className="min-h-11 pl-9" value={input} maxLength={100} onChange={(event) => setInput(event.target.value)} placeholder="Request number or title…" />
                     </span>
                 </div>
                 <ActionButton type="button" aria-haspopup="dialog" aria-expanded={dialogOpen} onClick={() => setDialogOpen(true)}>
@@ -158,11 +161,11 @@ function RequesterListContent({ generation, userId }: IRequesterListContentProps
             setParams(writeRequestFilters(params, draft));
             setDialogOpen(false);
         }} />}
-        {criteria.error ? <div role="alert" className="space-y-3 rounded-lg border p-6"><p>{criteria.error}</p><ActionButton type="button" className="min-h-11 border px-4" onClick={clearFilters}>Clear invalid criteria</ActionButton></div> : <RequestCollection items={visible?.items ?? []} pagination={visible?.pagination ?? null} loading={!visible && !visibleError} error={visibleError?.message ?? ""} requestId={visibleError?.requestId} onRetry={visibleError?.terminal ? undefined : () => setAttempt((value) => value + 1)} emptyMessage={filtered ? "No requests match your filters." : "No requests yet."} emptyAction={filtered ? <ActionButton type="button" className="min-h-11 border px-4 hover:bg-secondary" onClick={clearFilters}>Clear filters</ActionButton> : <p className="text-sm text-muted-foreground">Use New request to start your first approval.</p>} columns={["Request", "Number", "Type", "Priority", "Department", "Status", "Updated"]} mobileSortHeader sort={{ orderBy: criteria.query!.orderBy, fields: { Request: "title", Number: "requestNumber", Updated: "updatedAt" }, onChange: (sort) => update("sort", sort) }} paginationOptions={<div className="flex flex-wrap items-center gap-2">
+        {criteria.error ? <div role="alert" className="space-y-3 rounded-lg border p-6"><p>{criteria.error}</p><ActionButton type="button" className="min-h-11 border px-4" onClick={clearFilters}>Clear invalid criteria</ActionButton></div> : <RequestCollection items={visible?.items ?? []} pagination={visible?.pagination ?? null} loading={!visible && !visibleError} error={visibleError?.message ?? ""} requestId={visibleError?.requestId} onRetry={visibleError?.terminal ? undefined : () => setAttempt((value) => value + 1)} emptyMessage={filtered ? "No requests match your filters." : "No requests yet."} emptyAction={filtered ? <ActionButton type="button" className="min-h-11 border px-4 hover:bg-secondary" onClick={clearFilters}>Clear filters</ActionButton> : <p className="text-sm text-muted-foreground">Use New request to start your first approval.</p>} columns={["Request", "Number", "Type", "Priority", "Department", "Status", "Updated", "Actions"]} mobileSortHeader sort={{ orderBy: criteria.query!.orderBy, fields: { Request: "title", Number: "requestNumber", Updated: "updatedAt" }, onChange: (sort) => update("sort", sort) }} paginationOptions={<div className="flex flex-wrap items-center gap-2">
             <label htmlFor="request-list-size" className="text-muted-foreground">Rows per page</label>
             <select id="request-list-size" className={`${fieldClassName} min-h-11 w-auto`} value={criteria.query!.pageSize} onChange={(event) => update("pageSize", event.target.value)}>
                 {pageSizes.map((value) => <option key={value} value={value}>{value}</option>)}
             </select>
-        </div>} onPageChange={(next) => update("page", String(next))} renderDesktopRow={(item) => <><td className="max-w-sm p-3">{link(item)}</td><td className="whitespace-nowrap p-3 text-muted-foreground">{item.requestNumber ?? "Draft"}</td><td className="p-3">{requestTypeLabel(item.typeCode)}</td><td className="p-3">{requestPriorityLabel(item.priority)}</td><td className="p-3">{item.department?.name ?? "No department"}</td><td className="p-3"><RequestStatus status={item.status} /></td><td className="whitespace-nowrap p-3 text-muted-foreground">{dateLabel(item)}</td></>} renderMobileCard={(item) => <div className="space-y-3"><div className="flex flex-wrap items-center justify-between gap-2"><p className="text-xs font-medium text-muted-foreground">{item.requestNumber ?? "Draft"}</p><RequestStatus status={item.status} /></div>{link(item)}<p className="text-sm">{requestTypeLabel(item.typeCode)}</p><p className="text-sm text-muted-foreground">{requestPriorityLabel(item.priority)} · {item.department?.name ?? "No department"}</p><p className="border-t pt-3 text-xs text-muted-foreground">Updated {dateLabel(item)}</p></div>} />}
+        </div>} onPageChange={(next) => update("page", String(next))} renderDesktopRow={(item) => <><td className="max-w-sm p-3">{link(item)}</td><td className="whitespace-nowrap p-3 text-muted-foreground">{item.requestNumber ?? "Draft"}</td><td className="p-3">{requestTypeLabel(item.typeCode)}</td><td className="p-3"><PriorityBadge priority={item.priority} /></td><td className="p-3">{item.department?.name ?? "No department"}</td><td className="p-3"><RequestStatus status={item.status} /></td><td className="whitespace-nowrap p-3 text-muted-foreground">{dateLabel(item)}</td><td className="p-3"><RequestOwnerActions key={`${scope}:${item.id}`} detail={item} onChanged={() => setAttempt((value) => value + 1)} onUnavailable={() => setAttempt((value) => value + 1)} onFocusFallback={() => searchInput.current?.focus()} /></td></>} renderMobileCard={(item) => <div className="space-y-3"><div className="flex flex-wrap items-center justify-between gap-2"><p className="text-xs font-medium text-muted-foreground">{item.requestNumber ?? "Draft"}</p><RequestStatus status={item.status} /></div>{link(item)}<p className="text-sm">{requestTypeLabel(item.typeCode)}</p><p className="text-sm text-muted-foreground">{requestPriorityLabel(item.priority)} · {item.department?.name ?? "No department"}</p><p className="border-t pt-3 text-xs text-muted-foreground">Updated {dateLabel(item)}</p><RequestOwnerActions key={`${scope}:${item.id}`} detail={item} onChanged={() => setAttempt((value) => value + 1)} onUnavailable={() => setAttempt((value) => value + 1)} onFocusFallback={() => searchInput.current?.focus()} /></div>} />}
     </div>;
 }

@@ -41,7 +41,7 @@ function validateRequestFilters(filters: RequestFilters): IRequestFilterFailure 
     for (const [label, key, condition, max] of [["Request number", "number", "numberCondition", 100], ["Title", "title", "titleCondition", 200]] as const)
     {
         if (!filters[key].trim()) continue;
-        if (!["EQUAL", "CONTAINS", "STARTWITH"].includes(filters[condition])) return { error: `${label}: choose a valid condition.`, fields: [condition] };
+        if (!["EQUAL", "CONTAINS", "STARTWITH", "ENDWITH"].includes(filters[condition])) return { error: `${label}: choose a valid condition.`, fields: [condition] };
         if ([...filters[key].trim()].length > max) return { error: `${label} must be ${max} characters or fewer.`, fields: [key] };
     }
 }

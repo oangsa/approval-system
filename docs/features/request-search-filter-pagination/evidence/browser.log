@@ -1,0 +1,27 @@
+
+> test:e2e
+> playwright test e2e/reviewer-queue.spec.ts e2e/request-list-detail.spec.ts
+
+[2m[WebServer] [22m(node:16683) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[2m[WebServer] [22m(Use `node --trace-warnings ...` to show where the warning was created)
+[2m[WebServer] [22m(node:16879) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[2m[WebServer] [22m(Use `node --trace-warnings ...` to show where the warning was created)
+[2m[WebServer] [22m
+[2m[WebServer] [22m  dist/index.js  258.9kb
+[2m[WebServer] [22m
+[2m[WebServer] [22m⚡ Done in 15ms
+[2m[WebServer] [22m(node:16913) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[2m[WebServer] [22m(Use `node --trace-warnings ...` to show where the warning was created)
+
+Running 4 tests using 1 worker
+
+(node:16983) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:16983) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  1 [chromium] › e2e/request-list-detail.spec.ts:12:1 › REQ-E2E-01 and REQ-E2E-02: requester list and persisted detail (7.1s)
+  ✓  2 [chromium] › e2e/reviewer-queue.spec.ts:11:1 › assigned reviewer opens submitted request on desktop and mobile (1.9s)
+  ✓  3 [chromium] › e2e/reviewer-queue.spec.ts:52:1 › private review content is absent from SSR (8ms)
+  ✓  4 [chromium] › e2e/reviewer-queue.spec.ts:59:1 › review filters restore URL state, chips, page size and mobile layout (732ms)
+
+  4 passed (16.2s)

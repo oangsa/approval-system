@@ -44,6 +44,10 @@ test("request search scopes counts and stable pages and matches literal text and
         }
         expect(all).toEqual([...ids].sort());
         expect((await search({ searchTerm: { name: "title", value: "%_\\" } })).items.map((row) => row.id)).toEqual([ids[0]]);
+        expect((await search({ search: [{ name: "updatedAt", condition: "EQUAL", value: tied.toISOString() }] })).pagination.totalCount).toBe(count);
+        expect((await search({ search: [{ name: "updatedAt", condition: "NOTEQUAL", value: tied.toISOString() }] })).pagination.totalCount).toBe(0);
+        expect((await search({ search: [{ name: "title", condition: "ENDWITH", value: "%_\\ value" }] })).items.map((row) => row.id)).toEqual([ids[0]]);
+        expect((await search({ search: [{ name: "status", condition: "EQUAL", value: "DRAFT" }], searchTerm: { name: "requestNumber,title", value: "literal" } })).pagination.totalCount).toBe(Math.min(2, count));
         expect((await search({ search: [{ name: "submittedAt", condition: "ISNULL" }] })).pagination.totalCount).toBe(count);
         expect((await search({ search: [{ name: "submittedAt", condition: "ISNOTNULL" }] })).pagination.totalCount).toBe(0);
         expect((await search({ search: [{ name: "updatedAt", condition: "GREATER", value: "2026-01-01T00:00:00.123001Z" }] })).pagination.totalCount).toBe(0);

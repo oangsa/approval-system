@@ -27,13 +27,13 @@ function taskFixture()
             { slotId: "9bb91ef4-5982-405f-8bd5-61b5c3cf410b", stageNumber: 2, reviewer: { id, displayName: "Future" }, status: "WAITING" },
         ], availableActions: [],
     };
-    return { task, detail, definition };
+    return { task, detail, definition, revision: null };
 }
-test("shows progress for the current stage only", async () =>
+test("shows progress for the current and waiting stages", async () =>
 {
     vi.mocked(readApprovalTaskResult).mockResolvedValueOnce(taskFixture());
     render(<MemoryRouter initialEntries={["/reviews/task"]}><Routes><Route path="/reviews/:taskId" element={<ReviewTaskPage />} /></Routes></MemoryRouter>);
-    expect(await screen.findByText("1 of 2 approved; 1 remaining")).toBeVisible();
+    expect(await screen.findByText("All approvers must approve · 1 of 2 approved; 1 remaining")).toBeVisible();
 });
 test("denial shows a safe state without request content", async () =>
 {
@@ -64,7 +64,7 @@ test("retries a network failure without showing a support ID", async () =>
     expect(await screen.findByRole("alert")).toHaveTextContent("Could not load this task. Please try again.");
     expect(screen.queryByText(/Request ID:|private-id|private error/)).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Retry" }));
-    expect(await screen.findByText("1 of 2 approved; 1 remaining")).toBeVisible();
+    expect(await screen.findByText("All approvers must approve · 1 of 2 approved; 1 remaining")).toBeVisible();
 });
 
 test.each([500, 503])("shows safe support ID and retries after %i", async (status) =>
@@ -78,7 +78,7 @@ test.each([500, 503])("shows safe support ID and retries after %i", async (statu
     expect(screen.getByText(`Request ID: ${requestId}`)).toHaveClass("select-text");
     expect(alert).not.toHaveTextContent("private error");
     fireEvent.click(screen.getByRole("button", { name: "Retry" }));
-    expect(await screen.findByText("1 of 2 approved; 1 remaining")).toBeVisible();
+    expect(await screen.findByText("All approvers must approve · 1 of 2 approved; 1 remaining")).toBeVisible();
     expect(readApprovalTaskResult).toHaveBeenCalledTimes(2);
 });
 test("reloads a stale task without showing private content", async () =>
@@ -91,7 +91,7 @@ test("reloads a stale task without showing private content", async () =>
     expect(screen.queryByText("Saved request")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Retry" })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Reload task" }));
-    expect(await screen.findByText("1 of 2 approved; 1 remaining")).toBeVisible();
+    expect(await screen.findByText("All approvers must approve · 1 of 2 approved; 1 remaining")).toBeVisible();
 });
 
 test.each([403, 404])("a decision %i clears previously loaded private content", async (status) =>
@@ -109,7 +109,7 @@ test.each([403, 404])("a decision %i clears previously loaded private content", 
 });
 test("handled task shows read-only history without current request content or actions", async () =>
 {
-    vi.mocked(readApprovalTaskResult).mockResolvedValueOnce({ task: { ...taskFixture().task, status: "APPROVED", canCurrentUserDecide: false }, detail: null, definition: null });
+    vi.mocked(readApprovalTaskResult).mockResolvedValueOnce({ task: { ...taskFixture().task, status: "APPROVED", canCurrentUserDecide: false }, detail: null, definition: null, revision: taskFixture().detail.submittedRevision! });
     render(<MemoryRouter initialEntries={["/reviews/task"]}><Routes><Route path="/reviews/:taskId" element={<ReviewTaskPage />} /></Routes></MemoryRouter>);
     expect(await screen.findByRole("region", { name: "Handled task" })).toHaveTextContent("Read-only handled task");
     expect(screen.getByText("Persisted history")).toBeVisible();

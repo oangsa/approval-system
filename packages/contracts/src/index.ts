@@ -6,8 +6,12 @@ export type HealthResponse = z.infer<typeof healthResponseSchema>;
 
 export * from "./auth";
 export * from "./error";
+export * from "./requestTypes";
 export * from "./requests";
 export * from "./requestSearch";
 export * from "./approvalTasks";
 export * from "./requestCollection";
 export * from "./decisions";
+export * from "./policies";
+export * from "./reporting";
+export * from "./dashboard";

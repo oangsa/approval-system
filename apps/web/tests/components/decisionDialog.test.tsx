@@ -1,4 +1,5 @@
 import { useState } from "react";
+import userEvent from "@testing-library/user-event";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { afterAll, beforeAll, expect, test, vi } from "vitest";
 import type { DecisionRequest } from "@workflow/contracts";
@@ -65,4 +66,73 @@ test("Lab 7 dialog preserves approval without a reason", () =>
     render(<Harness decision="APPROVE" onConfirm={confirm} />);
     fireEvent.click(screen.getByRole("button", { name: "Confirm approval" }));
     expect(confirm).toHaveBeenCalledOnce();
+});
+
+test("RR-AC-09 return requires a correction reason and explains restarted review", () =>
+{
+    const confirm = vi.fn();
+    render(<Harness decision="RETURN" onConfirm={confirm} />);
+    const button = screen.getByRole("button", { name: "Confirm return" });
+    expect(button).toBeDisabled();
+    expect(screen.getByText(/Resubmission restarts review/)).toBeVisible();
+    fireEvent.change(screen.getByRole("textbox", { name: /Reason/ }), { target: { value: "Fix" } });
+    expect(button).toBeEnabled();
+    fireEvent.click(button);
+    expect(confirm).toHaveBeenCalledOnce();
+});
+
+test("return dialog keyboard flow retains reason through recoverable error and native cancel", async () =>
+{
+    function Controlled()
+    {
+        const [open, setOpen] = useState(false);
+        const [reason, setReason] = useState("");
+        const [error, setError] = useState("");
+        return <><button onClick={() => setOpen(true)}>Open return</button>{open && <DecisionDialog decision="RETURN" requestLabel="Request" stageNumber={1} reason={reason} pending={false} error={error} onReason={setReason} onCancel={() => setOpen(false)} onConfirm={() => setError("Temporary failure")} />}</>;
+    }
+    const user = userEvent.setup();
+    render(<Controlled />);
+    const trigger = screen.getByRole("button", { name: "Open return" });
+    trigger.focus();
+    await user.keyboard("{Enter}");
+    const reason = screen.getByRole("textbox", { name: /Reason/ });
+    expect(reason).toHaveFocus();
+    await user.type(reason, "   ");
+    expect(screen.getByRole("button", { name: "Confirm return" })).toBeDisabled();
+    await user.type(reason, "Please correct");
+    await user.keyboard("{Enter}");
+    expect(screen.getByRole("alert")).toHaveTextContent("Temporary failure");
+    expect(reason).toHaveValue("   Please correct");
+    fireEvent(screen.getByRole("dialog"), new Event("cancel", { cancelable: true }));
+    expect(trigger).toHaveFocus();
+    await user.keyboard("{Enter}");
+    expect(screen.getByRole("textbox", { name: /Reason/ })).toHaveValue("   Please correct");
+});
+
+test.each(["APPROVE", "REJECT"] as const)("%s restores focus and blocks pending actions", async (decision) =>
+{
+    const confirm = vi.fn();
+    function Controlled()
+    {
+        const [open, setOpen] = useState(false);
+        const [pending, setPending] = useState(false);
+        return <><button onClick={() => setOpen(true)}>Open</button><button onClick={() => setPending(true)}>Set pending</button>{open && <DecisionDialog decision={decision} requestLabel="Request" stageNumber={1} reason="Valid reason" pending={pending} error="" onReason={() => undefined} onCancel={() => setOpen(false)} onConfirm={confirm} />}</>;
+    }
+    const user = userEvent.setup();
+    render(<Controlled />);
+    const trigger = screen.getByRole("button", { name: "Open" });
+    await user.click(trigger);
+    expect(screen.getByRole("textbox", { name: /Reason/ })).toHaveFocus();
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(trigger).toHaveFocus();
+    await user.click(trigger);
+    fireEvent(screen.getByRole("dialog"), new Event("cancel", { cancelable: true }));
+    expect(trigger).toHaveFocus();
+    await user.click(trigger);
+    fireEvent.click(screen.getByRole("button", { name: "Set pending" }));
+    fireEvent(screen.getByRole("dialog"), new Event("cancel", { cancelable: true }));
+    fireEvent.submit(screen.getByRole("dialog").querySelector("form")!);
+    expect(screen.getByRole("dialog")).toBeVisible();
+    expect(screen.getByRole("button", { name: "Cancel" })).toBeDisabled();
+    expect(confirm).not.toHaveBeenCalled();
 });

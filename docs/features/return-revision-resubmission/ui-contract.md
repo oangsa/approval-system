@@ -1,0 +1,9 @@
+# UI implementation contract
+
+Status: Defined for issue #7; implementation and verification NOT RUN. Frozen product, API and UI specifications prevail. See [plan](plan.md) for source clauses and packet boundaries.
+
+The current reviewer has a keyboard-operable Return confirmation with required trimmed reason and an explanation that review restarts. Preserve focus restoration and validation errors. Returned owners resume the existing wizard with original number, department and pinned definition; lock type selection, retain safe inputs across validation, configuration and network errors, focus the relevant step/error, and require explicit reload/reconfirmation on stale version. Resubmission confirmation explains the new review cycle; display server-confirmed status and number only after success.
+
+Keep a stable operation key for retries of the same validated payload, including a lost accepted response after the server has moved to PENDING. A changed attempt receives a new key. Unchanged-content Save remains supported. Never store private content or action keys in browser storage or private SSR output. Logout/account change clears retained data; cancel or scope asynchronous results so old account or selection responses cannot replace current content.
+
+Current participants can page all submitted revision metadata and select immutable fields/items, version and cycle in History; provide loading, empty, error and retry states, without a current-value fallback on failed reads. Current authorized pinned metadata supplies labels. A former handler sees only the exact revision ID from the authorized handled task and its restricted timeline, using field keys when labels are unavailable; do not fetch current detail, revisions list, definition, comments or files. No comparison view. Use existing shared primitives, Lucide and semantic Tailwind, accessible labels/focus, responsive layout and reduced motion.

@@ -430,6 +430,23 @@ test("reviewer task HTTP enforces assignment, validation, pagination and due-dat
         expect(await (await search([{ name: "dueAt", condition, value: "2026-11-07T11:00:00Z" }])).json()).toHaveLength(1);
     for (const condition of ["LESSER", "LESSEROREQUAL"])
         expect(await (await search([{ name: "dueAt", condition, value: "2026-11-07T13:00:00Z" }])).json()).toHaveLength(1);
+    for (const [condition, value, count] of [
+        ["EQUAL", "2026-11-07T12:00:00Z", 1], ["NOTEQUAL", "2026-11-07T12:00:00Z", 0],
+        ["LESSER", "2026-11-07T12:00:00.000001Z", 1], ["GREATEROREQUAL", "2026-11-07T12:00:00.000001Z", 0],
+        ["GREATER", "2026-11-07T11:59:59.999999Z", 1], ["LESSEROREQUAL", "2026-11-07T11:59:59.999999Z", 0],
+    ] as const)
+    {
+        const result = await search([{ name: "dueAt", condition, value }]);
+        expect(result.status).toBe(200);
+        expect(await result.json()).toHaveLength(count);
+        expect(JSON.parse(result.headers.get("x-pagination")!).totalCount).toBe(count);
+    }
+    for (const body of [{ pageSize: 101 }, { pageNumber: 0 }, { orderBy: "dueAt asc, id desc" }, { searchTerm: { name: "requester.email", value: "private" } }, { search: [{ name: "departmentId", condition: "EQUAL", value: randomUUID() }] }])
+    {
+        const rejected = await send("POST", "/approval-tasks/search", JSON.stringify(body));
+        expect(rejected.status).toBe(422);
+        expect(await rejected.json()).toMatchObject({ code: "VALIDATION_ERROR" });
+    }
     const preflight = await app.handle(new Request("http://localhost/api/v1/approval-tasks/search", { method: "OPTIONS", headers: { origin: "http://localhost:3000", "access-control-request-method": "POST", "access-control-request-headers": "authorization,content-type" } }));
     expect(preflight.status).toBe(204);
 });
@@ -755,4 +772,182 @@ test("SEC-03 pinned definitions require matching current request context and sur
     await expect(service.Read(foreign.actor, draft.id)).rejects.toMatchObject({ code: "NOT_FOUND" });
     await db.update(requests).set({ status: "WITHDRAWN" }).where(eq(requests.id, draft.id));
     await expect(service.TypeVersion(reviewer, item.typeId, item.versionId, draft.id)).rejects.toMatchObject({ code: "NOT_FOUND" });
+});
+
+test("DW-AC-01–03 incomplete draft reconnect, omission preservation, map replacement and private access", async () =>
+{
+    const item = await fixture();
+    const content = { typeId: item.typeId, formDefinitionVersionId: item.versionId };
+    const draft = await service.Mutate(item.actor, "create", null, content, randomUUID());
+    const restartedDatabase = createTestDatabase();
+    try
+    {
+        const restarted = new RequestService(new RequestUnitOfWork(restartedDatabase.connection));
+        expect(await restarted.Read(item.actor, draft.id)).toEqual(draft);
+        expect(draft).toMatchObject({ status: "DRAFT", title: "", requestNumber: null, submittedRevision: null, revisionNumber: null, currentCycleId: null, currentApprovers: [] });
+        const updated = await restarted.Mutate(item.actor, "patch", draft.id, { expectedVersion: 0, title: "Saved incomplete", fields: { category: "OPERATIONS" } });
+        const cleared = await restarted.Mutate(item.actor, "patch", draft.id, { expectedVersion: 1, fields: {} });
+        expect(cleared.title).toBe(updated.title);
+        expect(cleared.workingRevision!.fields).toEqual({});
+        expect(await counts(draft.id)).toEqual({ cycles: 0, revisions: 1, audit: 3 });
+        await expect(restarted.Mutate(item.actor, "patch", draft.id, { expectedVersion: 2, fields: { reason: "hidden" } })).rejects.toMatchObject({ code: "FORM_FIELD_NOT_APPLICABLE" });
+        await expect(restarted.Mutate(item.actor, "patch", draft.id, { expectedVersion: 0, title: "stale" })).rejects.toMatchObject({ code: "REQUEST_STALE" });
+        const foreign = await fixture();
+        await expect(restarted.Read(foreign.actor, draft.id)).rejects.toMatchObject({ code: "NOT_FOUND" });
+        await expect(restarted.Mutate(foreign.actor, "patch", draft.id, { expectedVersion: 2, title: "foreign" })).rejects.toMatchObject({ code: "NOT_FOUND" });
+        const reviewer = await reviewerActor(item.reviewerId);
+        await expect(restarted.Read(reviewer, draft.id)).rejects.toMatchObject({ code: "NOT_FOUND" });
+        const queue = await new ApprovalTaskService(new ApprovalTaskUnitOfWork(db)).Search(reviewer, approvalTaskSearchSchema.parse({}));
+        expect(queue.items).toEqual([]);
+        expect(await restarted.Read(item.actor, draft.id)).toEqual(cleared);
+    }
+    finally
+    {
+        await restartedDatabase.Close();
+    }
+});
+
+test("review: preserve rendered published draft version and enforce active version at submission", async () =>
+{
+    const item = await fixture();
+    const nextId = randomUUID();
+    const definition = { ...await service.Type(item.actor, item.typeId), versionId: nextId, versionNumber: 2 };
+    await db.insert(requestTypeVersions).values({ id: nextId, typeId: item.typeId, versionNumber: 2, definition });
+    await db.update(requestTypes).set({ publishedVersionId: nextId }).where(eq(requestTypes.id, item.typeId));
+    const published = await service.Types(item.actor, requestTypeSearchSchema.parse({ search: [{ name: "code", condition: "EQUAL", value: `T${item.typeId}` }] }));
+    expect(published.items).toEqual([expect.objectContaining({ id: item.typeId, code: `T${item.typeId}`, versionNumber: 2 })]);
+    const saved = await service.Mutate(item.actor, "create", null, item.content, randomUUID());
+    expect(saved.workingRevision!.formDefinitionVersionId).toBe(item.versionId);
+    await expect(service.Mutate(item.actor, "submit", saved.id, { expectedVersion: 0 }, randomUUID())).rejects.toMatchObject({ code: "FORM_DEFINITION_CHANGED" });
+    expect(await service.Read(item.actor, saved.id)).toEqual(saved);
+    const reviewed = await service.Mutate(item.actor, "patch", saved.id, { expectedVersion: 0, formDefinitionVersionId: nextId });
+    expect((await service.Mutate(item.actor, "submit", saved.id, { expectedVersion: reviewed.version }, randomUUID())).status).toBe("PENDING");
+});
+
+test("EP-038 withdrawal HTTP authenticates, validates strict input/key and returns authoritative direct detail", async () =>
+{
+    const item = await fixture();
+    const draft = await item.draft();
+    const pending = await service.Mutate(item.actor, "submit", draft.id, { expectedVersion: 0 }, randomUUID());
+    const env = readEnvironment({ NODE_ENV: "test", DATABASE_URL: process.env.TEST_DATABASE_URL, AUTH_JWT_SECRET: "issue6-test-only-secret-01234567890123456789", AUTH_JWT_ISSUER: "issue6-tests", AUTH_JWT_AUDIENCE: "issue6-api", AUTH_ALLOWED_ORIGINS: "http://localhost:3000", AUTH_COOKIE_SECURE: "false" });
+    const app = createApplication(undefined, await createIdentityComposition(env, database), service);
+    const { TokenProvider } = await import("../../src/Infrastructures/Security/TokenProvider");
+    const tokens = new TokenProvider(env.AUTH_JWT_SECRET, { Now: () => new Date() }, env.AUTH_JWT_ISSUER, env.AUTH_JWT_AUDIENCE);
+    const token = await tokens.Sign(item.ownerId, item.actor.family.id, 0);
+    const send = (body: unknown, key: string | null = randomUUID(), authorization = `Bearer ${token}`) => app.handle(new Request(`http://localhost/api/v1/requests/${draft.id}/withdraw`, { method: "POST", headers: { authorization, "content-type": "application/json", ...(key === null ? {} : { "Idempotency-Key": key }) }, body: JSON.stringify(body) }));
+    expect((await send({ expectedVersion: 1 }, randomUUID(), "")).status).toBe(401);
+    for (const body of [{}, { expectedVersion: 1, reason: null }, { expectedVersion: 1, actorId: item.ownerId }]) expect((await send(body)).status).toBe(422);
+    expect((await send({ expectedVersion: 1 }, null)).status).toBe(422);
+    expect((await send({ expectedVersion: 0 })).status).toBe(409);
+    expect(await service.Read(item.actor, draft.id)).toEqual(pending);
+    const key = randomUUID();
+    const response = await send({ expectedVersion: 1 }, key);
+    expect(response.status).toBe(200);
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    const result = requestDetailSchema.parse(await response.json());
+    expect(result).toMatchObject({ status: "WITHDRAWN", version: 2, availableActions: [] });
+    expect(await (await send({ expectedVersion: 1 }, key)).json()).toEqual(result);
+    expect((await send({ expectedVersion: 1, reason: "changed" }, key)).status).toBe(409);
+    expect((await send({ expectedVersion: 2 })).status).toBe(409);
+});
+
+test("review: draft PATCH preserves omitted line-item identities and explicit replacement still replaces", async () =>
+{
+    const item = await fixture(true, true);
+    const draft = await item.draft();
+    const patched = await service.Mutate(item.actor, "patch", draft.id, { expectedVersion: 0, title: "Title only" });
+    expect(patched.workingRevision!.lineItems).toEqual(draft.workingRevision!.lineItems);
+    const replaced = await service.Mutate(item.actor, "patch", draft.id, { expectedVersion: 1, lineItems: [] });
+    expect(replaced.workingRevision!.lineItems).toEqual([]);
+});
+
+test("review: withdrawal resource UUID spelling cannot bypass canonical idempotency scope", async () =>
+{
+    const item = await fixture();
+    const draft = await item.draft();
+    const submitted = await service.Mutate(item.actor, "submit", draft.id, { expectedVersion: 0 }, randomUUID());
+    const key = randomUUID(), body = { expectedVersion: submitted.version };
+    const first = await service.Mutate(item.actor, "withdraw", draft.id.toUpperCase(), body, key);
+    expect(await service.Mutate(item.actor, "withdraw", draft.id, body, key)).toEqual(first);
+    const audit = await db.select().from(requestAuditEvents).where(eq(requestAuditEvents.requestId, draft.id));
+    expect(audit.filter((event) => event.eventType === "REQUEST_WITHDRAWN")).toHaveLength(1);
+});
+
+test("review: malformed line-item quantity is a field-level HTTP 422 with no persisted draft", async () =>
+{
+    const item = await fixture(true, true);
+    const env = readEnvironment({ NODE_ENV: "test", DATABASE_URL: process.env.TEST_DATABASE_URL, AUTH_JWT_SECRET: "issue6-review-only-secret-01234567890123456789", AUTH_JWT_ISSUER: "issue6-review", AUTH_JWT_AUDIENCE: "issue6-api", AUTH_ALLOWED_ORIGINS: "http://localhost:3000", AUTH_COOKIE_SECURE: "false" });
+    const app = createApplication(undefined, await createIdentityComposition(env, database), service);
+    const { TokenProvider } = await import("../../src/Infrastructures/Security/TokenProvider");
+    const token = await new TokenProvider(env.AUTH_JWT_SECRET, { Now: () => new Date() }, env.AUTH_JWT_ISSUER, env.AUTH_JWT_AUDIENCE).Sign(item.ownerId, item.actor.family.id, 0);
+    const send = (content: CreateRequest) => app.handle(new Request("http://localhost/api/v1/requests", { method: "POST", headers: { authorization: `Bearer ${token}`, "content-type": "application/json", "Idempotency-Key": randomUUID() }, body: JSON.stringify(content) }));
+    const response = await send({ ...item.content, lineItems: [{ description: "Part", quantity: "invalid", unitAmount: "1.00" }] });
+    expect(response.status).toBe(422);
+    expect(await response.json()).toMatchObject({ code: "VALIDATION_ERROR", details: expect.arrayContaining([expect.objectContaining({ field: "lineItems[0].quantity" })]) });
+    expect(await db.select().from(requests).where(eq(requests.requesterId, item.ownerId))).toEqual([]);
+    const created = await send(item.content);
+    expect(created.status).toBe(201);
+    const draft = requestDetailSchema.parse(await created.json());
+    const invalidPatch = await app.handle(new Request(`http://localhost/api/v1/requests/${draft.id}/draft`, {
+        method: "PATCH",
+        headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+        body: JSON.stringify({
+            expectedVersion: draft.version,
+            lineItems: [
+                { description: "Part 1", quantity: "invalid", unitAmount: "1.00" },
+                { description: "Part 2", quantity: "2", unitAmount: "bad" },
+            ],
+        }),
+    }));
+    expect(invalidPatch.status).toBe(422);
+    expect(await invalidPatch.json()).toMatchObject({
+        code: "VALIDATION_ERROR",
+        details: expect.arrayContaining([
+            expect.objectContaining({ field: "lineItems[0].quantity" }),
+            expect.objectContaining({ field: "lineItems[1].unitAmount" }),
+        ]),
+    });
+    expect(await service.Read(item.actor, draft.id)).toEqual(draft);
+});
+
+test("B01 direct amount migration retains omissions and requires explicit clearing for item authority", async () =>
+{
+    const item = await fixture(true);
+    const draft = await service.Mutate(item.actor, "create", null, { ...item.content, monetaryAmount: "5000.00" }, randomUUID());
+    const definition = await service.Type(item.actor, item.typeId);
+    const nextId = randomUUID();
+    await db.insert(requestTypeVersions).values({ id: nextId, typeId: item.typeId, versionNumber: 2, definition: { ...definition, versionId: nextId, versionNumber: 2, supportsLineItems: true } });
+    await db.update(requestTypes).set({ publishedVersionId: nextId }).where(eq(requestTypes.id, item.typeId));
+    const before = await counts(draft.id);
+    await expect(service.Mutate(item.actor, "patch", draft.id, { expectedVersion: 0, formDefinitionVersionId: nextId })).rejects.toMatchObject({ code: "VALIDATION_ERROR", details: expect.arrayContaining([expect.objectContaining({ field: "monetaryAmount" })]) });
+    expect(await service.Read(item.actor, draft.id)).toEqual(draft);
+    expect(await counts(draft.id)).toEqual(before);
+    const ordinary = await service.Mutate(item.actor, "patch", draft.id, { expectedVersion: 0, title: "Preserve amount" });
+    expect(ordinary.workingRevision).toMatchObject({ formDefinitionVersionId: item.versionId, amount: "5000.00" });
+    const migrated = await service.Mutate(item.actor, "patch", draft.id, { expectedVersion: 1, formDefinitionVersionId: nextId, monetaryAmount: null, lineItems: [{ description: "Replacement", quantity: "2", unitAmount: "2500.00" }] });
+    expect(migrated.workingRevision).toMatchObject({ formDefinitionVersionId: nextId, amount: "5000.00", lineItems: [expect.objectContaining({ description: "Replacement" })] });
+    const another = await item.draft();
+    const cleared = await service.Mutate(item.actor, "patch", another.id, { expectedVersion: 0, formDefinitionVersionId: nextId, monetaryAmount: null });
+    expect(cleared.workingRevision).toMatchObject({ amount: "0.00", lineItems: [] });
+});
+
+test("B01 item migration never reinterprets computed total as direct amount", async () =>
+{
+    const item = await fixture(true, true);
+    const draft = await item.draft();
+    const definition = await service.Type(item.actor, item.typeId);
+    const nextId = randomUUID();
+    await db.insert(requestTypeVersions).values({ id: nextId, typeId: item.typeId, versionNumber: 2, definition: { ...definition, versionId: nextId, versionNumber: 2, supportsLineItems: false } });
+    await db.update(requestTypes).set({ publishedVersionId: nextId }).where(eq(requestTypes.id, item.typeId));
+    const before = await counts(draft.id);
+    await expect(service.Mutate(item.actor, "patch", draft.id, { expectedVersion: 0, formDefinitionVersionId: nextId })).rejects.toMatchObject({ code: "VALIDATION_ERROR" });
+    expect(await service.Read(item.actor, draft.id)).toEqual(draft);
+    expect(await counts(draft.id)).toEqual(before);
+    const cleared = await service.Mutate(item.actor, "patch", draft.id, { expectedVersion: 0, formDefinitionVersionId: nextId, lineItems: [] });
+    expect(cleared.workingRevision).toMatchObject({ formDefinitionVersionId: nextId, amount: null, lineItems: [] });
+    const replaced = await service.Mutate(item.actor, "patch", draft.id, { expectedVersion: 1, monetaryAmount: "5000.00" });
+    expect(replaced.workingRevision).toMatchObject({ amount: "5000.00", lineItems: [] });
+    const another = await item.draft();
+    const migrated = await service.Mutate(item.actor, "patch", another.id, { expectedVersion: 0, formDefinitionVersionId: nextId, lineItems: [], monetaryAmount: "5000.00" });
+    expect(migrated.workingRevision).toMatchObject({ amount: "5000.00", lineItems: [] });
 });

@@ -1,7 +1,7 @@
 import type { PublishedRequestType } from "@workflow/contracts";
 import { and, eq, isNull } from "drizzle-orm";
 import type { Database } from "./Database";
-import { approvalPolicyVersions, requestTypes, requestTypeVersions, reviewerAssignmentRules } from "./schema";
+import { approvalPolicies, approvalPolicyVersions, requestTypes, requestTypeVersions, reviewerAssignmentRules } from "./schema";
 
 export const seededTypeId = "30000000-0000-4000-8000-000000000001";
 export const seededVersionId = "30000000-0000-4000-8000-000000000002";
@@ -22,6 +22,7 @@ export async function seedRequests(database: Database, departmentIds: string[], 
         await tx.insert(requestTypeVersions).values({ id: seededVersionId, typeId: seededTypeId, versionNumber: 1, definition: seededDefinition }).onConflictDoNothing();
         await tx.update(requestTypes).set({ publishedVersionId: seededVersionId }).where(and(eq(requestTypes.id, seededTypeId), isNull(requestTypes.publishedVersionId)));
         await tx.insert(approvalPolicyVersions).values({ id: seededPolicyId, code: "GENERAL_REVIEW", versionNumber: 1, typeId: seededTypeId, priority: 10, stages: [{ stageNumber: 1, reviewerAssignmentKeys: ["general-review"], slaBusinessMinutes: 480 }] }).onConflictDoNothing();
+        await tx.insert(approvalPolicies).values({ id: seededPolicyId, code: "GENERAL_REVIEW", publishedVersionId: seededPolicyId }).onConflictDoNothing();
         for (const [index, departmentId] of departmentIds.entries())
         {
             await tx.insert(reviewerAssignmentRules).values({ id: `30000000-0000-4000-8000-${String(index + 10).padStart(12, "0")}`, assignmentKey: "general-review", departmentId, reviewerId }).onConflictDoNothing();

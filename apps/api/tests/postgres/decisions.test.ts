@@ -1,17 +1,17 @@
 import { createHash, randomUUID } from "node:crypto";
 import { afterAll, expect, test, vi } from "vitest";
 import { and, eq, inArray, sql } from "drizzle-orm";
-import type { PublishedRequestType, CreateRequest, DecisionRequest } from "@workflow/contracts";
+import { requestDetailSchema, type PublishedRequestType, type CreateRequest, type DecisionRequest, type RequestDetail } from "@workflow/contracts";
 import { createTestDatabase } from "../helpers/testDatabase";
 import { RequestService } from "../../src/Applications/Requests/RequestService";
 import { DecisionService } from "../../src/Applications/Approvals/DecisionService";
-import { RequestUnitOfWork } from "../../src/Infrastructures/Database/Repositories/RequestRepository";
+import { RequestRepository, RequestUnitOfWork } from "../../src/Infrastructures/Database/Repositories/RequestRepository";
 import { DecisionRepository, DecisionUnitOfWork } from "../../src/Infrastructures/Database/Repositories/DecisionRepository";
 import { IdentityRepository } from "../../src/Infrastructures/Database/Repositories/IdentityRepository";
 import { seededDefinition } from "../../src/Infrastructures/Database/seedRequests";
 import type { IActor } from "../../src/Domains/Identity/Identity";
 import type { IStageDefinition } from "../../src/Domains/Requests/RequestRules";
-import { approvalCycles, approvalDecisions, approvalPolicyVersions, approvalSlots, approvalStages, departmentMemberships, departments, decisionIdempotencyRecords, requestAuditEvents, requestOutboxEvents, requests, requestTypes, requestTypeVersions, reviewerAssignmentRules, sessionFamilies, userRoles, users } from "../../src/Infrastructures/Database/schema";
+import { approvalCycles, approvalDecisions, approvalPolicyVersions, approvalSlots, approvalStages, departmentMemberships, departments, decisionIdempotencyRecords, requestAuditEvents, requestOutboxEvents, requestRevisions, requests, requestTypes, requestTypeVersions, reviewerAssignmentRules, sessionFamilies, userRoles, users } from "../../src/Infrastructures/Database/schema";
 const database = createTestDatabase(), observer = createTestDatabase();
 const db = database.connection;
 const service = new RequestService(new RequestUnitOfWork(db));
@@ -43,9 +43,9 @@ async function fixture(monetary = false, supportsLineItems = false, stages: ISta
     const draft = () => service.Mutate(actor, "create", null, content, randomUUID());
     return { actor, content, draft, ownerId, reviewerId, departmentId, typeId, versionId, policyId, assignmentId };
 }
-async function pending(parallel = false, future = false)
+async function pending(parallel = false, future = false, finalParallel = false)
 {
-    const item = await fixture(false, false, [{ stageNumber: 1, reviewerAssignmentKeys: parallel ? ["review", "peer"] : ["review"], slaBusinessMinutes: 480 }, ...(future ? [{ stageNumber: 2 as const, reviewerAssignmentKeys: ["review"], slaBusinessMinutes: 480 }] : [])]);
+    const item = await fixture(false, false, [{ stageNumber: 1, reviewerAssignmentKeys: parallel ? ["review", "peer"] : ["review"], slaBusinessMinutes: 480 }, ...(future ? [{ stageNumber: 2 as const, reviewerAssignmentKeys: finalParallel ? ["review", "peer"] : ["review"], slaBusinessMinutes: 480 }] : [])]);
     const peer = await fixture();
     if (parallel) await db.insert(reviewerAssignmentRules).values({ id: randomUUID(), assignmentKey: "peer", departmentId: item.departmentId, reviewerId: peer.reviewerId });
     async function actor(id: string)
@@ -57,9 +57,33 @@ async function pending(parallel = false, future = false)
     const reviewer = await actor(item.reviewerId), other = await actor(peer.reviewerId);
     const draft = await item.draft();
     const submitted = await service.Mutate(item.actor, "submit", draft.id, { expectedVersion: 0 }, randomUUID());
-    return { ...item, reviewer, other, submitted, slot: submitted.currentApprovers.find((slot) => slot.stageNumber === 1 && slot.reviewer.id === item.reviewerId)!.slotId, peerSlot: submitted.currentApprovers.find((slot) => slot.reviewer.id === peer.reviewerId)?.slotId };
+    return { ...item, reviewer, other, submitted, slot: submitted.currentApprovers.find((slot) => slot.stageNumber === 1 && slot.reviewer.id === item.reviewerId)!.slotId, peerSlot: submitted.currentApprovers.find((slot) => slot.stageNumber === 1 && slot.reviewer.id === peer.reviewerId)?.slotId };
 }
 const approve: DecisionRequest = { decision: "APPROVE", expectedVersion: 0 };
+async function contend<T>(first: () => Promise<T>, second: () => Promise<T>)
+{
+    let arrivals = 0;
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) =>
+    {
+        release = resolve;
+    });
+    const original = DecisionRepository.prototype.Lock;
+    const spy = vi.spyOn(DecisionRepository.prototype, "Lock").mockImplementation(async function (this: DecisionRepository, actor, taskId)
+    {
+        if (++arrivals === 2) release();
+        await gate;
+        return original.call(this, actor, taskId);
+    });
+    try
+    {
+        return await Promise.allSettled([first(), second()]);
+    }
+    finally
+    {
+        spy.mockRestore();
+    }
+}
 async function evidence(requestId: string)
 {
     const read = observer.connection;
@@ -85,12 +109,13 @@ async function decisionHttp()
     const identity = await createIdentityComposition(env, database);
     const app = createApplication(undefined, identity, service, new ApprovalTaskService(new ApprovalTaskUnitOfWork(db)), decisions);
     const tokens = new TokenProvider(env.AUTH_JWT_SECRET, { Now: () => new Date() }, env.AUTH_JWT_ISSUER, env.AUTH_JWT_AUDIENCE);
-    async function send(method: "GET" | "POST", path: string, actor: IActor | null, body?: DecisionRequest, key = randomUUID())
+    async function send(method: "GET" | "POST", path: string, actor: IActor | null, body?: unknown, key: string = randomUUID())
     {
         const token = actor ? await tokens.Sign(actor.account.id, actor.family.id, actor.account.authVersion) : null;
         return app.handle(new Request(`http://localhost/api/v1${path}`, { method, headers: { ...(token ? { authorization: `Bearer ${token}` } : {}), "Idempotency-Key": key, "content-type": "application/json" }, ...(method === "POST" ? { body: JSON.stringify(body) } : {}) }));
     }
     return {
+        send,
         post: (item: Awaited<ReturnType<typeof pending>>, body: DecisionRequest, key = randomUUID(), actor: IActor | null = item.reviewer, taskId = item.slot) => send("POST", `/approval-tasks/${taskId}/decisions`, actor, body, key),
         timeline: (item: Awaited<ReturnType<typeof pending>>, actor: IActor = item.actor) => send("GET", `/requests/${item.submitted.id}/timeline?pageSize=100`, actor),
     };
@@ -126,23 +151,161 @@ test("partial ALL approval stays pending and rejection cancels unfinished slots"
     const rows = await db.select({ slot: approvalSlots }).from(approvalSlots).innerJoin(approvalStages, eq(approvalSlots.stageId, approvalStages.id)).where(eq(approvalStages.cycleId, rejection.submitted.currentCycleId!));
     expect(rows.map((row) => row.slot.status).sort()).toEqual(["CANCELLED", "CANCELLED", "REJECTED"]);
 });
-test.each([false, true])("two-stage completion fails closed without writes (parallel=%s)", async (parallel) =>
+test.each([false, true])("two-stage completion activates once and replay preserves activation (parallel=%s)", async (parallel) =>
 {
-    const item = await pending(parallel, true);
+    const item = await pending(parallel, true, parallel);
+    const futureSlot = item.submitted.currentApprovers.find((slot) => slot.stageNumber === 2 && slot.reviewer.id === item.reviewerId)!;
+    const before = await evidence(item.submitted.id);
+    const first = before.stages.find((stage) => stage.stageNumber === 1)!;
+    const future = before.stages.find((stage) => stage.stageNumber === 2)!;
+    expect(first.activatedAt).not.toBeNull();
+    expect(future).toMatchObject({ status: "WAITING", activatedAt: null });
+    await expect(decisions.Decide(item.reviewer, futureSlot.slotId, approve, randomUUID())).rejects.toMatchObject({ code: "APPROVAL_TASK_STALE" });
     if (parallel)
     {
         expect(await independent.Decide(item.other, item.peerSlot!, approve, randomUUID())).toMatchObject({ requestStatus: "PENDING", currentStageNumber: 1 });
+        expect((await evidence(item.submitted.id)).stages.find((stage) => stage.stageNumber === 2)?.activatedAt).toBeNull();
     }
-    const before = await evidence(item.submitted.id), key = randomUUID();
-    expect(before.stages.find((stage) => stage.stageNumber === 1)?.status).toBe("ACTIVE");
-    expect(before.slots.find((slot) => slot.id === item.slot)?.status).toBe("ACTIONABLE");
-    await expect(decisions.Decide(item.reviewer, item.slot, approve, key)).rejects.toMatchObject({ code: "INVALID_REQUEST_TRANSITION" });
+    const key = randomUUID();
+    const result = await decisions.Decide(item.reviewer, item.slot, approve, key);
+    expect(result).toMatchObject({ requestStatus: "PENDING", currentStageNumber: 2 });
+    const activated = await evidence(item.submitted.id);
+    expect(activated.stages.find((stage) => stage.stageNumber === 1)).toMatchObject({ status: "COMPLETED", activatedAt: first.activatedAt });
+    expect(activated.stages.find((stage) => stage.stageNumber === 2)).toMatchObject({ status: "ACTIVE", activatedAt: expect.any(Date) });
+    expect(activated.slots.find((slot) => slot.id === item.slot)?.dueAt).toEqual(before.slots.find((slot) => slot.id === item.slot)?.dueAt);
+    expect(activated.slots.find((slot) => slot.id === futureSlot.slotId)).toMatchObject({ status: "ACTIONABLE", version: 1, dueAt: null });
+    expect(activated.outbox.filter((event) => event.eventType === "APPROVAL_STAGE_ACTIVATED")).toEqual([expect.objectContaining({ eventKey: "stage-activated:" + future.id, payload: { requestId: item.submitted.id, cycleId: item.submitted.currentCycleId } })]);
+    expect(await independent.Decide(item.reviewer, item.slot, approve, key)).toEqual(result);
+    expect(await evidence(item.submitted.id)).toEqual(activated);
+    const finalVote = await independent.Decide(item.reviewer, futureSlot.slotId, { ...approve, expectedVersion: 1 }, randomUUID());
+    if (parallel)
+    {
+        expect(finalVote).toMatchObject({ requestStatus: "PENDING", currentStageNumber: 2 });
+        const futurePeer = item.submitted.currentApprovers.find((slot) => slot.stageNumber === 2 && slot.reviewer.id === item.other.account.id)!;
+        expect(await decisions.Decide(item.other, futurePeer.slotId, { ...approve, expectedVersion: 1 }, randomUUID())).toMatchObject({ requestStatus: "APPROVED", currentStageNumber: null });
+    }
+    else expect(finalVote).toMatchObject({ requestStatus: "APPROVED", currentStageNumber: null });
+});
+test("independent parallel votes activate and finalize each stage once", async () =>
+{
+    const item = await pending(true, true, true);
+    const first = (await contend(
+        () => decisions.Decide(item.reviewer, item.slot, approve, randomUUID()),
+        () => independent.Decide(item.other, item.peerSlot!, approve, randomUUID()),
+    )).map((result) =>
+    {
+        if (result.status === "rejected") throw result.reason;
+        return result.value;
+    });
+    expect(first.map((result) => result.currentStageNumber).sort()).toEqual([1, 2]);
+    const afterFirst = await evidence(item.submitted.id);
+    expect(afterFirst.outbox.filter((event) => event.eventType === "APPROVAL_STAGE_ACTIVATED")).toHaveLength(1);
+    const future = item.submitted.currentApprovers.filter((slot) => slot.stageNumber === 2);
+    const reviewerSlot = future.find((slot) => slot.reviewer.id === item.reviewerId)!;
+    const peerSlot = future.find((slot) => slot.reviewer.id === item.other.account.id)!;
+    const final = (await contend(
+        () => decisions.Decide(item.reviewer, reviewerSlot.slotId, { ...approve, expectedVersion: 1 }, randomUUID()),
+        () => independent.Decide(item.other, peerSlot.slotId, { ...approve, expectedVersion: 1 }, randomUUID()),
+    )).map((result) =>
+    {
+        if (result.status === "rejected") throw result.reason;
+        return result.value;
+    });
+    expect(final.map((result) => result.requestStatus).sort()).toEqual(["APPROVED", "PENDING"]);
+    const saved = await evidence(item.submitted.id);
+    expect(saved.votes).toHaveLength(4);
+    expect(saved.audit.filter((event) => event.decisionId)).toHaveLength(4);
+    expect(saved.outbox.filter((event) => event.eventType === "APPROVAL_STAGE_ACTIVATED")).toHaveLength(1);
+    expect(saved.request?.status).toBe("APPROVED");
+});
+
+test.each([{ stage: 1, terminal: "RETURN" }, { stage: 2, terminal: "REJECT" }] as const)("stage $stage approval versus $terminal serializes distinct slots", async ({ stage, terminal }) =>
+{
+    const item = await pending(true, true, true);
+    if (stage === 2)
+    {
+        await decisions.Decide(item.reviewer, item.slot, approve, randomUUID());
+        await independent.Decide(item.other, item.peerSlot!, approve, randomUUID());
+    }
+    const slots = item.submitted.currentApprovers.filter((slot) => slot.stageNumber === stage);
+    const reviewerSlot = slots.find((slot) => slot.reviewer.id === item.reviewerId)!;
+    const peerSlot = slots.find((slot) => slot.reviewer.id === item.other.account.id)!;
+    const version = stage === 1 ? 0 : 1;
+    const before = await evidence(item.submitted.id);
+    const outcomes = await contend(
+        () => decisions.Decide(item.reviewer, reviewerSlot.slotId, { ...approve, expectedVersion: version }, randomUUID()),
+        () => independent.Decide(item.other, peerSlot.slotId, { decision: terminal, reason: "Please review this request", expectedVersion: version }, randomUUID()),
+    );
+    expect(outcomes[1]).toMatchObject({ status: "fulfilled" });
+    if (outcomes[0]!.status === "rejected") expect(outcomes[0].reason).toMatchObject({ code: "APPROVAL_TASK_STALE" });
+    const saved = await evidence(item.submitted.id);
+    expect(saved.request?.status).toBe(terminal === "RETURN" ? "RETURNED" : "REJECTED");
+    const added = saved.votes.filter((vote) => !before.votes.some((old) => old.decision.id === vote.decision.id));
+    expect(added.map((vote) => vote.decision.decision)).toContain(terminal);
+    expect(added).toHaveLength(outcomes.filter((outcome) => outcome.status === "fulfilled").length);
+    expect(saved.audit.filter((event) => event.decisionId).length - before.audit.filter((event) => event.decisionId).length).toBe(added.length);
+    expect(saved.outbox.filter((event) => event.eventType.startsWith("DECISION")).length - before.outbox.filter((event) => event.eventType.startsWith("DECISION")).length).toBe(added.length);
+    expect(saved.stages.find((value) => value.stageNumber === 2)?.activatedAt).toEqual(before.stages.find((value) => value.stageNumber === 2)?.activatedAt);
+});
+
+test.each(["REJECT", "RETURN"] as const)("%s in stage two preserves prior votes and cancels siblings", async (decision) =>
+{
+    const item = await pending(true, true, true);
+    await decisions.Decide(item.reviewer, item.slot, approve, randomUUID());
+    await independent.Decide(item.other, item.peerSlot!, approve, randomUUID());
+    const future = item.submitted.currentApprovers.filter((slot) => slot.stageNumber === 2);
+    const reviewerSlot = future.find((slot) => slot.reviewer.id === item.reviewerId)!;
+    const peerSlot = future.find((slot) => slot.reviewer.id === item.other.account.id)!;
+    const result = await decisions.Decide(item.reviewer, reviewerSlot.slotId, { decision, reason: "Please revise the request", expectedVersion: 1 }, randomUUID());
+    expect(result.requestStatus).toBe(decision === "REJECT" ? "REJECTED" : "RETURNED");
+    const saved = await evidence(item.submitted.id);
+    expect(saved.votes.map((vote) => vote.decision.decision).sort()).toEqual(["APPROVE", "APPROVE", decision].sort());
+    expect(saved.slots.find((slot) => slot.id === peerSlot.slotId)?.status).toBe("CANCELLED");
+    expect(saved.stages.find((stage) => stage.stageNumber === 1)?.status).toBe("COMPLETED");
+    if (decision === "RETURN") expect(saved.request?.workingRevisionId).not.toBeNull();
+});
+test("approvers endpoint restricts current progress to owner and current participants", async () =>
+{
+    const item = await pending(true, true), http = await decisionHttp();
+    const path = "/requests/" + item.submitted.id + "/approvers";
+    const owner = await http.send("GET", path, item.actor);
+    expect(owner.status).toBe(200);
+    expect(owner.headers.get("cache-control")).toBe("private, no-store");
+    const rows = await owner.json() as Array<{ slotId: string; stageNumber: number; reviewer: { id: string; displayName: string }; status: string }>;
+    expect(rows).toHaveLength(3);
+    for (const row of rows)
+    {
+        expect(Object.keys(row).sort()).toEqual(["reviewer", "slotId", "stageNumber", "status"]);
+        expect(Object.keys(row.reviewer).sort()).toEqual(["displayName", "id"]);
+    }
+    expect(rows.map((row) => row.stageNumber)).toEqual([1, 1, 2]);
+    expect((await http.send("GET", path, item.reviewer)).status).toBe(200);
+    expect((await http.send("GET", path, item.other)).status).toBe(200);
+    expect((await http.send("GET", path, null)).status).toBe(401);
+    const outsider = await fixture();
+    await db.insert(userRoles).values({ userId: outsider.ownerId, roleCode: "ADMINISTRATOR" });
+    expect((await http.send("GET", path, outsider.actor)).status).toBe(404);
+    await decisions.Decide(item.other, item.peerSlot!, approve, randomUUID());
+    expect((await http.send("GET", path, item.other)).status).toBe(404);
+});
+
+test.each(["audit_events", "outbox_events"] as const)("activation failure at %s rolls back all effects and releases key", async (table) =>
+{
+    const item = await pending(false, true), key = randomUUID();
+    const before = await evidence(item.submitted.id);
+    await db.execute(sql.raw("CREATE FUNCTION issue10_activation_fault() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'injected activation fault'; END $$"));
+    await db.execute(sql.raw("CREATE TRIGGER issue10_activation_fault BEFORE INSERT ON " + table + " FOR EACH ROW EXECUTE FUNCTION issue10_activation_fault()"));
+    try
+    {
+        await expect(decisions.Decide(item.reviewer, item.slot, approve, key)).rejects.toThrow();
+    }
+    finally
+    {
+        await db.execute(sql.raw("DROP TRIGGER IF EXISTS issue10_activation_fault ON " + table));
+        await db.execute(sql.raw("DROP FUNCTION IF EXISTS issue10_activation_fault()"));
+    }
     expect(await evidence(item.submitted.id)).toEqual(before);
-    expect(await db.select().from(decisionIdempotencyRecords).where(eq(decisionIdempotencyRecords.key, key))).toHaveLength(0);
-    const futureSlot = item.submitted.currentApprovers.find((slot) => slot.stageNumber === 2)!;
-    await expect(decisions.Decide(item.reviewer, futureSlot.slotId, approve, randomUUID())).rejects.toMatchObject({ code: "APPROVAL_TASK_STALE" });
-    // A failed approval does not claim the key or prevent a recoverable rejection.
-    expect((await decisions.Decide(item.reviewer, item.slot, { ...approve, decision: "REJECT", reason: "Cannot proceed" }, key)).requestStatus).toBe("REJECTED");
+    expect(await decisions.Decide(item.reviewer, item.slot, approve, key)).toMatchObject({ requestStatus: "PENDING", currentStageNumber: 2 });
 });
 test.each(["APPROVE", "REJECT"] as const)("fault immediately before audit rolls decision, state, outbox and key back (%s)", async (decision) =>
 {
@@ -413,7 +576,7 @@ test.each(["version", "revision", "cycle", "slot"])("Lab 7 valid REJECT HTTP sta
     expect(await evidence(item.submitted.id)).toEqual(before);
 });
 
-test.each([["No", 409, "INVALID_REQUEST_TRANSITION"], [undefined, 422, "VALIDATION_ERROR"], [" ", 422, "VALIDATION_ERROR"]] as const)("Lab 7 RETURN transport %s retains existing behavior", async (reason, status, code) =>
+test.each([[undefined, 422, "VALIDATION_ERROR"], [" ", 422, "VALIDATION_ERROR"]] as const)("RR-AC-01a RETURN rejects missing reason %s", async (reason, status, code) =>
 {
     const item = await pending(), http = await decisionHttp(), before = await evidence(item.submitted.id);
     const response = await http.post(item, { decision: "RETURN", reason, expectedVersion: 0 });
@@ -421,7 +584,7 @@ test.each([["No", 409, "INVALID_REQUEST_TRANSITION"], [undefined, 422, "VALIDATI
     expect(await response.json()).toMatchObject({ code });
     expect(await evidence(item.submitted.id)).toEqual(before);
 });
-test.skipIf(process.env.RUN_BUILT_HTTP_SMOKE !== "1")("API process restart preserves accepted replay and timeline", async () =>
+test.skipIf(process.env.RUN_BUILT_HTTP_SMOKE !== "1")("API process restart preserves incomplete draft, accepted replay and timeline", async () =>
 {
     const { spawn } = await import("node:child_process");
     const { createServer } = await import("node:net");
@@ -436,6 +599,7 @@ test.skipIf(process.env.RUN_BUILT_HTTP_SMOKE !== "1")("API process restart prese
     const reviewer = await provider.Sign(item.reviewerId, item.reviewer.family.id, 0), owner = await provider.Sign(item.ownerId, item.actor.family.id, 0);
     const key = randomUUID();
     let original: unknown, timeline: unknown;
+    let savedDraft: RequestDetail | null = null;
     for (let iteration = 0; iteration < 2; iteration++)
     {
         const listener = createServer();
@@ -469,6 +633,16 @@ test.skipIf(process.env.RUN_BUILT_HTTP_SMOKE !== "1")("API process restart prese
                 await new Promise((done) => setTimeout(done, 50));
             }
             expect(ready).toBe(true);
+            if (iteration === 0)
+            {
+                const created = await fetch(`${base}/api/v1/requests`, { method: "POST", headers: { authorization: `Bearer ${owner}`, "Idempotency-Key": randomUUID(), "content-type": "application/json" }, body: JSON.stringify({ typeId: item.typeId, formDefinitionVersionId: item.versionId, title: "Survives API restart" }), signal: AbortSignal.timeout(3000) });
+                expect(created.status).toBe(201);
+                savedDraft = requestDetailSchema.parse(await created.json());
+            }
+            const restored = await fetch(`${base}/api/v1/requests/${savedDraft!.id}`, { headers: { authorization: `Bearer ${owner}` }, signal: AbortSignal.timeout(3000) });
+            expect(restored.status).toBe(200);
+            expect(requestDetailSchema.parse(await restored.json())).toEqual(savedDraft);
+            expect(savedDraft).toMatchObject({ status: "DRAFT", requestNumber: null, submittedRevision: null, currentCycleId: null, currentApprovers: [] });
             const response = await fetch(`${base}/api/v1/approval-tasks/${item.slot}/decisions`, { method: "POST", headers: { authorization: `Bearer ${reviewer}`, "Idempotency-Key": key, "content-type": "application/json" }, body: JSON.stringify(approve), signal: AbortSignal.timeout(3000) });
             expect(response.status).toBe(201);
             const value: unknown = await response.json();
@@ -522,4 +696,326 @@ test("handled task remains readable without granting current detail, queue or fo
     await expect(tasks.Search(item.reviewer, approvalTaskSearchSchema.parse({}))).rejects.toMatchObject({ code: "FORBIDDEN" });
     await db.insert(userRoles).values({ userId: item.other.account.id, roleCode: "ADMINISTRATOR" });
     await expect(tasks.Read(item.other, item.slot)).rejects.toMatchObject({ code: "NOT_FOUND" });
+});
+
+test("DW-AC-05 withdrawal preserves partial votes/snapshot, closes future tasks, and replays durably", async () =>
+{
+    const item = await pending(true, true);
+    await decisions.Decide(item.reviewer, item.slot, approve, randomUUID());
+    const before = await evidence(item.submitted.id);
+    const revision = await db.select().from(requestRevisions).where(eq(requestRevisions.id, item.submitted.submittedRevision!.id));
+    const current = await service.Read(item.actor, item.submitted.id);
+    const body = { expectedVersion: current.version, reason: "Plans changed" };
+    const key = randomUUID();
+    const withdrawn = await service.Mutate(item.actor, "withdraw", current.id, body, key);
+    expect(withdrawn).toMatchObject({ status: "WITHDRAWN", version: current.version + 1, currentStageNumber: null, availableActions: [], submittedRevision: current.submittedRevision });
+    expect(withdrawn.currentApprovers.map((slot) => slot.status).sort()).toEqual(["APPROVED", "CANCELLED", "CANCELLED"]);
+    const saved = await evidence(current.id);
+    expect(saved.votes).toEqual(before.votes);
+    expect(saved.cycles[0]).toEqual({ ...before.cycles[0], isActive: false });
+    expect(saved.stages.every((stage) => stage.status === "CANCELLED")).toBe(true);
+    expect(saved.slots.filter((slot) => slot.status === "CANCELLED").every((slot) => slot.version === 1)).toBe(true);
+    expect(saved.audit.filter((event) => event.eventType === "REQUEST_WITHDRAWN")).toEqual([expect.objectContaining({ actorId: item.ownerId, note: "Plans changed", occurredAt: expect.any(Date), cycleId: current.currentCycleId, revisionId: current.submittedRevision!.id })]);
+    expect(await new RequestService(new RequestUnitOfWork(observer.connection)).Mutate(item.actor, "withdraw", current.id, body, key)).toEqual(withdrawn);
+    await expect(service.Mutate(item.actor, "withdraw", current.id, { ...body, reason: "changed" }, key)).rejects.toMatchObject({ code: "IDEMPOTENCY_CONFLICT" });
+    await expect(decisions.Decide(item.other, item.peerSlot!, approve, randomUUID())).rejects.toMatchObject({ code: "APPROVAL_TASK_STALE" });
+    expect(await evidence(current.id)).toEqual(saved);
+    const timeline = await decisions.Timeline(item.actor, current.id, { pageNumber: 1, pageSize: 100 });
+    expect(timeline.items.find((event) => event.eventType === "REQUEST_WITHDRAWN")?.note).toBe("Plans changed");
+    expect(await db.select().from(requestRevisions).where(eq(requestRevisions.id, current.submittedRevision!.id))).toEqual(revision);
+});
+
+test("DW-AC-06 rejects foreign, roleless, stale, draft and terminal withdrawal without mutation", async () =>
+{
+    const item = await pending();
+    const before = await evidence(item.submitted.id);
+    await expect(service.Mutate(item.other, "withdraw", item.submitted.id, { expectedVersion: 1 }, randomUUID())).rejects.toMatchObject({ code: "FORBIDDEN" });
+    const foreign = await fixture();
+    await expect(service.Mutate(foreign.actor, "withdraw", item.submitted.id, { expectedVersion: 1 }, randomUUID())).rejects.toMatchObject({ code: "NOT_FOUND" });
+    await expect(service.Mutate(item.actor, "withdraw", item.submitted.id, { expectedVersion: 0 }, randomUUID())).rejects.toMatchObject({ code: "REQUEST_STALE" });
+    expect(await evidence(item.submitted.id)).toEqual(before);
+    const draft = await item.draft();
+    await expect(service.Mutate(item.actor, "withdraw", draft.id, { expectedVersion: 0 }, randomUUID())).rejects.toMatchObject({ code: "INVALID_REQUEST_TRANSITION" });
+    for (const decision of ["APPROVE", "REJECT"] as const)
+    {
+        const terminal = await pending();
+        await decisions.Decide(terminal.reviewer, terminal.slot, { ...approve, decision, ...(decision === "REJECT" ? { reason: "Terminal rejection" } : {}) }, randomUUID());
+        const saved = await evidence(terminal.submitted.id);
+        await expect(service.Mutate(terminal.actor, "withdraw", terminal.submitted.id, { expectedVersion: 2 }, randomUUID())).rejects.toMatchObject({ code: "INVALID_REQUEST_TRANSITION" });
+        expect(await evidence(terminal.submitted.id)).toEqual(saved);
+    }
+});
+
+test("DB-08 withdrawal rollback includes task changes, audit, outbox and idempotency completion", async () =>
+{
+    const item = await pending(true, true), before = await evidence(item.submitted.id), key = randomUUID();
+    const complete = vi.spyOn(RequestRepository.prototype, "Complete").mockImplementationOnce(async () =>
+    {
+        throw new Error("injected withdrawal completion failure");
+    });
+    try
+    {
+        await expect(service.Mutate(item.actor, "withdraw", item.submitted.id, { expectedVersion: 1 }, key)).rejects.toThrow("injected withdrawal completion failure");
+    }
+    finally
+    {
+        complete.mockRestore();
+    }
+    expect(await evidence(item.submitted.id)).toEqual(before);
+    expect((await service.Mutate(item.actor, "withdraw", item.submitted.id, { expectedVersion: 1 }, key)).status).toBe("WITHDRAWN");
+});
+
+test.each(["APPROVE", "REJECT"] as const)("CX-04 simultaneous withdrawal versus %s shares request lock and has one valid outcome", async (decision) =>
+{
+    const item = await pending();
+    let arrivals = 0;
+    let release!: () => void;
+    const ready = new Promise<void>((resolve) => release = resolve);
+    async function rendezvous()
+    {
+        if (++arrivals === 2) release();
+        await ready;
+    }
+    const read = RequestRepository.prototype.Read;
+    const lock = DecisionRepository.prototype.Lock;
+    const requestSpy = vi.spyOn(RequestRepository.prototype, "Read").mockImplementation(async function (this: RequestRepository, id, locked)
+    {
+        if (id === item.submitted.id && locked) await rendezvous();
+        return read.call(this, id, locked);
+    });
+    const decisionSpy = vi.spyOn(DecisionRepository.prototype, "Lock").mockImplementation(async function (this: DecisionRepository, actor, taskId)
+    {
+        if (taskId === item.slot) await rendezvous();
+        return lock.call(this, actor, taskId);
+    });
+    let outcomes: PromiseSettledResult<unknown>[];
+    try
+    {
+        outcomes = await Promise.allSettled([
+            service.Mutate(item.actor, "withdraw", item.submitted.id, { expectedVersion: 1 }, randomUUID()),
+            independent.Decide(item.reviewer, item.slot, { ...approve, decision, ...(decision === "REJECT" ? { reason: "Concurrent rejection" } : {}) }, randomUUID()),
+        ]);
+    }
+    finally
+    {
+        requestSpy.mockRestore();
+        decisionSpy.mockRestore();
+    }
+    expect(arrivals).toBe(2);
+    expect(outcomes.filter((outcome) => outcome.status === "fulfilled")).toHaveLength(1);
+    const saved = await evidence(item.submitted.id);
+    const withdrawn = saved.request!.status === "WITHDRAWN";
+    expect(saved.request!.status).toBe(withdrawn ? "WITHDRAWN" : decision === "APPROVE" ? "APPROVED" : "REJECTED");
+    expect(saved.cycles[0]!.isActive).toBe(false);
+    expect(saved.votes).toHaveLength(withdrawn ? 0 : 1);
+    expect(saved.slots.every((slot) => !["ACTIONABLE", "WAITING"].includes(slot.status))).toBe(true);
+    expect(saved.audit.filter((event) => event.eventType === "REQUEST_WITHDRAWN")).toHaveLength(withdrawn ? 1 : 0);
+});
+
+test("CX-14 same-key simultaneous withdrawal returns one durable outcome and one history event", async () =>
+{
+    const item = await pending(), key = randomUUID(), body = { expectedVersion: 1, reason: "One logical withdrawal" };
+    const [first, second] = await Promise.all([
+        service.Mutate(item.actor, "withdraw", item.submitted.id, body, key),
+        new RequestService(new RequestUnitOfWork(observer.connection)).Mutate(item.actor, "withdraw", item.submitted.id, body, key),
+    ]);
+    expect(first).toEqual(second);
+    const saved = await evidence(item.submitted.id);
+    expect(saved.audit.filter((event) => event.eventType === "REQUEST_WITHDRAWN")).toHaveLength(1);
+    expect(saved.outbox.filter((event) => event.eventType === "REQUEST_WITHDRAWN")).toHaveLength(1);
+    expect(saved.votes).toEqual([]);
+});
+
+test("RR-AC-01b through 04b return, resubmit and exact historical reads", async () =>
+{
+    const item = await pending(true, true);
+    const original = item.submitted.submittedRevision!;
+    const result = await decisions.Decide(item.reviewer, item.slot, { decision: "RETURN", reason: " Revise ", expectedVersion: 0 }, randomUUID());
+    expect(result.requestStatus).toBe("RETURNED");
+    const returned = await service.Read(item.actor, item.submitted.id);
+    expect(returned.workingRevision).toMatchObject({ revisionNumber: 2, fields: original.fields, formDefinitionVersionId: original.formDefinitionVersionId });
+    expect(returned.workingRevision!.id).not.toBe(original.id);
+    expect(returned.submittedRevision).toEqual(original);
+    expect(returned.currentApprovers.map((slot) => slot.status).sort()).toEqual(["CANCELLED", "CANCELLED", "RETURNED"]);
+    expect((await service.Revisions(item.actor, returned.id, { pageNumber: 1, pageSize: 20 })).items).toHaveLength(1);
+    await expect(service.Revision(item.other, returned.id, original.id)).rejects.toMatchObject({ code: "NOT_FOUND" });
+    const edited = await service.Mutate(item.actor, "patch", returned.id, { expectedVersion: returned.version, title: "Revised" });
+    await db.update(reviewerAssignmentRules).set({ reviewerId: item.other.account.id }).where(eq(reviewerAssignmentRules.id, item.assignmentId));
+    const key = randomUUID();
+    const submitted = await service.Mutate(item.actor, "resubmit", returned.id, { expectedVersion: edited.version }, key);
+    expect(submitted).toMatchObject({ status: "PENDING", requestNumber: item.submitted.requestNumber, department: item.submitted.department, submittedAt: item.submitted.submittedAt });
+    expect(submitted.submittedRevision!.id).toBe(returned.workingRevision!.id);
+    expect(submitted.currentCycleId).not.toBe(item.submitted.currentCycleId);
+    expect(await service.Mutate(item.actor, "resubmit", returned.id, { expectedVersion: edited.version }, key)).toEqual(submitted);
+    expect(await service.Revision(item.reviewer, returned.id, original.id)).toEqual(original);
+    await expect(service.Revision(item.reviewer, returned.id, submitted.submittedRevision!.id)).rejects.toMatchObject({ code: "NOT_FOUND" });
+    await expect(service.Revisions(item.reviewer, returned.id, { pageNumber: 1, pageSize: 20 })).rejects.toMatchObject({ code: "NOT_FOUND" });
+    expect((await service.Revisions(item.actor, returned.id, { pageNumber: 1, pageSize: 1 })).pagination).toMatchObject({ totalCount: 2, totalPages: 2, hasNext: true });
+});
+
+test("RR-AC-02 through 04 preserves item evidence, original department and pinned form across cycles", async () =>
+{
+    const item = await fixture(true, true);
+    const reviewerFamily = randomUUID();
+    await db.insert(sessionFamilies).values({ id: reviewerFamily, userId: item.reviewerId, authVersion: 0, createdAt: new Date(), expiresAt: new Date(Date.now() + 3600000) });
+    const reviewer = (await new IdentityRepository(db).ReadCurrentIdentity(item.reviewerId, reviewerFamily))!;
+    const draft = await item.draft();
+    const first = await service.Mutate(item.actor, "submit", draft.id, { expectedVersion: draft.version }, randomUUID());
+    const firstRevision = first.submittedRevision!;
+    await decisions.Decide(reviewer, first.currentApprovers[0]!.slotId, { decision: "RETURN", reason: "Fix", expectedVersion: 0 }, randomUUID());
+    const returned = await service.Read(item.actor, first.id);
+    expect(returned.workingRevision!.lineItems[0]).toMatchObject({ description: "Parts", quantity: firstRevision.lineItems[0]!.quantity, unitAmount: firstRevision.lineItems[0]!.unitAmount, totalAmount: firstRevision.lineItems[0]!.totalAmount });
+    expect(returned.workingRevision!.lineItems[0]!.id).not.toBe(firstRevision.lineItems[0]!.id);
+    const otherDepartment = randomUUID();
+    await db.insert(departments).values({ id: otherDepartment, code: otherDepartment, name: "New" });
+    await db.update(departmentMemberships).set({ isPrimary: false, isActive: false }).where(and(eq(departmentMemberships.userId, item.ownerId), eq(departmentMemberships.departmentId, item.departmentId)));
+    await db.insert(departmentMemberships).values({ userId: item.ownerId, departmentId: otherDepartment, isPrimary: true });
+    await expect(service.Mutate(item.actor, "resubmit", first.id, { expectedVersion: returned.version }, randomUUID())).rejects.toMatchObject({ code: "CONFIGURATION_INCOMPLETE" });
+    await db.update(departmentMemberships).set({ isActive: true }).where(and(eq(departmentMemberships.userId, item.ownerId), eq(departmentMemberships.departmentId, item.departmentId)));
+    await db.update(departments).set({ name: "Renamed" }).where(eq(departments.id, item.departmentId));
+    const nextVersion = randomUUID();
+    await db.insert(requestTypeVersions).values({ id: nextVersion, typeId: item.typeId, versionNumber: 2, definition: { ...seededDefinition, id: item.typeId, versionId: nextVersion, code: `T${item.typeId}`, monetary: true, supportsLineItems: true } });
+    await db.update(requestTypes).set({ publishedVersionId: nextVersion, isEnabled: false }).where(eq(requestTypes.id, item.typeId));
+    const nextPolicy = randomUUID();
+    await db.update(approvalPolicyVersions).set({ isActive: false }).where(eq(approvalPolicyVersions.id, item.policyId));
+    await db.insert(approvalPolicyVersions).values({ id: nextPolicy, typeId: item.typeId, code: nextPolicy, versionNumber: 1, priority: 1, stages: [{ stageNumber: 1, reviewerAssignmentKeys: ["review"], slaBusinessMinutes: 120 }] });
+    const second = await service.Mutate(item.actor, "resubmit", first.id, { expectedVersion: returned.version }, randomUUID());
+    expect((await db.select().from(approvalCycles).where(eq(approvalCycles.id, second.currentCycleId!)))[0]!.policyVersionId).toBe(nextPolicy);
+    expect(second.department).toEqual(first.department);
+    expect(second.submittedRevision!.formDefinitionVersionId).toBe(item.versionId);
+    expect(second.submittedRevision!.lineItems).toEqual(returned.workingRevision!.lineItems);
+    expect(await service.Revision(item.actor, first.id, firstRevision.id)).toEqual(firstRevision);
+    await decisions.Decide(reviewer, second.currentApprovers[0]!.slotId, { decision: "RETURN", reason: "Again", expectedVersion: 0 }, randomUUID());
+    const again = await service.Read(item.actor, first.id);
+    expect(again.workingRevision!.revisionNumber).toBe(3);
+    expect((await service.Revisions(item.actor, first.id, { pageNumber: 1, pageSize: 20 })).items.map((row) => row.revisionNumber)).toEqual([2, 1]);
+    await expect(service.Revisions(reviewer, first.id, { pageNumber: 1, pageSize: 20 })).rejects.toMatchObject({ code: "NOT_FOUND" });
+    expect(await service.Revision(reviewer, first.id, firstRevision.id)).toEqual(firstRevision);
+    await expect(service.Revision(reviewer, first.id, again.workingRevision!.id)).rejects.toMatchObject({ code: "NOT_FOUND" });
+    const third = await service.Mutate(item.actor, "resubmit", first.id, { expectedVersion: again.version }, randomUUID());
+    expect(third.submittedRevision!.revisionNumber).toBe(3);
+    expect(third.currentCycleId).not.toBe(second.currentCycleId);
+    expect(third.currentApprovers.every((slot) => slot.status === "ACTIONABLE" || slot.status === "WAITING")).toBe(true);
+    expect((await service.Revisions(item.actor, first.id, { pageNumber: 1, pageSize: 20 })).items.map((row) => row.revisionNumber)).toEqual([3, 2, 1]);
+});
+
+test("RR-AC-03/04 HTTP validates resubmit body, key, bounded listing and exact revision", async () =>
+{
+    const item = await pending();
+    const http = await decisionHttp();
+    await decisions.Decide(item.reviewer, item.slot, { decision: "RETURN", reason: "Fix", expectedVersion: 0 }, randomUUID());
+    const returned = await service.Read(item.actor, item.submitted.id);
+    const base = `/requests/${returned.id}`;
+    expect((await http.send("POST", `${base}/resubmit`, item.actor, { expectedVersion: returned.version, extra: true })).status).toBe(422);
+    expect((await http.send("POST", `${base}/resubmit`, item.actor, { expectedVersion: null })).status).toBe(422);
+    expect((await http.send("POST", `${base}/resubmit`, item.actor, { expectedVersion: returned.version }, "invalid")).status).toBe(422);
+    expect((await http.send("GET", `${base}/revisions?pageSize=101`, item.actor)).status).toBe(422);
+    expect((await http.send("GET", `${base}/revisions?extra=x`, item.actor)).status).toBe(422);
+    const list = await http.send("GET", `${base}/revisions?pageSize=1`, item.actor);
+    expect(list.status).toBe(200);
+    expect(JSON.parse(list.headers.get("x-pagination")!)).toMatchObject({ totalCount: 1, pageSize: 1 });
+    expect(await list.json()).toMatchObject([{ id: item.submitted.submittedRevision!.id, cycleId: item.submitted.currentCycleId }]);
+    expect((await http.send("GET", `${base}/revisions/${returned.workingRevision!.id}`, item.actor)).status).toBe(404);
+    expect((await http.send("GET", `${base}/revisions/${item.submitted.submittedRevision!.id}`, item.reviewer)).status).toBe(200);
+    expect((await http.send("GET", `${base}/revisions`, item.reviewer)).status).toBe(404);
+    expect((await http.send("POST", `${base}/resubmit`, item.actor, { expectedVersion: returned.version })).status).toBe(200);
+});
+
+test("RR-AC-07b decision constraint permits historical short REJECT reasons", async () =>
+{
+    const item = await pending();
+    await expect(db.insert(approvalDecisions).values({ id: randomUUID(), slotId: item.slot, actorId: item.reviewerId, decision: "REJECT", reason: "old", decidedAt: new Date() })).resolves.toBeDefined();
+});
+
+test("TP-R2 actionable replacement retains slot and replay", async () =>
+{
+    const item = await pending(), foreign = await pending(), before = await evidence(item.submitted.id);
+    const original = before.slots.find((slot) => slot.id === item.slot)!;
+    await db.update(approvalSlots).set({ reviewerId: item.other.account.id, version: 1 }).where(eq(approvalSlots.id, item.slot));
+    const reassigned = await evidence(item.submitted.id);
+    expect(reassigned.slots.find((slot) => slot.id === item.slot)).toEqual({ ...original, reviewerId: item.other.account.id, version: 1 });
+    expect(reassigned.cycles[0]!.snapshot).toEqual(before.cycles[0]!.snapshot);
+    await expect(decisions.Decide(item.reviewer, item.slot, approve, randomUUID())).rejects.toMatchObject({ code: "NOT_FOUND" });
+    await expect(decisions.Decide(foreign.reviewer, item.slot, approve, randomUUID())).rejects.toMatchObject({ code: "NOT_FOUND" });
+    await expect(decisions.Decide(item.other, item.slot, approve, randomUUID())).rejects.toMatchObject({ code: "APPROVAL_TASK_STALE" });
+    expect(await evidence(item.submitted.id)).toEqual(reassigned);
+    const key = randomUUID(), body = { ...approve, expectedVersion: 1 };
+    const result = await decisions.Decide(item.other, item.slot, body, key);
+    expect(result).toMatchObject({ requestStatus: "APPROVED", taskVersion: 2, decidedBy: item.other.account.id });
+    const saved = await evidence(item.submitted.id);
+    expect(saved.votes).toHaveLength(1);
+    expect(saved.cycles[0]).toMatchObject({ snapshot: before.cycles[0]!.snapshot, isActive: false });
+    expect(saved.audit.filter((event) => event.eventType === "REQUEST_APPROVED")).toHaveLength(1);
+    expect(await independent.Decide(item.other, item.slot, body, key)).toEqual(result);
+    expect(await evidence(item.submitted.id)).toEqual(saved);
+});
+
+test("TP-R2 waiting replacement survives activation", async () =>
+{
+    const item = await pending(false, true), before = await evidence(item.submitted.id);
+    const future = item.submitted.currentApprovers.find((slot) => slot.stageNumber === 2)!;
+    const original = before.slots.find((slot) => slot.id === future.slotId)!;
+    await db.update(approvalSlots).set({ reviewerId: item.other.account.id, version: 1 }).where(eq(approvalSlots.id, future.slotId));
+    const reassigned = await evidence(item.submitted.id);
+    expect(reassigned.slots.find((slot) => slot.id === future.slotId)).toEqual({ ...original, reviewerId: item.other.account.id, version: 1 });
+    expect(reassigned.cycles[0]!.snapshot).toEqual(before.cycles[0]!.snapshot);
+    expect(await decisions.Decide(item.reviewer, item.slot, approve, randomUUID())).toMatchObject({ requestStatus: "PENDING", currentStageNumber: 2 });
+    const activated = await evidence(item.submitted.id);
+    expect(activated.slots.find((slot) => slot.id === future.slotId)).toMatchObject({ reviewerId: item.other.account.id, status: "ACTIONABLE", version: 2, dueAt: null });
+    expect(activated.outbox.filter((event) => event.eventType === "APPROVAL_STAGE_ACTIVATED")).toHaveLength(1);
+    await expect(decisions.Decide(item.reviewer, future.slotId, approve, randomUUID())).rejects.toMatchObject({ code: "NOT_FOUND" });
+    await expect(decisions.Decide(item.other, future.slotId, { ...approve, expectedVersion: 1 }, randomUUID())).rejects.toMatchObject({ code: "APPROVAL_TASK_STALE" });
+    expect(await evidence(item.submitted.id)).toEqual(activated);
+    const key = randomUUID(), body = { ...approve, expectedVersion: 2 };
+    const result = await decisions.Decide(item.other, future.slotId, body, key);
+    expect(result).toMatchObject({ requestStatus: "APPROVED", taskVersion: 3, decidedBy: item.other.account.id });
+    const saved = await evidence(item.submitted.id);
+    expect(saved.votes).toHaveLength(2);
+    expect(saved.cycles[0]).toMatchObject({ snapshot: before.cycles[0]!.snapshot, isActive: false });
+    expect(saved.audit.filter((event) => event.eventType === "REQUEST_APPROVED")).toHaveLength(1);
+    expect(await independent.Decide(item.other, future.slotId, body, key)).toEqual(result);
+    expect(await evidence(item.submitted.id)).toEqual(saved);
+});
+
+async function groupedPending()
+{
+    const item = await fixture(), peer = await fixture(), replacement = await fixture();
+    await db.update(reviewerAssignmentRules).set({ reviewerUserIds: [item.reviewerId, peer.reviewerId] }).where(eq(reviewerAssignmentRules.id, item.assignmentId));
+    async function actor(id: string)
+    {
+        const familyId = randomUUID();
+        await db.insert(sessionFamilies).values({ id: familyId, userId: id, authVersion: 0, createdAt: new Date(), expiresAt: new Date(Date.now() + 3600000) });
+        return (await new IdentityRepository(db).ReadCurrentIdentity(id, familyId))!;
+    }
+    const reviewer = await actor(item.reviewerId), third = await actor(replacement.reviewerId);
+    const draft = await item.draft(), submitted = await service.Mutate(item.actor, "submit", draft.id, { expectedVersion: 0 }, randomUUID());
+    return { ...item, reviewer, third, submitted, slot: submitted.currentApprovers.find((slot) => slot.reviewer.id === item.reviewerId)!.slotId, peerSlot: submitted.currentApprovers.find((slot) => slot.reviewer.id === peer.reviewerId)!.slotId };
+}
+
+test("TP-R2 grouped assignment requires both votes after replacement", async () =>
+{
+    const item = await groupedPending(), before = await evidence(item.submitted.id);
+    expect(before.slots).toHaveLength(2);
+    await db.update(approvalSlots).set({ reviewerId: item.third.account.id, version: 1 }).where(eq(approvalSlots.id, item.peerSlot));
+    expect(await decisions.Decide(item.reviewer, item.slot, approve, randomUUID())).toMatchObject({ requestStatus: "PENDING" });
+    expect(await decisions.Decide(item.third, item.peerSlot, { ...approve, expectedVersion: 1 }, randomUUID())).toMatchObject({ requestStatus: "APPROVED" });
+    const saved = await evidence(item.submitted.id);
+    expect(saved.votes).toHaveLength(2);
+    expect(saved.cycles[0]!.snapshot).toEqual(before.cycles[0]!.snapshot);
+});
+
+test.each(["missing", "extra", "unknown", "balanced"] as const)("TP-R2 rejects malformed %s slot counts without writes", async (kind) =>
+{
+    const item = kind === "balanced" ? await pending(true) : await groupedPending();
+    const before = await evidence(item.submitted.id), slot = before.slots.find((row) => row.id === item.slot)!;
+    if (kind === "missing") await db.delete(approvalSlots).where(eq(approvalSlots.id, item.peerSlot!));
+    if (kind === "extra" || kind === "unknown")
+    {
+        const extra = await fixture();
+        await db.insert(approvalSlots).values({ ...slot, id: randomUUID(), reviewerId: extra.reviewerId, assignmentKey: kind === "unknown" ? "unknown" : slot.assignmentKey });
+    }
+    if (kind === "balanced") await db.update(approvalSlots).set({ assignmentKey: "review" }).where(eq(approvalSlots.id, item.peerSlot!));
+    const malformed = await evidence(item.submitted.id);
+    await expect(decisions.Decide(item.reviewer, item.slot, approve, randomUUID())).rejects.toMatchObject({ code: "INVALID_REQUEST_TRANSITION" });
+    expect(await evidence(item.submitted.id)).toEqual(malformed);
 });

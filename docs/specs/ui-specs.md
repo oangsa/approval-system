@@ -475,3 +475,5 @@ The preimplementation design and child criteria for M01–M03 are in [identity-a
 UI §10.3 / UI-06 for REJECT now displays the 10–4000 trimmed UTF-16-unit rule, shared-schema validation, an accessible reason error and retained input. Invalid confirmation is disabled and prevented on form submission; correction to exactly 10 permits confirmation. Count after trimming, including supplementary Unicode pairs and combining marks according to JavaScript length. Raw input must not be truncated at 4000 before trimming. APPROVE remains reason-optional; no RETURN UI is introduced.
 
 Approval evidence: [record](../labs/lab-07/approval-record.md). Original sections remain historical baseline wording where superseded above; no unrelated behavior is changed.
+
+Issue #11 dashboard, reporting and timeline behavior is defined in [the feature UI contract](../features/reporting-dashboard-timeline/ui-contract.md); actual working-tree results and review status are recorded in [verification](../features/reporting-dashboard-timeline/verification.md).
