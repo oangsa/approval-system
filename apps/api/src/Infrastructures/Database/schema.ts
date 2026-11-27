@@ -66,7 +66,7 @@ export const requests = pgTable("requests", {
     workingRevisionId: uuid("working_revision_id").references((): AnyPgColumn => requestRevisions.id), submittedRevisionId: uuid("submitted_revision_id").references((): AnyPgColumn => requestRevisions.id),
     currentCycleId: uuid("current_cycle_id").references((): AnyPgColumn => approvalCycles.id),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(), updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(), submittedAt: timestamp("submitted_at", { withTimezone: true }),
-}, (t) => [check("request_status", sql`${t.status} in ('DRAFT','PENDING','RETURNED','APPROVED','REJECTED','WITHDRAWN')`), check("request_priority", sql`${t.priority} in ('LOW','MEDIUM','HIGH','URGENT')`), check("request_version_nonnegative", sql`${t.version} >= 0`), index("request_owner_idx").on(t.requesterId), index("request_owner_updated_id_idx").on(t.requesterId, t.updatedAt.desc(), t.id.asc())]);
+}, (t) => [check("request_status", sql`${t.status} in ('DRAFT','PENDING','RETURNED','APPROVED','REJECTED','WITHDRAWN')`), check("request_priority", sql`${t.priority} in ('LOW','MEDIUM','HIGH','URGENT')`), check("request_version_nonnegative", sql`${t.version} >= 0`), index("request_owner_idx").on(t.requesterId), index("request_owner_status_created_id_idx").on(t.requesterId, t.status, t.createdAt.desc(), t.id.asc()), index("request_owner_updated_id_idx").on(t.requesterId, t.updatedAt.desc(), t.id.asc())]);
 export const requestRevisions = pgTable("request_revisions", {
     id: uuid().primaryKey(), requestId: uuid("request_id").notNull().references(() => requests.id), typeId: uuid("type_id").notNull(), formDefinitionVersionId: uuid("form_definition_version_id").notNull(),
     revisionNumber: integer("revision_number").notNull(), fields: jsonb().$type<Record<string, unknown>>().notNull(), amount: numeric({ precision: 24, scale: 2 }), currency: text(),
@@ -89,7 +89,7 @@ export const approvalStages = pgTable("approval_stages", {
 export const approvalSlots = pgTable("approval_slots", {
     id: uuid().primaryKey(), stageId: uuid("stage_id").notNull().references(() => approvalStages.id), reviewerId: uuid("reviewer_id").notNull().references(() => users.id),
     assignmentKey: text("assignment_key").notNull(), status: text().$type<import("@workflow/contracts").RequestDetail["currentApprovers"][number]["status"]>().notNull(), version: integer().notNull().default(0), dueAt: timestamp("due_at", { withTimezone: true }),
-}, (t) => [unique().on(t.stageId, t.assignmentKey, t.reviewerId), index("approval_slot_reviewer_status_idx").on(t.reviewerId, t.status)]);
+}, (t) => [unique().on(t.stageId, t.assignmentKey, t.reviewerId), index("approval_slot_reviewer_status_idx").on(t.reviewerId, t.status), index("approval_slot_reviewer_status_due_id_idx").on(t.reviewerId, t.status, t.dueAt.asc().nullsLast(), t.id.asc())]);
 export const requestAuditEvents = pgTable("audit_events", {
     note: text(),
     decisionId: uuid("decision_id").unique().references((): AnyPgColumn => approvalDecisions.id),

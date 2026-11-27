@@ -7,10 +7,10 @@ const filterSchema = z.union([
     z.strictObject({ name: z.literal("status"), condition: z.enum(["EQUAL", "NOTEQUAL"]), value: requestStatusSchema }),
     z.strictObject({ name: z.literal("typeId"), condition: z.literal("EQUAL"), value: z.uuid() }),
     z.strictObject({ name: z.literal("priority"), condition: z.literal("EQUAL"), value: prioritySchema }),
-    z.strictObject({ name: z.enum(["createdAt", "updatedAt", "submittedAt"]), condition: z.enum(["GREATER", "LESSER", "GREATEROREQUAL", "LESSEROREQUAL"]), value: z.iso.datetime() }),
+    z.strictObject({ name: z.enum(["createdAt", "updatedAt", "submittedAt"]), condition: z.enum(["EQUAL", "NOTEQUAL", "GREATER", "LESSER", "GREATEROREQUAL", "LESSEROREQUAL"]), value: z.iso.datetime() }),
     z.strictObject({ name: z.literal("submittedAt"), condition: z.enum(["ISNULL", "ISNOTNULL"]) }),
-    z.strictObject({ name: z.literal("requestNumber"), condition: z.enum(["EQUAL", "CONTAINS", "STARTWITH"]), value: text(100) }),
-    z.strictObject({ name: z.literal("title"), condition: z.enum(["EQUAL", "CONTAINS", "STARTWITH"]), value: text(200) }),
+    z.strictObject({ name: z.literal("requestNumber"), condition: z.enum(["EQUAL", "CONTAINS", "STARTWITH", "ENDWITH"]), value: text(100) }),
+    z.strictObject({ name: z.literal("title"), condition: z.enum(["EQUAL", "CONTAINS", "STARTWITH", "ENDWITH"]), value: text(200) }),
 ]);
 export const requestSearchSchema = z.strictObject({
     pageNumber: z.number().int().min(1).max(10000).default(1),

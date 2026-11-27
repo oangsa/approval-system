@@ -1,0 +1,5 @@
+# UI contract
+
+Reuse RequestCollection desktop rows/mobile cards and existing RequestFiltersDialog. My Requests retains its advanced Apply/Cancel/draft Reset and chips. Review Queue adds immediate single status and Bangkok due date range controls, removable chips, Reset filters, URL pageSize 10/20/50/100 and accessible column sort controls. Existing stage/overdue/text/sort/page links remain valid. Queue status only offers actionable because that is the authorized endpoint scope.
+
+Due start >= Bangkok midnight, end < next Bangkok midnight as UTC instants. Calendar input remains calendar-only. Malformed/reversed URLs show validation and Reset without fetching an unfiltered fallback. Changes reset page 1; text commits after 300 ms; back/forward restores criteria. Clear chips remove their own condition. Recover an empty out-of-range page once using server metadata. Abort and generation keys isolate query/account changes. Loading skeletons, retries, no dataset and no matches remain distinct. Mobile/desktop share identities, status, due, priority and task link action. Private content is never SSR-loaded.

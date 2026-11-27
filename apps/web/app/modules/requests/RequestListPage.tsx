@@ -121,7 +121,7 @@ function RequesterListContent({ generation, userId }: IRequesterListContentProps
     if (filters.submitted) chips.push({ key: "submitted", label: filters.submitted === "yes" ? "Submitted" : "Not submitted", remove: ["submitted"] });
     for (const [label, key, condition] of [["Number", "number", "numberCondition"], ["Title", "title", "titleCondition"]] as const)
     {
-        if (filters[key].trim()) chips.push({ key, label: `${label} ${filters[condition] === "EQUAL" ? "equals" : filters[condition] === "STARTWITH" ? "starts with" : "contains"} ${filters[key]}`, remove: [key, condition] });
+        if (filters[key].trim()) chips.push({ key, label: `${label} ${filters[condition] === "EQUAL" ? "equals" : filters[condition] === "STARTWITH" ? "starts with" : filters[condition] === "ENDWITH" ? "ends with" : "contains"} ${filters[key]}`, remove: [key, condition] });
     }
     const filtered = !!term || chips.length > 0;
     function link(item: RequestSummary)

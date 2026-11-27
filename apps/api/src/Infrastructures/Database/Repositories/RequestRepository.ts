@@ -95,7 +95,7 @@ export class RequestRepository implements IRequestRepository
             const column = columns[filter.name];
             if (filter.condition === "ISNULL") predicates.push(sql`${column} is null`);
             else if (filter.condition === "ISNOTNULL") predicates.push(sql`${column} is not null`);
-            else if (filter.condition === "CONTAINS" || filter.condition === "STARTWITH") predicates.push(ilike(column, `${filter.condition === "CONTAINS" ? "%" : ""}${escape(filter.value)}%`));
+            else if (filter.condition === "CONTAINS" || filter.condition === "STARTWITH" || filter.condition === "ENDWITH") predicates.push(ilike(column, `${filter.condition !== "STARTWITH" ? "%" : ""}${escape(filter.value)}${filter.condition !== "ENDWITH" ? "%" : ""}`));
             else if ("value" in filter)
             {
                 const value = filter.value;
@@ -118,17 +118,25 @@ export class RequestRepository implements IRequestRepository
         const where = and(...predicates);
         const [field, direction] = query.orderBy.split(" ") as ["updatedAt" | "createdAt" | "submittedAt" | "requestNumber" | "title", "asc" | "desc"];
         const order = direction === "asc" ? sql`${columns[field]} asc nulls last` : sql`${columns[field]} desc nulls last`;
-        const total = (await this.db.select({ count: count() }).from(requests).where(where))[0]!.count;
-        const rows = await this.db.select({ request: requests, typeCode: requestTypes.code, revisionNumber: requestRevisions.revisionNumber }).from(requests)
+        const totalQuery = this.db.$with("request_total").as(this.db.select({ count: count().as("count") }).from(requests).where(where));
+        const page = this.db.$with("request_page").as(this.db.select({ id: requests.id, requesterId: requests.requesterId, typeId: requests.typeId, departmentSnapshot: requests.departmentSnapshot, requestNumber: requests.requestNumber, title: requests.title, priority: requests.priority, status: requests.status, version: requests.version, currentCycleId: requests.currentCycleId, createdAt: requests.createdAt, updatedAt: requests.updatedAt, submittedAt: requests.submittedAt, typeCode: requestTypes.code, revisionNumber: requestRevisions.revisionNumber }).from(requests)
             .innerJoin(requestTypes, eq(requestTypes.id, requests.typeId)).leftJoin(requestRevisions, eq(requestRevisions.id, requests.submittedRevisionId))
-            .where(where).orderBy(order, asc(requests.id)).limit(query.pageSize).offset((query.pageNumber - 1) * query.pageSize);
+            .where(where).orderBy(order, asc(requests.id)).limit(query.pageSize).offset((query.pageNumber - 1) * query.pageSize));
+        const pageOrder = direction === "asc" ? sql`${page[field]} asc nulls last` : sql`${page[field]} desc nulls last`;
+        const rows = await this.db.with(totalQuery, page).select({ request: { id: page.id, requesterId: page.requesterId, typeId: page.typeId, departmentSnapshot: page.departmentSnapshot, requestNumber: page.requestNumber, title: page.title, priority: page.priority, status: page.status, version: page.version, currentCycleId: page.currentCycleId, createdAt: page.createdAt, updatedAt: page.updatedAt, submittedAt: page.submittedAt, typeCode: page.typeCode, revisionNumber: page.revisionNumber }, total: totalQuery.count }).from(totalQuery).leftJoin(page, sql`true`).orderBy(pageOrder, asc(page.id));
+        const total = rows[0]!.total;
         const owner = (await this.db.select().from(users).where(eq(users.id, ownerId)))[0]!;
         const roles = await this.db.select().from(userRoles).where(eq(userRoles.userId, ownerId));
-        const items = rows.map(({ request: row, typeCode, revisionNumber }) => requestSummarySchema.parse({
-            id: row.id, requestNumber: row.requestNumber, typeId: row.typeId, typeCode, title: row.title, priority: row.priority, status: row.status,
-            requester: { id: owner.id, displayName: owner.displayName, email: owner.email, roles: roles.map((role) => role.roleCode), isActive: owner.isActive, department: row.departmentSnapshot },
-            department: row.departmentSnapshot, revisionNumber, currentCycleId: row.currentCycleId, createdAt: row.createdAt.toISOString(), updatedAt: row.updatedAt.toISOString(), submittedAt: row.submittedAt?.toISOString() ?? null, version: row.version,
-        }));
+        const items = rows.filter((result) => result.request !== null).map(({ request }) =>
+        {
+            const row = request!;
+            const { typeCode, revisionNumber } = row;
+            return requestSummarySchema.parse({
+                id: row.id, requestNumber: row.requestNumber, typeId: row.typeId, typeCode, title: row.title, priority: row.priority, status: row.status,
+                requester: { id: owner.id, displayName: owner.displayName, email: owner.email, roles: roles.map((role) => role.roleCode), isActive: owner.isActive, department: row.departmentSnapshot },
+                department: row.departmentSnapshot, revisionNumber, currentCycleId: row.currentCycleId, createdAt: row.createdAt.toISOString(), updatedAt: row.updatedAt.toISOString(), submittedAt: row.submittedAt?.toISOString() ?? null, version: row.version,
+            });
+        });
         const totalPages = Math.ceil(total / query.pageSize);
         return { items, pagination: { currentPage: query.pageNumber, pageSize: query.pageSize, totalPages, totalCount: total, hasPrevious: query.pageNumber > 1, hasNext: query.pageNumber < totalPages } };
     }
