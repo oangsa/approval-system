@@ -56,7 +56,7 @@ test("two-stage parallel approval progresses through waiting and partial votes",
         await expect(reviewer!.locator(`a[href='/reviews/${slot(1, reviewerId)}']`).first()).toBeVisible();
         await expect(reviewer!.locator(`a[href='/reviews/${slot(2, reviewerId)}']`)).toHaveCount(0);
         const overdueSearch = reviewer!.waitForResponse((response) => response.url().includes("/approval-tasks/search") && response.request().method() === "POST" && (response.request().postData() ?? "").includes('"name":"overdue"'));
-        await reviewer!.getByLabel(/^Due/).selectOption("overdue");
+        await reviewer!.getByRole("combobox", { name: /^Due/ }).selectOption("overdue");
         expect((await overdueSearch).status()).toBe(200);
         await expect(reviewer!.locator(`a[href='/reviews/${slot(2, reviewerId)}']`)).toHaveCount(0);
         await reviewer!.goto(`/reviews/${slot(1, reviewerId)}`);

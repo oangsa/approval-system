@@ -1,0 +1,75 @@
+> test:e2e
+> playwright test
+
+[2m[WebServer] [22m(node:35264) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[2m[WebServer] [22m(Use `node --trace-warnings ...` to show where the warning was created)
+[2m[WebServer] [22m(node:35355) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[2m[WebServer] [22m(Use `node --trace-warnings ...` to show where the warning was created)
+[2m[WebServer] [22m
+[2m[WebServer] [22m  dist/index.js  258.9kb
+[2m[WebServer] [22m
+[2m[WebServer] [22m⚡ Done in 10ms
+[2m[WebServer] [22m(node:35386) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[2m[WebServer] [22m(Use `node --trace-warnings ...` to show where the warning was created)
+
+Running 53 tests using 1 worker
+
+(node:35442) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:35442) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓   1 [chromium] › e2e/approval-decisions.spec.ts:49:1 › Lab 7 separate requester and reviewer sessions reject exactly ten and preserve denied state (2.4s)
+  ✓   2 [chromium] › e2e/approval-decisions.spec.ts:129:1 › Lab 7 preserves approval without a reason on a separate request (2.1s)
+  ✓   3 [chromium] › e2e/approval-decisions.spec.ts:148:1 › Lab 7 historical short rejection is readable through real HTTP and requester browser reload (2.4s)
+  ✓   4 [chromium] › e2e/approval-decisions.spec.ts:207:5 › Approve requires keyboard confirmation and persists immutable history (2.3s)
+  ✓   5 [chromium] › e2e/approval-decisions.spec.ts:207:5 › Reject requires keyboard confirmation and persists immutable history (2.3s)
+  ✓   6 [chromium] › e2e/approval-decisions.spec.ts:247:1 › stale confirmation closes safely, retains reason and offers task reload (1.5s)
+  ✓   7 [chromium] › e2e/approval-decisions.spec.ts:263:1 › lost accepted response retries with the same key and pending blocks repeat activation (1.8s)
+  ✓   8 [chromium] › e2e/auth.spec.ts:7:1 › login cannot submit credentials before JavaScript is available (110ms)
+  ✓   9 [chromium] › e2e/auth.spec.ts:37:1 › IA-E2E-01: a real login reaches the protected shell with the current identity (353ms)
+  ✓  10 [chromium] › e2e/auth.spec.ts:46:1 › IA-E2E-04: wrong credentials show a generic error and never reach the shell (237ms)
+  ✓  11 [chromium] › e2e/auth.spec.ts:56:1 › IA-E2E-02: a returning browser bootstraps its session from the refresh cookie (445ms)
+  ✓  12 [chromium] › e2e/auth.spec.ts:71:1 › IA-E2E-03: logout ends the session and protected routes require signing in again (442ms)
+  ✓  13 [chromium] › e2e/auth.spec.ts:83:1 › IA-E2E-03: switching accounts never renders the previous identity (583ms)
+  ✓  14 [chromium] › e2e/auth.spec.ts:98:1 › IA-WEB-05: the mobile drawer is keyboard operable and manages focus (679ms)
+  ✓  15 [chromium] › e2e/auth.spec.ts:121:1 › IA-E2E-05: public server-rendered HTML never contains private identity data (8ms)
+  ✓  16 [chromium] › e2e/auth.spec.ts:131:1 › the API rejects protected calls without credentials through the real listener (4ms)
+  ✓  17 [chromium] › e2e/auth.spec.ts:138:1 › IA-E2E-03: delayed bootstrap identity cannot replace a later account (585ms)
+  ✓  18 [chromium] › e2e/auth.spec.ts:178:1 › IA-E2E-04: equivalent denials, injected throttle, and network recovery (662ms)
+  ✓  19 [chromium] › e2e/auth.spec.ts:217:1 › IA-E2E-03: failed logout clears private UI and retry revokes credentials (567ms)
+  ✓  20 [chromium] › e2e/auth.spec.ts:258:1 › IA-WEB-05: expanded desktop sidebar and native mobile modal preserve keyboard access (566ms)
+  ✓  21 [chromium] › e2e/configurable-forms.spec.ts:17:1 › E2E-03 and E2E-08 admin configures conditional line-item type, previews, publishes, and requester submits with priority (3.1s)
+  ✓  22 [chromium] › e2e/draft-withdraw.spec.ts:45:1 › DW-AC-01–04 incomplete saves, reload/resume, navigation warning and input-preserving retry (2.4s)
+  ✓  23 [chromium] › e2e/draft-withdraw.spec.ts:105:1 › E2E-06 optional withdrawal confirmation, lost-response replay, stale reviewer and refreshed queue (1.7s)
+  ✓  24 [chromium] › e2e/draft-withdraw.spec.ts:165:1 › mobile list withdrawal retains optional reason in history and refreshes applied pending filter (751ms)
+  ✓  25 [chromium] › e2e/draft-withdraw.spec.ts:185:1 › review: concurrent draft edit recovers through confirmed reload and saves current version (1.0s)
+  ✓  26 [chromium] › e2e/draft-withdraw.spec.ts:211:1 › review: Escape after withdrawal conflict reload refreshes terminal owner detail (700ms)
+  ✓  27 [chromium] › e2e/draft-withdraw.spec.ts:232:1 › B02 type change creates a new edit resource, preserves original, and resumes new draft after reload (877ms)
+  ✓  28 [chromium] › e2e/draft-withdraw.spec.ts:296:1 › B03 unchanged save reads server state, rejects peer edits and submission without false success (763ms)
+  ✓  29 [chromium] › e2e/draft-withdraw.spec.ts:327:1 › B03 unchanged save rechecks revoked editing permission without a success message or mutation (589ms)
+  ✓  30 [chromium] › e2e/draft-withdraw.spec.ts:366:1 › B04 confirmed form migration clears obsolete review items and persists through browser reload (1.3s)
+  ✓  31 [chromium] › e2e/draft-withdraw.spec.ts:435:1 › B05 unchanged save with reordered jsonb keys triggers GET without PATCH or new audit entry (541ms)
+  ✓  32 [chromium] › e2e/draft-withdraw.spec.ts:479:1 › B06 canonical bracket-form lineItems[0].quantity path focuses the affected wizard input (729ms)
+  ✓  33 [chromium] › e2e/draft-withdraw.spec.ts:541:1 › B07 desktop list withdrawal restores trigger on Escape and focuses search input when Withdraw disappears (641ms)
+  ✓  34 [chromium] › e2e/policies-routing-budget.spec.ts:24:1 › E2E-08 admin configures mappings, immutable policy versions and ceiling; requester submits at ceiling (6.4s)
+  ✓  35 [chromium] › e2e/reporting-dashboard-timeline.spec.ts:38:1 › requester dashboard and reports use live scoped data and URL filters (1.5s)
+  ✓  36 [chromium] › e2e/reporting-dashboard-timeline.spec.ts:99:1 › dashboard role sections and private SSR (616ms)
+  ✓  37 [chromium] › e2e/reporting-dashboard-timeline.spec.ts:120:1 › persisted decision updates dashboard and owner history without historic detail fetch (3.8s)
+  ✓  38 [chromium] › e2e/reporting-dashboard-timeline.spec.ts:253:1 › report error can be retried against the live API (450ms)
+  ✓  39 [chromium] › e2e/request-list-detail.spec.ts:12:1 › REQ-E2E-01 and REQ-E2E-02: requester list and persisted detail (5.4s)
+  ✓  40 [chromium] › e2e/requests.spec.ts:14:1 › E2E-01 wizard incomplete save, Back/Next preservation, conditional validation and authoritative submit (1.6s)
+  ✓  41 [chromium] › e2e/requests.spec.ts:70:1 › UI-20 authenticated wizard data is absent from public SSR (6ms)
+  ✓  42 [chromium] › e2e/requests.spec.ts:79:1 › BUG-B02 over-limit title explains the limit and allows correction (769ms)
+  ✓  43 [chromium] › e2e/return-revision-resubmission.spec.ts:20:1 › RR-AC-09/10 return, revise, resubmit and inspect immutable history (2.4s)
+  ✓  44 [chromium] › e2e/return-revision-resubmission.spec.ts:105:1 › returned wizard retains its form while resubmission uses current policy and replays a lost response (1.7s)
+  ✓  45 [chromium] › e2e/reviewer-queue.spec.ts:11:1 › assigned reviewer opens submitted request on desktop and mobile (1.9s)
+  ✓  46 [chromium] › e2e/reviewer-queue.spec.ts:52:1 › private review content is absent from SSR (6ms)
+  ✓  47 [chromium] › e2e/reviewer-queue.spec.ts:59:1 › review filters restore URL state, chips, page size and mobile layout (687ms)
+  ✓  48 [chromium] › e2e/smoke.spec.ts:5:1 › landing content is present in public server-rendered HTML (8ms)
+  ✓  49 [chromium] › e2e/smoke.spec.ts:19:5 › landing renders and hydrates without errors or overflow at 1440px (414ms)
+  ✓  50 [chromium] › e2e/smoke.spec.ts:19:5 › landing renders and hydrates without errors or overflow at 390px (404ms)
+  ✓  51 [chromium] › e2e/smoke.spec.ts:76:1 › public overview and sign-in remain usable without JavaScript (213ms)
+  ✓  52 [chromium] › e2e/smoke.spec.ts:95:1 › API health endpoint responds through the real Node listener (4ms)
+  ✓  53 [chromium] › e2e/two-stage-parallel-approvals.spec.ts:17:1 › two-stage parallel approval progresses through waiting and partial votes (2.9s)
+
+  53 passed (1.2m)

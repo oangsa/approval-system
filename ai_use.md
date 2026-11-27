@@ -1288,3 +1288,9 @@ reflection/output: Final verification passed 559 ordinary tests, all 198 Postgre
 @oangsa
 prompt: commit  push and open pr to sprint-3-staging
 reflection/output: Inspected the complete diff and preserved prior assistance records and exclusions. Fetched origin and confirmed the feature starting commit matches sprint-3-staging. Split specifications, backend/contracts with tests, generated database indexes, UI with tests, and verification/assistance documentation into scoped atomic commits. Recorded the tested source commits and prepared the authorized v2 branch push and feature PR to sprint-3-staging with independent teammate review requested from @kittipichcha. Retained the actual 559 ordinary/198 PostgreSQL/four focused browser results and typecheck/lint/build evidence from the implementation session; source behavior was unchanged during publication preparation. No merge or deployment is authorized.
+
+## Issue #12 assistance
+
+@oangsa
+prompt: fix failed ci
+reflection/output: Inspected PR #94 Verification run 45937634578 and identified its sole failed browser test: the legacy /^Due/ label selector matched the overdue select and both new date inputs. Reproduced the unchanged focused failure, traced the strict-mode and pending-response teardown paths, and narrowed only the test selector to the combobox role without weakening assertions or changing application behavior/timeouts. Typecheck and lint passed. A full local run exposed accumulated fixture pagination failures (44 passed/nine failed); preserved that database and reran against a separate freshly migrated/seeded disposable PostgreSQL database, where all 53 browser tests passed. Recorded evidence and prepared the scoped test repair for the already-authorized feature branch push and PR CI rerun. No merge or deployment.
