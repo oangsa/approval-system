@@ -23,7 +23,7 @@ test("advanced criteria map to existing typed transport and inclusive Bangkok da
 test.each([
     "createdFrom=2026-02-30", "updatedFrom=2026-11-02&updatedTo=2026-11-01",
     "status=PENDING&statusCondition=IN", "priority=CRITICAL", "typeId=foreign", "submitted=perhaps",
-    "submitted=no&submittedFrom=2026-11-01", "title=sample&titleCondition=ENDWITH",
+    "submitted=no&submittedFrom=2026-11-01", "title=sample&titleCondition=IN",
     "page=0", "page=10001", "pageSize=101", "pageSize=25", "sort=requesterId+desc",
     `search=${"x".repeat(101)}`,
 ])("invalid URL cannot fall back to unfiltered search: %s", (value) =>
@@ -50,4 +50,9 @@ test("filter validation identifies the specific range and related controls", () 
     expect(buildRequestQuery(new URLSearchParams("createdFrom=2026-11-10&createdTo=2026-11-01"))).toEqual({ error: "Created date range: start must be on or before its end.", fields: ["createdFrom", "createdTo"] });
     expect(buildRequestQuery(new URLSearchParams("updatedTo=2026-02-30"))).toEqual({ error: "Updated: enter valid calendar dates.", fields: ["updatedTo"] });
     expect(buildRequestQuery(new URLSearchParams("submitted=no&submittedFrom=2026-11-01"))).toEqual({ error: "Not submitted cannot be combined with a submitted date range.", fields: ["submitted", "submittedFrom", "submittedTo"] });
+});
+
+test("suffix filter restores from URL", () =>
+{
+    expect(buildRequestQuery(new URLSearchParams("title=sample&titleCondition=ENDWITH")).query?.search).toEqual([{ name: "title", condition: "ENDWITH", value: "sample" }]);
 });
