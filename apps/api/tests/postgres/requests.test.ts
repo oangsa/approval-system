@@ -430,6 +430,23 @@ test("reviewer task HTTP enforces assignment, validation, pagination and due-dat
         expect(await (await search([{ name: "dueAt", condition, value: "2026-11-07T11:00:00Z" }])).json()).toHaveLength(1);
     for (const condition of ["LESSER", "LESSEROREQUAL"])
         expect(await (await search([{ name: "dueAt", condition, value: "2026-11-07T13:00:00Z" }])).json()).toHaveLength(1);
+    for (const [condition, value, count] of [
+        ["EQUAL", "2026-11-07T12:00:00Z", 1], ["NOTEQUAL", "2026-11-07T12:00:00Z", 0],
+        ["LESSER", "2026-11-07T12:00:00.000001Z", 1], ["GREATEROREQUAL", "2026-11-07T12:00:00.000001Z", 0],
+        ["GREATER", "2026-11-07T11:59:59.999999Z", 1], ["LESSEROREQUAL", "2026-11-07T11:59:59.999999Z", 0],
+    ] as const)
+    {
+        const result = await search([{ name: "dueAt", condition, value }]);
+        expect(result.status).toBe(200);
+        expect(await result.json()).toHaveLength(count);
+        expect(JSON.parse(result.headers.get("x-pagination")!).totalCount).toBe(count);
+    }
+    for (const body of [{ pageSize: 101 }, { pageNumber: 0 }, { orderBy: "dueAt asc, id desc" }, { searchTerm: { name: "requester.email", value: "private" } }, { search: [{ name: "departmentId", condition: "EQUAL", value: randomUUID() }] }])
+    {
+        const rejected = await send("POST", "/approval-tasks/search", JSON.stringify(body));
+        expect(rejected.status).toBe(422);
+        expect(await rejected.json()).toMatchObject({ code: "VALIDATION_ERROR" });
+    }
     const preflight = await app.handle(new Request("http://localhost/api/v1/approval-tasks/search", { method: "OPTIONS", headers: { origin: "http://localhost:3000", "access-control-request-method": "POST", "access-control-request-headers": "authorization,content-type" } }));
     expect(preflight.status).toBe(204);
 });

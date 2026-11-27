@@ -1,4 +1,4 @@
-import { and, asc, count, eq, gt, gte, ilike, isNotNull, isNull, lt, lte, ne, or, sql, type SQL } from "drizzle-orm";
+import { and, asc, count, eq, gt, ilike, isNotNull, isNull, lte, ne, or, sql, type SQL } from "drizzle-orm";
 import { approvalTaskSchema, type ApprovalTaskSearch } from "@workflow/contracts";
 import type { IActor } from "../../../Domains/Identity/Identity";
 import type { IApprovalTaskRepository, IApprovalTaskUnitOfWork } from "../../../Domains/Approvals/Ports";
@@ -52,14 +52,24 @@ export class ApprovalTaskRepository implements IApprovalTaskRepository
             else if (filter.name === "requestNumber")
             {
                 const value = escaped(filter.value);
-                predicates.push(ilike(requests.requestNumber, filter.condition === "CONTAINS" ? `%${value}%` : filter.condition === "STARTWITH" ? `${value}%` : value));
+                predicates.push(ilike(requests.requestNumber, filter.condition === "CONTAINS" ? `%${value}%` : filter.condition === "STARTWITH" ? `${value}%` : filter.condition === "ENDWITH" ? `%${value}` : value));
             }
             else if (filter.condition === "ISNULL") predicates.push(isNull(approvalSlots.dueAt));
             else if (filter.condition === "ISNOTNULL") predicates.push(isNotNull(approvalSlots.dueAt));
             else if ("value" in filter)
             {
-                const value = new Date(filter.value);
-                predicates.push(filter.condition === "GREATER" ? gt(approvalSlots.dueAt, value) : filter.condition === "LESSER" ? lt(approvalSlots.dueAt, value) : filter.condition === "GREATEROREQUAL" ? gte(approvalSlots.dueAt, value) : lte(approvalSlots.dueAt, value));
+                // Bind the original UTC instant so PostgreSQL retains microsecond precision.
+                const value = filter.value;
+                const column = approvalSlots.dueAt;
+                switch (filter.condition)
+                {
+                    case "EQUAL": predicates.push(sql`${column} = ${value}`); break;
+                    case "NOTEQUAL": predicates.push(sql`${column} <> ${value}`); break;
+                    case "GREATER": predicates.push(sql`${column} > ${value}`); break;
+                    case "LESSER": predicates.push(sql`${column} < ${value}`); break;
+                    case "GREATEROREQUAL": predicates.push(sql`${column} >= ${value}`); break;
+                    case "LESSEROREQUAL": predicates.push(sql`${column} <= ${value}`); break;
+                }
             }
         }
         if (query.searchTerm)
