@@ -224,3 +224,23 @@ test("withdrawn tasks disappear when reviewer returns focus to queue", async () 
     await waitFor(() => expect(searchApprovalTasks).toHaveBeenCalledTimes(2));
     await waitFor(() => expect(screen.queryByRole("row")).not.toBeInTheDocument());
 });
+
+test("invalid URL shows validation without issuing a broadened query", async () =>
+{
+    render(<MemoryRouter initialEntries={["/reviews?pageSize=999&dueFrom=2026-12-02&dueTo=2026-12-01"]}><ReviewQueuePage /></MemoryRouter>);
+    expect(screen.getByRole("alert")).toHaveTextContent("valid due date range");
+    expect(searchApprovalTasks).not.toHaveBeenCalled();
+    vi.mocked(searchApprovalTasks).mockResolvedValue(page);
+    fireEvent.click(screen.getByRole("button", { name: "Reset filters" }));
+    await waitFor(() => expect(searchApprovalTasks).toHaveBeenCalledWith(expect.objectContaining({ pageSize: 20, search: [] }), expect.any(AbortSignal), 0));
+});
+
+test("due dates and removable chips reset the server page", async () =>
+{
+    vi.mocked(searchApprovalTasks).mockResolvedValue(page);
+    render(<MemoryRouter initialEntries={["/reviews?page=2&pageSize=50"]}><ReviewQueuePage /></MemoryRouter>);
+    fireEvent.change(screen.getByLabelText("Due from (Bangkok)"), { target: { value: "2026-11-01" } });
+    await waitFor(() => expect(searchApprovalTasks).toHaveBeenLastCalledWith(expect.objectContaining({ pageNumber: 1, pageSize: 50, search: [{ name: "dueAt", condition: "GREATEROREQUAL", value: "2026-10-31T17:00:00.000Z" }] }), expect.any(AbortSignal), 0));
+    fireEvent.click(screen.getByRole("button", { name: "Remove Due from: 2026-11-01" }));
+    await waitFor(() => expect(searchApprovalTasks).toHaveBeenLastCalledWith(expect.objectContaining({ pageNumber: 1, pageSize: 50, search: [] }), expect.any(AbortSignal), 0));
+});

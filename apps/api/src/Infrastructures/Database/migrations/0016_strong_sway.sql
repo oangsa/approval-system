@@ -1,0 +1,2 @@
+CREATE INDEX "approval_slot_reviewer_status_due_id_idx" ON "approval_slots" USING btree ("reviewer_id","status","due_at","id");--> statement-breakpoint
+CREATE INDEX "request_owner_status_created_id_idx" ON "requests" USING btree ("requester_id","status","created_at" DESC NULLS LAST,"id");

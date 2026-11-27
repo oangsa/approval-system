@@ -16,3 +16,10 @@ describe("approval task contracts", () =>
         expect(approvalTaskSchema.safeParse({ ...task, requestTitle: "private" }).success).toBe(false);
     });
 });
+
+it.each(["EQUAL", "NOTEQUAL", "GREATER", "LESSER", "GREATEROREQUAL", "LESSEROREQUAL"])("accepts precise dueAt %s and rejects hidden paths", (condition) =>
+{
+    const filter = { name: "dueAt", condition, value: "2026-11-01T00:00:00.123001Z" };
+    expect(approvalTaskSearchSchema.safeParse({ search: [filter] }).success).toBe(true);
+    expect(approvalTaskSearchSchema.safeParse({ search: [{ ...filter, name: "requests.createdAt" }] }).success).toBe(false);
+});

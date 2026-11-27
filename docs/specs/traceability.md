@@ -373,3 +373,7 @@ R09/O10/O18/O19, FR-026/031/035/036, AC-026/031/035/036 and BR-018/021/023–025
 ## Issue #10 traceability
 
 [R08 / FR-025 / AC-025 / FT-025, R10 / FR-027 / AC-027 / FT-027, and O13 / FR-032 / AC-032 / FT-032](../features/two-stage-parallel-approvals/acceptance-criteria.md) map to the [STS](../features/two-stage-parallel-approvals/sts.md) and [verification record](../features/two-stage-parallel-approvals/verification.md). The record distinguishes implemented behavior, actual checks and pending delivery gates.
+
+### Sprint 3 request search, filters and pagination — issue #12
+
+R12/R13/R14 → FR-037–039 → AC-037–039 → [feature AC 1–7](../features/request-search-filter-pagination/acceptance-criteria.md), [SDS](../features/request-search-filter-pagination/sds.md), API/UI/data contracts, STS and DoD. Completes the earlier My Requests slice with review queue URL/date/chip/page-size/sort controls, exact date operators, consistent scoped counts and intentional indexes. Actual execution and remaining teammate review are recorded in [verification](../features/request-search-filter-pagination/verification.md). Feature work remains on the owner's v2 branch targeting sprint-3-staging; frozen permission/endpoint contracts remain unchanged.

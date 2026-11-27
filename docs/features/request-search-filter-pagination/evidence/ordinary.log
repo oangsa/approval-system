@@ -1,0 +1,12 @@
+
+> test
+> vitest run --maxWorkers=1
+
+
+ RUN  v4.1.10 /home/oangsa/code/repos/approval-system
+
+
+ Test Files  64 passed (64)
+      Tests  559 passed (559)
+   Start at  10:58:24
+   Duration  38.91s (transform 1.06s, setup 3.20s, import 7.43s, tests 16.02s, environment 7.02s)
