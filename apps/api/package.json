@@ -16,7 +16,8 @@
     "test:storage": "vitest run --config vitest.gcs.config.ts",
     "db:test:migrate": "drizzle-kit migrate --config drizzle.test.config.ts",
     "db:test:seed": "node --import tsx scripts/seed-test.ts",
-    "db:seed": "node --env-file-if-exists=.env --import tsx scripts/seed-development.ts"
+    "db:seed": "node --env-file-if-exists=.env --import tsx scripts/seed-development.ts",
+    "attachments:cleanup": "node --env-file-if-exists=.env --import tsx scripts/cleanup-attachments.ts"
   },
   "dependencies": {
     "@elysia/node": "1.4.6",

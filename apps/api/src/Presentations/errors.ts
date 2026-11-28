@@ -1,3 +1,4 @@
+import { PrivateObjectStorageError } from "../Domains/Requests/AttachmentPorts";
 import { RequestError, type RequestErrorCode } from "../Domains/Requests/RequestRules";
 import { RequestTypeError, type RequestTypeErrorCode } from "../Domains/RequestTypes/RequestTypeRules";
 import { IdentityError } from "../Domains/Identity/IdentityError";
@@ -50,6 +51,10 @@ export function errorResponse(error: unknown, frameworkCode: string | number, re
 {
     let code: HttpErrorCode = "INTERNAL_ERROR";
     if (error instanceof RequestError || error instanceof ApprovalTaskError || error instanceof RequestTypeError) code = error.code;
+    else if (error instanceof PrivateObjectStorageError)
+    {
+        code = error.code === "OBJECT_NOT_FOUND" ? "NOT_FOUND" : "SERVICE_UNAVAILABLE";
+    }
     else if (error instanceof HttpError) code = error.code;
     else if (error instanceof IdentityError)
     {

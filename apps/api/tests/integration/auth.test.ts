@@ -415,7 +415,7 @@ test("R2 CORS grants exact headers to the allowed origin on preflight and respon
     expect(me.status).toBe(200);
     expect(me.headers.get("access-control-allow-origin")).toBe(origin);
     expect(me.headers.get("access-control-allow-credentials")).toBe("true");
-    expect(me.headers.get("access-control-expose-headers")).toBe("X-Pagination, X-Request-Id, Location");
+    expect(me.headers.get("access-control-expose-headers")).toBe("X-Pagination, X-Request-Id, Location, Content-Disposition");
     expect((me.headers.get("vary") ?? "").toLowerCase()).toContain("origin");
     const anonymous = await app.handle(new Request("http://localhost/api/v1/auth/me", { headers: {} }));
     expect(anonymous.status).toBe(401);

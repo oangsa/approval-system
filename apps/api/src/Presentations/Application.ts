@@ -6,15 +6,38 @@ import type { RequestTypeService } from "../Applications/RequestTypes/RequestTyp
 import type { ApprovalTaskService } from "../Applications/Approvals/ApprovalTaskService";
 import type { ElysiaAdapter } from "elysia";
 import type { IIdentityHttpDependencies } from "./composition";
-import { createApplication } from "./createApplication";
+import { createApplication, type ICreateApplicationOptions } from "./createApplication";
 
 export class Application
 {
     public readonly app;
     private closed = false;
-    constructor(adapter: ElysiaAdapter, identity?: IIdentityHttpDependencies, private readonly close?: () => Promise<void>, requests?: RequestService, approvalTasks?: ApprovalTaskService, decisions?: DecisionService, checkHealth?: () => Promise<void>, requestTypes?: RequestTypeService, reporting?: ReportingService, configuration?: ConfigurationService)
+    constructor(
+        adapter: ElysiaAdapter,
+        identity?: IIdentityHttpDependencies,
+        private readonly close?: () => Promise<void>,
+        requests?: RequestService,
+        approvalTasks?: ApprovalTaskService,
+        decisions?: DecisionService,
+        checkHealth?: () => Promise<void>,
+        requestTypes?: RequestTypeService,
+        reporting?: ReportingService,
+        configuration?: ConfigurationService,
+        options?: ICreateApplicationOptions,
+    )
     {
-        this.app = createApplication(adapter, identity, requests, approvalTasks, decisions, checkHealth, requestTypes, reporting, configuration);
+        this.app = createApplication(
+            adapter,
+            identity,
+            requests,
+            approvalTasks,
+            decisions,
+            checkHealth,
+            requestTypes,
+            reporting,
+            configuration,
+            options,
+        );
     }
     public Start(port: number, hostname: string): void
     {
@@ -26,12 +49,12 @@ export class Application
         if (this.closed) return;
         this.closed = true;
         try
-{
- await this.app.stop();
-}
+        {
+            await this.app.stop();
+        }
         finally
-{
- await this.close?.();
-}
+        {
+            await this.close?.();
+        }
     }
 }

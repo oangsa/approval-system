@@ -4,15 +4,20 @@ import { ReportingService } from "./Applications/Reporting/ReportingService";
 import { ReportingUnitOfWork } from "./Infrastructures/Database/Repositories/ReportingRepository";
 import { DecisionService } from "./Applications/Approvals/DecisionService";
 import { DecisionUnitOfWork } from "./Infrastructures/Database/Repositories/DecisionRepository";
+import { AttachmentService } from "./Applications/Requests/AttachmentService";
+import { CommentService } from "./Applications/Requests/CommentService";
 import { RequestService } from "./Applications/Requests/RequestService";
 import { RequestTypeService } from "./Applications/RequestTypes/RequestTypeService";
 import { ApprovalTaskService } from "./Applications/Approvals/ApprovalTaskService";
 import { ApprovalTaskUnitOfWork } from "./Infrastructures/Database/Repositories/ApprovalTaskRepository";
+import { AttachmentUnitOfWork } from "./Infrastructures/Database/Repositories/AttachmentRepository";
+import { CommentUnitOfWork } from "./Infrastructures/Database/Repositories/CommentRepository";
 import { RequestUnitOfWork } from "./Infrastructures/Database/Repositories/RequestRepository";
 import { RequestTypeUnitOfWork } from "./Infrastructures/Database/Repositories/RequestTypeRepository";
 import { node } from "@elysia/node";
 import { readEnvironment } from "./Infrastructures/Configuration/environment";
 import { Database } from "./Infrastructures/Database/Database";
+import { CreatePrivateObjectStorage } from "./Infrastructures/Storage";
 import { Application } from "./Presentations/Application";
 import { createIdentityComposition } from "./Presentations/composition";
 
@@ -23,6 +28,9 @@ async function main(): Promise<void>
     try
     {
         const identity = await createIdentityComposition(environment, database);
+        const attachmentStorage = CreatePrivateObjectStorage(environment);
+        const comments = new CommentService(new CommentUnitOfWork(database.connection));
+        const attachments = new AttachmentService(new AttachmentUnitOfWork(database.connection), attachmentStorage);
         const application = new Application(
             node(),
             identity,
@@ -34,6 +42,11 @@ async function main(): Promise<void>
             new RequestTypeService(new RequestTypeUnitOfWork(database.connection)),
             new ReportingService(new ReportingUnitOfWork(database.connection)),
             new ConfigurationService(new ConfigurationUnitOfWork(database.connection)),
+            {
+                comments,
+                attachments,
+                attachmentStorage,
+            },
         );
         application.Start(environment.PORT, environment.HOST);
         let shuttingDown = false;
@@ -42,13 +55,14 @@ async function main(): Promise<void>
             if (shuttingDown) return;
             shuttingDown = true;
             try
-{
- await application.Stop();
-}
+            {
+                await application.Stop();
+            }
             catch
-{
- console.error({ code: "SHUTDOWN_FAILED" }); process.exitCode = 1;
-}
+            {
+                console.error({ code: "SHUTDOWN_FAILED" });
+                process.exitCode = 1;
+            }
         };
         process.once("SIGINT", shutdown);
         process.once("SIGTERM", shutdown);
