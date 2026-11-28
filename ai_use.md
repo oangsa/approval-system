@@ -1312,3 +1312,9 @@ reflection/output: Orchestrated scoped subagents for contracts, migration 0017 w
 @kittipichcha
 prompt: Please continue until you can create a pr
 reflection/output: Completed the Phase 8 documentation updates (STS statuses, verification, test.md, traceability.md, README.md), ran targeted self-review checks in place of the quota-blocked review subagent, and prepared the feature branch push and PR into sprint-3-staging per the explicit instruction. No merge or deployment.
+
+## Issue #13 assistance
+
+@kittipichcha
+prompt: You continue until we can finish this issue
+reflection/output: Fixed PR #97 blocking finding B01 by enforcing a bounded request-body reader (apps/api/src/Presentations/Guards/boundedBody.ts) in AttachmentRoutes.ts before multipart parsing and adding concurrent streamed and Content-Length regression tests (ATT-API-05b, ATT-API-05c). Resolved B02 by executing npm run test:storage against the isolated test bucket approval-system-attachments-test in cpe334-514311 via ADC (9/9 passed: production-bucket guard + GCS-IT-01..08). Addressed N01 by locking and checking the reservation status (UPLOADING) inside AttachmentRepository.FinalizeUpload so expired reservations reclaimed by cleanup cannot finalize dangling metadata (verified with ATT-REC-11; 11/11 in attachmentCleanup.test.ts passed). Wired optional CLEANUP_JOB_NAME deployment updates into deploy/release.sh, .github/workflows/deploy.yml, and deploy/tests/release.test.ts (14/14 passed), and documented Cloud Run Job + Cloud Scheduler provisioning and recovery in docs/features/comments-private-attachments/cleanup-runbook.md. Verified typecheck, lint, test:contracts (64/64), and test:api (270/270). Remaining external gates: GCP Cloud Run Job/Scheduler provisioning (B03) and teammate review + GitHub CI Verification (B04).
