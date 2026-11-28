@@ -228,6 +228,23 @@ export class AttachmentRepository implements IAttachmentRepository
             };
         }
 
+        const reservationRow = (await this.db
+            .select({ status: attachmentUploadReservations.status })
+            .from(attachmentUploadReservations)
+            .where(eq(attachmentUploadReservations.id, input.reservationId))
+            .for("update"))[0];
+
+        if (!reservationRow || reservationRow.status !== "UPLOADING")
+        {
+            await this.AbandonReservationAndEnqueueCleanup({
+                reservationId: input.reservationId,
+                attachmentId: input.attachmentId,
+                storageKey: input.storageKey,
+                reason: "COMMIT_CONFLICT",
+            });
+            return { status: "CONFLICT", errorCode: "REQUEST_STALE" };
+        }
+
         const now = new Date();
         await this.db.insert(attachments).values({
             id: input.attachmentId,

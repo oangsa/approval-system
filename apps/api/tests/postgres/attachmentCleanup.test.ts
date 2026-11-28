@@ -906,3 +906,75 @@ test("ATT-REC-10 CLI script apps/api/scripts/cleanup-attachments.ts processes du
         await db.delete(attachmentUploadReservations).where(eq(attachmentUploadReservations.id, reservationId));
     }
 });
+
+test("ATT-REC-11 expired reservation already reclaimed by cleanup cannot finalize a dangling attachment", async () =>
+{
+    const fx = await seedDraftFixture();
+    const storage = new InMemoryPrivateObjectStorage();
+    const unit = new AttachmentUnitOfWork(db);
+    const cleanupRepo = new AttachmentCleanupRepository(db);
+    const worker = new AttachmentCleanupWorker(cleanupRepo, storage);
+
+    const bytes = pdfBytes("expiry-race");
+    const attachmentId = randomUUID();
+    const reservationId = randomUUID();
+    const storageKey = `requests/${fx.requestId}/revisions/${fx.workingRevisionId}/${attachmentId}/expiry-race.pdf`;
+    const pastExpiry = new Date(Date.now() - 60_000);
+
+    try
+    {
+        await unit.Run((repo) =>
+            repo.CreateUploadReservation({
+                id: reservationId,
+                attachmentId,
+                requestId: fx.requestId,
+                revisionId: fx.workingRevisionId,
+                uploadedBy: fx.owner.id,
+                storageKey,
+                fileName: "expiry-race.pdf",
+                mediaType: "application/pdf",
+                sizeBytes: bytes.byteLength,
+                sha256: sha256Hex(bytes),
+                expiresAt: pastExpiry,
+            }),
+        );
+
+        await storage.PutObject({ storageKey, contentType: "application/pdf", bytes });
+
+        // Cleanup runs after the 5-minute reservation TTL expires and removes the unfinalized object.
+        const summary = await worker.RunOnce({ now: new Date() });
+        expect(summary.reconciledUploading).toBeGreaterThanOrEqual(1);
+        expect(summary.succeededJobs).toBeGreaterThanOrEqual(1);
+        expect(storage.Has(storageKey)).toBe(false);
+
+        // Late finalization after cleanup must reject with REQUEST_STALE and never insert dangling metadata.
+        const finalized = await unit.Run((repo) =>
+            repo.FinalizeUpload({
+                actor: fx.owner.actor,
+                reservationId,
+                attachmentId,
+                requestId: fx.requestId,
+                revisionId: fx.workingRevisionId,
+                uploadedBy: fx.owner.id,
+                storageKey,
+                fileName: "expiry-race.pdf",
+                mediaType: "application/pdf",
+                sizeBytes: bytes.byteLength,
+                sha256: sha256Hex(bytes),
+            }),
+        );
+
+        expect(finalized).toEqual({ status: "CONFLICT", errorCode: "REQUEST_STALE" });
+
+        const rows = await observer.connection
+            .select()
+            .from(attachments)
+            .where(eq(attachments.id, attachmentId));
+        expect(rows).toHaveLength(0);
+    }
+    finally
+    {
+        await db.delete(attachmentCleanupJobs).where(eq(attachmentCleanupJobs.reservationId, reservationId));
+        await db.delete(attachmentUploadReservations).where(eq(attachmentUploadReservations.id, reservationId));
+    }
+});
