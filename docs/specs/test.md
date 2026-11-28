@@ -661,3 +661,7 @@ Issue #11 test mapping and actual execution status are in [the feature STS](../f
 ## Issue #10 coverage
 
 [Issue #10 STS](../features/two-stage-parallel-approvals/sts.md) maps FT-025/027/032, EP-042/046/053, UT-02/13, DB-05/09, CX-02/03/14, SEC-05, UI-09/10/11/13 and E2E-05/08 to required checks. [Verification](../features/two-stage-parallel-approvals/verification.md) records actual commands, results, failures and reruns; test plans alone do not establish passing behavior.
+
+## Issue #13 coverage
+
+[Issue #13 STS](../features/comments-private-attachments/sts.md) maps FT-041/042, EP comments/attachments/download, SEC-08/09, DB-10, CX-11, OPS-08, UI-03/04/18/20 and E2E-12 to required checks, and [verification](../features/comments-private-attachments/verification.md) records actual commands, results and the blocked live GCS tests. Planning documents alone do not establish passing behavior.
