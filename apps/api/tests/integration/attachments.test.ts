@@ -545,6 +545,79 @@ describe("Attachments HTTP API", () =>
         expect(fx.storedAttachments).toHaveLength(0);
     });
 
+    it("ATT-API-05b rejects an oversized streamed body early without reservation or PutObject", async () =>
+    {
+        const fx = createAttachmentsFixture();
+        const ownerToken = await fx.login(fx.identity.account.email);
+        const limit = MAX_ATTACHMENT_BYTES + 1024 * 1024;
+        const chunk = new Uint8Array(256 * 1024);
+        const pulledByRequest: number[] = [];
+        const boundary = "----boundedtest";
+
+        const buildRequest = (): Request =>
+        {
+            const index = pulledByRequest.push(0) - 1;
+            const stream = new ReadableStream<Uint8Array>({
+                pull(controller)
+                {
+                    if (pulledByRequest[index]! > limit * 20)
+                    {
+                        controller.close();
+                        return;
+                    }
+                    pulledByRequest[index] = pulledByRequest[index]! + chunk.byteLength;
+                    controller.enqueue(chunk);
+                },
+            });
+            return new Request(`http://localhost/api/v1/requests/${fx.requestId}/attachments`, {
+                method: "POST",
+                headers: {
+                    authorization: `Bearer ${ownerToken}`,
+                    "content-type": `multipart/form-data; boundary=${boundary}`,
+                },
+                body: stream,
+                duplex: "half",
+            } as RequestInit);
+        };
+
+        const responses = await Promise.all([1, 2, 3, 4, 5].map(() => fx.app.handle(buildRequest())));
+
+        for (const response of responses)
+        {
+            expect(response.status).toBe(413);
+            expect(errorResponseSchema.parse(await response.json()).code).toBe("FILE_TOO_LARGE");
+        }
+        expect(pulledByRequest).toHaveLength(5);
+        for (const pulled of pulledByRequest)
+        {
+            expect(pulled).toBeLessThan(limit * 2);
+        }
+        expect(fx.storage.Size()).toBe(0);
+        expect(fx.storedAttachments).toHaveLength(0);
+    });
+
+    it("ATT-API-05c rejects an oversized declared Content-Length before reading the body", async () =>
+    {
+        const fx = createAttachmentsFixture();
+        const ownerToken = await fx.login(fx.identity.account.email);
+
+        const response = await fx.app.handle(
+            new Request(`http://localhost/api/v1/requests/${fx.requestId}/attachments`, {
+                method: "POST",
+                headers: {
+                    authorization: `Bearer ${ownerToken}`,
+                    "content-type": "multipart/form-data; boundary=x",
+                    "content-length": String(MAX_ATTACHMENT_BYTES * 3),
+                },
+                body: "--x--",
+            }),
+        );
+
+        expect(response.status).toBe(413);
+        expect(fx.storage.Size()).toBe(0);
+        expect(fx.storedAttachments).toHaveLength(0);
+    });
+
     it("ATT-API-06 rejects SVG, HTML, and EXE disguised as PDF with 415 UNSUPPORTED_MEDIA_TYPE", async () =>
     {
         const fx = createAttachmentsFixture();

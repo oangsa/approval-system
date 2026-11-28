@@ -1,5 +1,6 @@
 import { z } from "zod";
 import {
+    MAX_ATTACHMENT_BYTES,
     attachmentQuerySchema,
     attachmentSchema,
     errorResponseSchema,
@@ -10,7 +11,11 @@ import { BuildContentDisposition } from "../../Domains/Requests/AttachmentRules"
 import { RequestError } from "../../Domains/Requests/RequestRules";
 import type { IIdentityHttpDependencies } from "../composition";
 import { requireAuthentication } from "../Guards/authentication";
+import { readBoundedBody } from "../Guards/boundedBody";
 import { HttpError } from "../errors";
+
+// File limit plus 1 MiB of headroom for multipart framing and the workingRevisionId field.
+const MAX_UPLOAD_REQUEST_BYTES = MAX_ATTACHMENT_BYTES + 1024 * 1024;
 
 export function createAttachmentOpenApiPaths(): Record<string, Record<string, unknown>>
 {
@@ -152,10 +157,13 @@ export function registerAttachmentRoutes(app: {
             throw new HttpError("BAD_REQUEST");
         }
 
+        const bodyBytes = await readBoundedBody(request, MAX_UPLOAD_REQUEST_BYTES);
         let formData: FormData;
         try
         {
-            formData = await request.formData();
+            const bodyBuffer = new ArrayBuffer(bodyBytes.byteLength);
+            new Uint8Array(bodyBuffer).set(bodyBytes);
+            formData = await new Response(bodyBuffer, { headers: { "content-type": contentType } }).formData();
         }
         catch
         {
