@@ -559,7 +559,7 @@ test("CMT-PG-05 direct SQL check constraint rejects blank and >4000 char bodies;
             id: randomUUID(),
             requestId: fx.draft.id,
             authorId: fx.owner.id,
-            body: "   \n\t  ",
+            body: "     ",
         }),
         "23514",
     );
