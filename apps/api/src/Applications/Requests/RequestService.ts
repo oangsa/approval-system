@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import type { CreateRequest, PatchDraft, RequestDetail, RequestTypeSearch, RequestSearchQuery } from "@workflow/contracts";
 import type { IActor } from "../../Domains/Identity/Identity";
 import type { IRequestRepository, IRequestUnitOfWork, RequestMutation } from "../../Domains/Requests/Ports";
+import { RequestAccessPolicy, ToRequestAccessContext } from "../../Domains/Requests/RequestAccessPolicy";
 import { assertContent, assertPublishedDefinition, assertWithdrawal, editableContent, RequestError, resolvePlan } from "../../Domains/Requests/RequestRules";
 
 function canonical(value: unknown): string
@@ -145,7 +146,9 @@ export class RequestService
         return this.unit.Run(async (repository) =>
         {
             actor = await repository.CurrentActor(actor);
-            const detail = await this.Readable(repository, actor, id);
+            const detail = await repository.Read(id, false);
+            if (!detail) throw new RequestError("NOT_FOUND");
+            RequestAccessPolicy.AssertCanReadCurrentRequest(actor, ToRequestAccessContext(detail));
             return { ...detail, availableActions: detail.requester.id === actor.account.id && actor.roles.includes("REQUESTER") ? detail.availableActions : [] };
         });
     }

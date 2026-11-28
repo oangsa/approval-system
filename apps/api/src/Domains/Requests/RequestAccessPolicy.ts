@@ -36,6 +36,26 @@ export interface IAttachmentRevisionContext
     submittedAt: Date | null;
 }
 
+/**
+ * Converts a full RequestDetail projection into the minimal IRequestAccessContext
+ * used by RequestAccessPolicy across detail, comment, and attachment endpoints.
+ */
+export function ToRequestAccessContext(detail: RequestDetail, now?: Date): IRequestAccessContext
+{
+    return {
+        requestId: detail.id,
+        requesterId: detail.requester.id,
+        status: detail.status,
+        workingRevisionId: detail.workingRevision?.id ?? null,
+        submittedRevisionId: detail.submittedRevision?.id ?? null,
+        currentApprovers: detail.currentApprovers.map((slot) => ({
+            reviewerId: slot.reviewer.id,
+            status: slot.status,
+        })),
+        ...(now ? { now } : {}),
+    };
+}
+
 function isActiveOwner(actor: IActor, requestContext: IRequestAccessContext): boolean
 {
     return actor.account.isActive
