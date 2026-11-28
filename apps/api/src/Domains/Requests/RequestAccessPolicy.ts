@@ -59,7 +59,12 @@ export function ToRequestAccessContext(detail: RequestDetail, now?: Date): IRequ
 function isActiveOwner(actor: IActor, requestContext: IRequestAccessContext): boolean
 {
     return actor.account.isActive
-        && actor.account.id === requestContext.requesterId
+        && actor.account.id === requestContext.requesterId;
+}
+
+function isActiveRequesterOwner(actor: IActor, requestContext: IRequestAccessContext): boolean
+{
+    return isActiveOwner(actor, requestContext)
         && actor.roles.includes("REQUESTER");
 }
 
@@ -152,10 +157,6 @@ export class RequestAccessPolicy
         {
             throw new RequestError("FORBIDDEN");
         }
-        if (actor.account.id === requestContext.requesterId && !actor.roles.includes("REQUESTER"))
-        {
-            throw new RequestError("FORBIDDEN");
-        }
         if (!RequestAccessPolicy.CanReadCurrentRequest(actor, requestContext))
         {
             throw new RequestError("NOT_FOUND");
@@ -164,12 +165,23 @@ export class RequestAccessPolicy
 
     public static CanPostComment(actor: IActor, requestContext: IRequestAccessContext): boolean
     {
-        return RequestAccessPolicy.CanReadCurrentRequest(actor, requestContext);
+        return isActiveRequesterOwner(actor, requestContext) || isCurrentAssignedReviewer(actor, requestContext);
     }
 
     public static AssertCanPostComment(actor: IActor, requestContext: IRequestAccessContext): void
     {
-        RequestAccessPolicy.AssertCanReadCurrentRequest(actor, requestContext);
+        if (!actor.account.isActive)
+        {
+            throw new RequestError("FORBIDDEN");
+        }
+        if (actor.account.id === requestContext.requesterId && !actor.roles.includes("REQUESTER"))
+        {
+            throw new RequestError("FORBIDDEN");
+        }
+        if (!RequestAccessPolicy.CanPostComment(actor, requestContext))
+        {
+            throw new RequestError("NOT_FOUND");
+        }
     }
 
     public static CanMutateWorkingAttachment(actor: IActor, requestContext: IRequestAccessContext): boolean

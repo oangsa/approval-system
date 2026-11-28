@@ -188,7 +188,6 @@ describe("RequestAccessPolicy", () =>
             foreignRequester,
             unrelatedReviewer,
             unrelatedAdmin,
-            ownerWithoutRequester,
             disabledOwner,
         ])
         {
@@ -202,6 +201,15 @@ describe("RequestAccessPolicy", () =>
                 }),
             ).toBe(false);
         }
+
+        // Active owner whose REQUESTER role was revoked retains read-only visibility of their own request
+        // (matching B03 availableActions: []) while write operations remain forbidden.
+        expect(RequestAccessPolicy.CanReadCurrentRequest(ownerWithoutRequester, context)).toBe(true);
+        expect(RequestAccessPolicy.CanPostComment(ownerWithoutRequester, context)).toBe(false);
+        expect(() => RequestAccessPolicy.AssertCanPostComment(ownerWithoutRequester, context)).toThrowError(
+            expect.objectContaining<Partial<RequestError>>({ code: "FORBIDDEN" }),
+        );
+        expect(RequestAccessPolicy.CanMutateWorkingAttachment(ownerWithoutRequester, draftContext)).toBe(false);
 
         expect(RequestAccessPolicy.CanReadCurrentRequest(historicReviewer, returnedContext)).toBe(false);
         expect(RequestAccessPolicy.CanMutateWorkingAttachment(currentReviewer, draftContext)).toBe(false);
