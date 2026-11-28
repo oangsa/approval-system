@@ -27,6 +27,7 @@ jobs:
       REGISTRY: ${{ vars.ARTIFACT_REPOSITORY }}
       SERVICE_NAME: ${{ vars.SERVICE_NAME }}
       MIGRATE_JOB_NAME: ${{ vars.MIGRATE_JOB_NAME }}
+      CLEANUP_JOB_NAME: ${{ vars.CLEANUP_JOB_NAME }}
       PUBLIC_ORIGIN: ${{ vars.PUBLIC_ORIGIN }}
       IMAGE_TAG: ${{ github.sha }}
       GCS_PROJECT_ID: ${{ vars.GCS_PROJECT_ID || vars.GCP_PROJECT_ID }}
