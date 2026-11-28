@@ -171,3 +171,7 @@ Feature design, numbered acceptance criteria and test mapping: [request submissi
 ### Request list and detail (Issue #3)
 
 `/requests` provides an owner-scoped request list. `/requests/:id` provides four detail tabs; future-feature tabs remain shells. See [verification evidence](docs/features/request-list-detail/verification.md) for executed coverage and remaining limits.
+
+### Comments and private attachments (Issue #13)
+
+The request detail **Discussion / Files** tab posts discussion comments and manages private attachments; wizard Step 4 **Items & Attachments** uploads files for every request type. Binaries live in a private Google Cloud Storage bucket accessed only through the API with Application Default Credentials (no JSON keys, public URLs or signed URLs). Configure `ATTACHMENT_STORAGE_DRIVER` (`memory` for local/tests, `gcs` for deployment), `GCS_PROJECT_ID` and `GCS_BUCKET_NAME`. Run `npm run attachments:cleanup` on a schedule to reconcile stale uploads and delete orphaned objects. `npm run test:storage` runs the opt-in live GCS suite and needs `GCS_TEST_BUCKET` (an isolated bucket, never production) plus ADC. See [verification](docs/features/comments-private-attachments/verification.md) and [ADR-13](docs/adr/ADR-13-gcs-private-attachment-storage.md).
