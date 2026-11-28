@@ -28,6 +28,7 @@ async function submittedTask(page: Page)
     await page.getByRole("button", { name: "Next", exact: true }).click();
     await page.getByLabel("Category", { exact: false }).selectOption("OPERATIONS");
     await page.getByRole("button", { name: "Next", exact: true }).click();
+    await page.getByRole("button", { name: "Next", exact: true }).click();
     await page.getByRole("button", { name: "Submit request", exact: true }).click();
     const response = page.waitForResponse((item) => item.url().endsWith("/submit") && item.request().method() === "POST");
     await page.getByRole("button", { name: "Confirm submission" }).click();
@@ -62,6 +63,7 @@ test("Lab 7 separate requester and reviewer sessions reject exactly ten and pres
         await requester.getByLabel("Justification", { exact: false }).fill("Synthetic Lab 7 boundary verification");
         await requester.getByRole("button", { name: "Next", exact: true }).click();
         await requester.getByLabel("Category", { exact: false }).selectOption("OPERATIONS");
+        await requester.getByRole("button", { name: "Next", exact: true }).click();
         await requester.getByRole("button", { name: "Next", exact: true }).click();
         await requester.getByRole("button", { name: "Submit request", exact: true }).click();
         const submittedResponse = requester.waitForResponse((response) => response.url().endsWith("/submit") && response.request().method() === "POST");

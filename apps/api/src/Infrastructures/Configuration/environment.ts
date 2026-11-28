@@ -24,7 +24,12 @@ const environmentSchema = z.object({
     AUTH_JWT_ISSUER: z.string().min(1), AUTH_JWT_AUDIENCE: z.string().min(1),
     AUTH_ALLOWED_ORIGINS: z.string().transform((value) => value.split(",").map((origin) => origin.trim())).pipe(z.array(originSchema).min(1)),
     AUTH_COOKIE_SECURE: z.enum(["true", "false"]).transform((value) => value === "true"),
-}).refine((value) => value.NODE_ENV !== "production" || value.AUTH_COOKIE_SECURE, { path: ["AUTH_COOKIE_SECURE"], message: "Production requires secure cookies" });
+    ATTACHMENT_STORAGE_DRIVER: z.enum(["memory", "gcs"]).default("memory"),
+    GCS_PROJECT_ID: z.string().trim().min(1).optional(),
+    GCS_BUCKET_NAME: z.string().trim().min(1).optional(),
+})
+    .refine((value) => value.NODE_ENV !== "production" || value.AUTH_COOKIE_SECURE, { path: ["AUTH_COOKIE_SECURE"], message: "Production requires secure cookies" })
+    .refine((value) => value.ATTACHMENT_STORAGE_DRIVER !== "gcs" || Boolean(value.GCS_BUCKET_NAME), { path: ["GCS_BUCKET_NAME"], message: "GCS_BUCKET_NAME is required when ATTACHMENT_STORAGE_DRIVER is gcs" });
 
 export function readEnvironment(environment: Record<string, string | undefined> = process.env)
 {

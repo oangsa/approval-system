@@ -130,8 +130,7 @@ test("E2E-08 admin configures mappings, immutable policy versions and ceiling; r
         const draft = await draftResponse.json() as { id: string };
         await requesterPage.goto(`/requests/${draft.id}/edit`);
         // Existing edit UI submits a saved draft, making above-ceiling 422 visible.
-        await requesterPage.getByRole("button", { name: "Next", exact: true }).click();
-        await requesterPage.getByRole("button", { name: "Next", exact: true }).click();
+        for (let step = 0; step < 3; step++) await requesterPage.getByRole("button", { name: "Next", exact: true }).click();
         await requesterPage.getByRole("button", { name: "Submit request", exact: true }).click();
         await requesterPage.getByRole("button", { name: "Confirm submission", exact: true }).click();
         await expect(requesterPage.getByText("Amount exceeds the configured limit", { exact: true })).toBeVisible();
@@ -141,7 +140,7 @@ test("E2E-08 admin configures mappings, immutable policy versions and ceiling; r
         const patched = await requesterPage.request.patch(`${apiUrl.origin}/api/v1/requests/${draft.id}/draft`, { headers: { Authorization: `Bearer ${requesterToken}` }, data: { expectedVersion: state.version, monetaryAmount: "20.20" } });
         expect(patched.status()).toBe(200);
         await requesterPage.goto(`/requests/${draft.id}/edit`);
-        for (let step = 0; step < 2; step++) await requesterPage.getByRole("button", { name: "Next", exact: true }).click();
+        for (let step = 0; step < 3; step++) await requesterPage.getByRole("button", { name: "Next", exact: true }).click();
         await requesterPage.getByRole("button", { name: "Submit request", exact: true }).click();
         await requesterPage.getByRole("button", { name: "Confirm submission", exact: true }).click();
         await expect(requesterPage.getByRole("heading", { name: "Request submitted" })).toBeVisible();

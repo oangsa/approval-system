@@ -35,6 +35,8 @@ test("RR-AC-09/10 return, revise, resubmit and inspect immutable history", async
         await owner.getByRole("button", { name: "Next", exact: true }).click();
         await owner.getByLabel("Category", { exact: false }).selectOption("OPERATIONS");
         await owner.getByRole("button", { name: "Next", exact: true }).click();
+        await expect(owner.getByRole("heading", { name: "Items & Attachments" })).toBeVisible();
+        await owner.getByRole("button", { name: "Next", exact: true }).click();
         await owner.getByRole("button", { name: "Submit request" }).click();
         const submitted = owner.waitForResponse((response) => response.url().endsWith("/submit") && response.request().method() === "POST");
         await owner.getByRole("button", { name: "Confirm submission" }).click();
@@ -60,6 +62,8 @@ test("RR-AC-09/10 return, revise, resubmit and inspect immutable history", async
         await owner.getByRole("button", { name: "Next", exact: true }).click();
         await owner.getByLabel("Category", { exact: false }).selectOption("OTHER");
         await owner.getByLabel("Additional details", { exact: false }).fill("Corrected details");
+        await owner.getByRole("button", { name: "Next", exact: true }).click();
+        await expect(owner.getByRole("heading", { name: "Items & Attachments" })).toBeVisible();
         await owner.getByRole("button", { name: "Next", exact: true }).click();
         await owner.getByRole("button", { name: "Resubmit request" }).click();
         await expect(owner.getByRole("dialog")).toContainText("review restarts");
@@ -175,6 +179,8 @@ test("returned wizard retains its form while resubmission uses current policy an
         await expect(category.locator('option[value="OTHER"]')).toHaveText("Other");
         await expect(owner.getByLabel("New field", { exact: false })).toHaveCount(0);
         await category.selectOption("OTHER");
+        await owner.getByRole("button", { name: "Next", exact: true }).click();
+        await expect(owner.getByRole("heading", { name: "Items & Attachments" })).toBeVisible();
         await owner.getByRole("button", { name: "Next", exact: true }).click();
         await owner.getByRole("button", { name: "Resubmit request" }).click();
         const keys: string[] = [];

@@ -1,3 +1,4 @@
+import { PrivateObjectStorageError } from "../Domains/Requests/AttachmentPorts";
 import { RequestError, type RequestErrorCode } from "../Domains/Requests/RequestRules";
 import { RequestTypeError, type RequestTypeErrorCode } from "../Domains/RequestTypes/RequestTypeRules";
 import { IdentityError } from "../Domains/Identity/IdentityError";
@@ -22,6 +23,8 @@ const errors: Record<HttpErrorCode, [number, string, string]> = {
     INVALID_REQUEST_TRANSITION: [409, "Request cannot be changed in its current state", "Conflict"],
     REQUEST_STALE: [409, "Request has changed. Reload before editing", "Conflict"],
     IDEMPOTENCY_CONFLICT: [409, "This action key was already used with different content", "Conflict"],
+    FILE_TOO_LARGE: [413, "Upload exceeds the maximum permitted file size", "Payload Too Large"],
+    UNSUPPORTED_MEDIA_TYPE: [415, "File type is not supported", "Unsupported Media Type"],
     CONFLICT: [409, "Request conflict", "Conflict"],
     BAD_REQUEST: [400, "Bad request", "Bad Request"],
     VALIDATION_ERROR: [422, "Validation failed", "Unprocessable Entity"],
@@ -48,6 +51,10 @@ export function errorResponse(error: unknown, frameworkCode: string | number, re
 {
     let code: HttpErrorCode = "INTERNAL_ERROR";
     if (error instanceof RequestError || error instanceof ApprovalTaskError || error instanceof RequestTypeError) code = error.code;
+    else if (error instanceof PrivateObjectStorageError)
+    {
+        code = error.code === "OBJECT_NOT_FOUND" ? "NOT_FOUND" : "SERVICE_UNAVAILABLE";
+    }
     else if (error instanceof HttpError) code = error.code;
     else if (error instanceof IdentityError)
     {

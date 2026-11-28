@@ -1,6 +1,6 @@
 import { compareDecimals, createFieldRecord, itemTotal, moneySchema, policyStageSchema, publishedRequestTypeSchema, sumAmounts, validateFields, validateRequestTypeDefinition, type CreateRequest, type DepartmentSummary, type IFieldIssue, type PublishedRequestType, type RequestDetail, type RequestRevision } from "@workflow/contracts";
 
-export type RequestErrorCode = "CONFLICT" | "VALIDATION_ERROR" | "FORM_FIELD_NOT_APPLICABLE" | "FORM_DEFINITION_CHANGED" | "CONFIGURATION_INCOMPLETE" | "AMBIGUOUS_APPROVAL_POLICY" | "BUDGET_LIMIT_EXCEEDED" | "INVALID_REQUEST_TRANSITION" | "REQUEST_STALE" | "IDEMPOTENCY_CONFLICT" | "NOT_FOUND" | "FORBIDDEN" | "UNAUTHENTICATED";
+export type RequestErrorCode = "CONFLICT" | "VALIDATION_ERROR" | "FORM_FIELD_NOT_APPLICABLE" | "FORM_DEFINITION_CHANGED" | "CONFIGURATION_INCOMPLETE" | "AMBIGUOUS_APPROVAL_POLICY" | "BUDGET_LIMIT_EXCEEDED" | "INVALID_REQUEST_TRANSITION" | "REQUEST_STALE" | "IDEMPOTENCY_CONFLICT" | "FILE_TOO_LARGE" | "UNSUPPORTED_MEDIA_TYPE" | "NOT_FOUND" | "FORBIDDEN" | "UNAUTHENTICATED";
 export class RequestError extends Error
 {
     constructor(public readonly code: RequestErrorCode, public readonly details: IFieldIssue[] = [])

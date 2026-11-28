@@ -15,6 +15,7 @@ echo "$*" >> "$CALL_LOG"
 case "$*" in
   *"artifacts docker images describe"*) echo "$PINNED_IMAGE" ;;
   *"run jobs execute"*) if [[ "$FAILURE" == migration ]]; then exit 1; fi; echo migrate-execution ;;
+  *"run jobs update "*) if [[ "$FAILURE" == cleanup-update && "$*" == *"attachments:cleanup"* ]]; then exit 1; fi ;;
   *"run services update "*) if [[ "$FAILURE" == deploy ]]; then exit 1; fi; echo approval-00001 ;;
   *"latestReadyRevisionName"*) echo approval-00001 ;;
   *"run revisions describe"*) echo "$PINNED_IMAGE" ;;
@@ -167,4 +168,57 @@ test("unverified origins and unreadable service metadata stop before mutations",
         assert.notEqual(result.status, 0);
         assert.doesNotMatch(result.calls, /run jobs|run services update|smoke/);
     }
+});
+
+test("cloud run release wires GCS attachment storage env vars safely without breaking defaults", () =>
+{
+    const workflow = readFileSync(".github/workflows/deploy.yml", "utf8");
+    assert.match(workflow, /GCS_PROJECT_ID:/);
+    assert.match(workflow, /GCS_BUCKET_NAME:/);
+
+    const defaulted = release();
+    assert.equal(defaulted.status, 0, defaulted.error);
+    assert.match(
+        defaulted.calls,
+        /--update-env-vars=ATTACHMENT_STORAGE_DRIVER=gcs,GCS_PROJECT_ID=test-project,GCS_BUCKET_NAME=approval-system-attachments/,
+    );
+
+    const configured = release("", {
+        GCS_PROJECT_ID: "cpe334-514311",
+        GCS_BUCKET_NAME: "approval-system-attachments",
+    });
+    assert.equal(configured.status, 0, configured.error);
+    assert.match(
+        configured.calls,
+        /--update-env-vars=ATTACHMENT_STORAGE_DRIVER=gcs,GCS_PROJECT_ID=cpe334-514311,GCS_BUCKET_NAME=approval-system-attachments/,
+    );
+
+    const invalidBucket = release("", { GCS_BUCKET_NAME: "INVALID_BUCKET!" });
+    assert.notEqual(invalidBucket.status, 0);
+    assert.equal(invalidBucket.calls, "");
+
+    assert.match(workflow, /CLEANUP_JOB_NAME:/);
+    const withCleanupJob = release("", {
+        CLEANUP_JOB_NAME: "approval-attachments-cleanup",
+        GCS_PROJECT_ID: "cpe334-514311",
+        GCS_BUCKET_NAME: "approval-system-attachments",
+    });
+    assert.equal(withCleanupJob.status, 0, withCleanupJob.error);
+    assert.match(
+        withCleanupJob.calls,
+        /run jobs update approval-attachments-cleanup --image=.*@sha256:[b]{64} --command=npm --args=run,attachments:cleanup --update-env-vars=ATTACHMENT_STORAGE_DRIVER=gcs,GCS_PROJECT_ID=cpe334-514311,GCS_BUCKET_NAME=approval-system-attachments --tasks=1 --parallelism=1 --max-retries=1/,
+    );
+    assert(
+        withCleanupJob.calls.indexOf("update-traffic") < withCleanupJob.calls.indexOf("approval-attachments-cleanup"),
+        "cleanup job synchronization must happen after application smoke and traffic switch",
+    );
+
+    const cleanupFailure = release("cleanup-update", {
+        CLEANUP_JOB_NAME: "approval-attachments-cleanup",
+    });
+    assert.notEqual(cleanupFailure.status, 0);
+
+    const invalidCleanupJob = release("", { CLEANUP_JOB_NAME: "INVALID_JOB!" });
+    assert.notEqual(invalidCleanupJob.status, 0);
+    assert.equal(invalidCleanupJob.calls, "");
 });

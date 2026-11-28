@@ -71,7 +71,7 @@ export const requestRevisions = pgTable("request_revisions", {
     id: uuid().primaryKey(), requestId: uuid("request_id").notNull().references(() => requests.id), typeId: uuid("type_id").notNull(), formDefinitionVersionId: uuid("form_definition_version_id").notNull(),
     revisionNumber: integer("revision_number").notNull(), fields: jsonb().$type<Record<string, unknown>>().notNull(), amount: numeric({ precision: 24, scale: 2 }), currency: text(),
     submittedAt: timestamp("submitted_at", { withTimezone: true }), submittedBy: uuid("submitted_by").references(() => users.id),
-}, (t) => [unique().on(t.requestId, t.revisionNumber), foreignKey({ columns: [t.typeId, t.formDefinitionVersionId], foreignColumns: [requestTypeVersions.typeId, requestTypeVersions.id] }), check("revision_positive", sql`${t.revisionNumber} > 0`), check("revision_amount_nonnegative", sql`${t.amount} >= 0`)]);
+}, (t) => [unique().on(t.requestId, t.revisionNumber), unique("request_revisions_request_id_id_uq").on(t.requestId, t.id), foreignKey({ columns: [t.typeId, t.formDefinitionVersionId], foreignColumns: [requestTypeVersions.typeId, requestTypeVersions.id] }), check("revision_positive", sql`${t.revisionNumber} > 0`), check("revision_amount_nonnegative", sql`${t.amount} >= 0`)]);
 export const requestItems = pgTable("request_items", {
     id: uuid().primaryKey(), revisionId: uuid("revision_id").notNull().references(() => requestRevisions.id), description: text().notNull(),
     quantity: numeric({ precision: 24, scale: 6 }).notNull(), unitAmount: numeric("unit_amount", { precision: 24, scale: 2 }).notNull(), totalAmount: numeric("total_amount", { precision: 24, scale: 2 }).notNull(),
@@ -135,3 +135,63 @@ export const policyIdempotencyRecords = pgTable("policy_idempotency_records", {
     actorId: uuid("actor_id").notNull().references(() => users.id), scope: text().notNull(), key: uuid().notNull(),
     bodyHash: text("body_hash").notNull(), response: jsonb().$type<import("@workflow/contracts").ApprovalPolicyDTO>().notNull(),
 }, (t) => [primaryKey({ columns: [t.actorId, t.scope, t.key] })]);
+
+export const requestComments = pgTable("request_comments", {
+    id: uuid().primaryKey(), requestId: uuid("request_id").notNull().references(() => requests.id),
+    authorId: uuid("author_id").notNull().references(() => users.id), body: text().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [check("request_comments_body_length", sql`char_length(btrim(${t.body})) BETWEEN 1 AND 4000`), index("request_comments_request_created_id_idx").on(t.requestId, t.createdAt, t.id)]);
+
+export const attachments = pgTable("attachments", {
+    id: uuid().primaryKey(), requestId: uuid("request_id").notNull().references(() => requests.id),
+    revisionId: uuid("revision_id").notNull(), uploadedBy: uuid("uploaded_by").notNull().references(() => users.id),
+    fileName: text("file_name").notNull(), mediaType: text("media_type").notNull(), sizeBytes: integer("size_bytes").notNull(),
+    storageKey: text("storage_key").notNull().unique(), sha256: text().notNull(),
+    uploadedAt: timestamp("uploaded_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+    check("attachments_file_name_length", sql`char_length(btrim(${t.fileName})) BETWEEN 1 AND 255`),
+    check("attachments_size_bytes_range", sql`${t.sizeBytes} > 0 AND ${t.sizeBytes} <= 10485760`),
+    check("attachments_sha256_hex", sql`${t.sha256} ~ '^[0-9a-f]{64}$'`),
+    foreignKey({ columns: [t.requestId, t.revisionId], foreignColumns: [requestRevisions.requestId, requestRevisions.id] }),
+    index("attachments_request_revision_uploaded_idx").on(t.requestId, t.revisionId, t.uploadedAt, t.id),
+    index("attachments_revision_idx").on(t.revisionId),
+]);
+
+export const attachmentUploadReservations = pgTable("attachment_upload_reservations", {
+    id: uuid().primaryKey(), attachmentId: uuid("attachment_id").notNull().unique(),
+    requestId: uuid("request_id").notNull().references(() => requests.id), revisionId: uuid("revision_id").notNull(),
+    uploadedBy: uuid("uploaded_by").notNull().references(() => users.id), storageKey: text("storage_key").notNull().unique(),
+    fileName: text("file_name").notNull(), mediaType: text("media_type").notNull(), sizeBytes: integer("size_bytes").notNull(),
+    sha256: text().notNull(), status: text().$type<"UPLOADING" | "FINALIZED" | "ABANDONED">().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    finalizedAt: timestamp("finalized_at", { withTimezone: true }),
+    abandonedAt: timestamp("abandoned_at", { withTimezone: true }),
+}, (t) => [
+    check("attachment_upload_reservations_size_bytes_range", sql`${t.sizeBytes} > 0 AND ${t.sizeBytes} <= 10485760`),
+    check("attachment_upload_reservations_status", sql`${t.status} IN ('UPLOADING', 'FINALIZED', 'ABANDONED')`),
+    foreignKey({ columns: [t.requestId, t.revisionId], foreignColumns: [requestRevisions.requestId, requestRevisions.id] }),
+    index("attachment_upload_res_status_exp_idx").on(t.status, t.expiresAt),
+]);
+
+export const attachmentCleanupJobs = pgTable("attachment_cleanup_jobs", {
+    id: uuid().primaryKey(), reservationId: uuid("reservation_id").references(() => attachmentUploadReservations.id),
+    attachmentId: uuid("attachment_id").notNull(), storageKey: text("storage_key").notNull(),
+    reason: text().$type<"UPLOAD_ABORTED" | "COMMIT_CONFLICT" | "WORKING_DELETED" | "STALE_RESERVATION">().notNull(),
+    status: text().$type<"PENDING" | "PROCESSING" | "SUCCEEDED" | "FAILED">().notNull(),
+    attemptCount: integer("attempt_count").notNull().default(0), maxAttempts: integer("max_attempts").notNull().default(10),
+    nextAttemptAt: timestamp("next_attempt_at", { withTimezone: true }).notNull().defaultNow(),
+    leaseExpiresAt: timestamp("lease_expires_at", { withTimezone: true }), claimToken: uuid("claim_token"),
+    lastError: text("last_error"), createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+}, (t) => [
+    check("attachment_cleanup_jobs_reason", sql`${t.reason} IN ('UPLOAD_ABORTED', 'COMMIT_CONFLICT', 'WORKING_DELETED', 'STALE_RESERVATION')`),
+    check("attachment_cleanup_jobs_status", sql`${t.status} IN ('PENDING', 'PROCESSING', 'SUCCEEDED', 'FAILED')`),
+    check("attachment_cleanup_jobs_attempt_count_nonnegative", sql`${t.attemptCount} >= 0`),
+    check("attachment_cleanup_jobs_max_attempts_positive", sql`${t.maxAttempts} > 0`),
+    index("attachment_cleanup_jobs_due_idx").on(t.status, t.nextAttemptAt),
+    index("attachment_cleanup_jobs_lease_idx").on(t.status, t.leaseExpiresAt),
+    uniqueIndex("attachment_cleanup_jobs_storage_key_pending_uq").on(t.storageKey).where(sql`${t.status} IN ('PENDING', 'PROCESSING')`),
+]);

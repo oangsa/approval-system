@@ -21,6 +21,7 @@ test("assigned reviewer opens submitted request on desktop and mobile", async ({
     await page.getByRole("button", { name: "Next", exact: true }).click();
     await page.getByLabel("Category", { exact: false }).selectOption("OPERATIONS");
     await page.getByRole("button", { name: "Next", exact: true }).click();
+    await page.getByRole("button", { name: "Next", exact: true }).click();
     await page.getByRole("button", { name: "Submit request", exact: true }).click();
     await page.getByRole("button", { name: "Confirm submission" }).click();
     await expect(page.getByRole("heading", { name: "Request submitted" })).toBeVisible();

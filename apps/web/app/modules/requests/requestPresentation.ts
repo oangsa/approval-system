@@ -50,3 +50,45 @@ export function presentFailure(failure: unknown, fallback: string): IViewError
     if (failure.status === 500 || failure.status === 503) return { message: "The service is temporarily unavailable. Try again.", requestId: failure.requestId, terminal: false, status: failure.status };
     return { message: failure.message, terminal: false, status: failure.status };
 }
+
+export function formatFileSize(bytes: number): string
+{
+    if (bytes < 1024)
+    {
+        return `${bytes} B`;
+    }
+    if (bytes < 1024 * 1024)
+    {
+        return `${(bytes / 1024).toFixed(1)} KB`;
+    }
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+export function presentCollaborationFailure(failure: unknown, fallback: string): IViewError
+{
+    if (!isApiFailure(failure))
+    {
+        return { message: fallback, terminal: false };
+    }
+    if (failure.status === 413 || failure.code === "FILE_TOO_LARGE")
+    {
+        return { message: "File exceeds the 10 MB size limit.", terminal: false, status: 413 };
+    }
+    if (failure.status === 415 || failure.code === "UNSUPPORTED_MEDIA_TYPE")
+    {
+        return { message: "Unsupported file type. Allowed formats: PDF, PNG, JPEG, WebP, and plain text.", terminal: false, status: 415 };
+    }
+    if (failure.code === "INVALID_REQUEST_TRANSITION")
+    {
+        return { message: "Attachments can only be changed while the request is an editable draft or returned for revision.", terminal: false, status: 409 };
+    }
+    if (failure.code === "REQUEST_STALE")
+    {
+        return { message: "The working revision has changed. Reload the request and try again.", terminal: false, status: 409 };
+    }
+    if (failure.status === 422 || failure.code === "VALIDATION_ERROR")
+    {
+        return { message: failure.message || fallback, terminal: false, status: 422 };
+    }
+    return presentFailure(failure, fallback);
+}

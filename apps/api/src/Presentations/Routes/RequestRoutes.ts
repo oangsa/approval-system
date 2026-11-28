@@ -23,6 +23,8 @@ import { RequestError } from "../../Domains/Requests/RequestRules";
 import type { IIdentityHttpDependencies } from "../composition";
 import { requireAuthentication } from "../Guards/authentication";
 import { HttpError } from "../errors";
+import { createAttachmentOpenApiPaths } from "./AttachmentRoutes";
+import { createCommentOpenApiPaths } from "./CommentRoutes";
 
 const requestRoutes = [
         ["GET", "/api/v1/request-types/:id/versions/:versionId", "typeVersion"],
@@ -82,6 +84,7 @@ export function createRequestOpenApi()
             },
         };
     }
+    Object.assign(paths, createCommentOpenApiPaths(), createAttachmentOpenApiPaths());
     return { openapi: "3.1.0", info: { title: "Request submission API", version: "1.0.0" }, paths, components: { securitySchemes: { bearerAuth: { type: "http", scheme: "bearer" } } } };
 }
 

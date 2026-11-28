@@ -401,6 +401,7 @@ test("B04 confirmed form migration clears obsolete review items and persists thr
         await respondToConfirmation(page, review, "accept");
         await expect(page.getByLabel("Category", { exact: false })).toHaveValue("OPERATIONS");
         await page.getByRole("button", { name: "Next", exact: true }).click();
+        await page.getByRole("button", { name: "Next", exact: true }).click();
         await expect(page.getByRole("heading", { name: "Review & Submit", exact: true })).toBeVisible();
         await expect(page.getByText("B04 obsolete part", { exact: true })).not.toBeVisible();
         await expect(page.getByText(/Total:/)).not.toBeVisible();
@@ -418,6 +419,7 @@ test("B04 confirmed form migration clears obsolete review items and persists thr
         await expect(page.getByLabel("Title (required)", { exact: true })).toHaveValue(draft.title);
         await page.getByRole("button", { name: "Next", exact: true }).click();
         await expect(page.getByLabel("Category", { exact: false })).toHaveValue("OPERATIONS");
+        await page.getByRole("button", { name: "Next", exact: true }).click();
         await page.getByRole("button", { name: "Next", exact: true }).click();
         await expect(page.getByText("B04 obsolete part", { exact: true })).not.toBeVisible();
         await expect(page.getByText(/Total:/)).not.toBeVisible();

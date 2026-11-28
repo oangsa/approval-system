@@ -11,6 +11,7 @@ import { PriorityBadge } from "~/components/status/PriorityBadge";
 import { RequestResult, RequestStatus } from "./RequestResult";
 import { preferredBrowserLocale, requestTypeLabel } from "./requestPresentation";
 import { ApprovalTab } from "./ApprovalTab";
+import { DiscussionFilesPanel } from "./DiscussionFilesPanel";
 
 const tabs = ["Overview", "Approval", "History", "Discussion / Files"] as const;
 const tabKeys = ["overview", "approval", "history", "discussion"] as const;
@@ -73,10 +74,7 @@ export function RequestDetailTabs({ detail, definition, onChanged, onUnavailable
             {index === 0 && <RequestResult detail={detail} definition={definition} showSummary={false} />}
             {index === 1 && selected === 1 && <ApprovalTab detail={detail} />}
             {index === 2 && selected === 2 && <div className="space-y-6 rounded-xl border bg-card p-5 sm:p-8"><RevisionHistory key={`${detail.id}:${detail.version}`} detail={detail} definition={definition} /><AuditTimeline key={`${detail.id}:${detail.version}`} requestId={detail.id} /></div>}
-            {index === 3 && <div className="space-y-2 rounded-xl border bg-card p-5 sm:p-8">
-                <h2 className="text-lg font-semibold">Discussion / Files</h2>
-                <p className="text-sm text-muted-foreground">Discussion and files are not available yet.</p>
-            </div>}
+            {index === 3 && selected === 3 && <DiscussionFilesPanel key={detail.id} detail={detail} />}
         </section>)}
     </div>;
 }

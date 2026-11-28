@@ -8,9 +8,17 @@ set -euo pipefail
 for name in "$REGISTRY" "$SERVICE_NAME" "$MIGRATE_JOB_NAME"; do
   [[ "$name" =~ ^[a-z][a-z0-9-]{0,48}$ ]] || exit 1
 done
+cleanupJobName="${CLEANUP_JOB_NAME:-}"
+if [[ -n "$cleanupJobName" ]]; then
+  [[ "$cleanupJobName" =~ ^[a-z][a-z0-9-]{0,48}$ ]] || exit 1
+fi
 [[ "$PUBLIC_ORIGIN" =~ ^https://[a-z0-9-]+\.([a-z0-9-]+\.)?run\.app$ ]] || exit 1
 registryRegion="${REGISTRY_REGION:-$REGION}"
 [[ "$registryRegion" == asia-southeast1 || "$registryRegion" == asia-southeast3 ]] || exit 1
+gcsProjectId="${GCS_PROJECT_ID:-$PROJECT_ID}"
+gcsBucketName="${GCS_BUCKET_NAME:-approval-system-attachments}"
+[[ "$gcsProjectId" =~ ^[a-z][a-z0-9-]+$ ]] || exit 1
+[[ "$gcsBucketName" =~ ^[a-z0-9][a-z0-9._-]{1,61}[a-z0-9]$ ]] || exit 1
 if [[ "${1:-}" == validate ]]; then exit 0; fi
 
 image="$registryRegion-docker.pkg.dev/$PROJECT_ID/$REGISTRY/application"
@@ -40,7 +48,7 @@ execution="$(gcloud run jobs execute "$MIGRATE_JOB_NAME" --wait --format='value(
 [[ -n "$execution" ]] || exit 1
 
 # Keep old traffic while startup and read-only smoke validate the new image.
-revision="$(gcloud run services update "$SERVICE_NAME" --image="$digest" --no-traffic --tag=candidate --format='value(status.latestCreatedRevisionName)' "${common[@]}")"
+revision="$(gcloud run services update "$SERVICE_NAME" --image="$digest" --update-env-vars="ATTACHMENT_STORAGE_DRIVER=gcs,GCS_PROJECT_ID=$gcsProjectId,GCS_BUCKET_NAME=$gcsBucketName" --no-traffic --tag=candidate --format='value(status.latestCreatedRevisionName)' "${common[@]}")"
 [[ "$revision" == "$SERVICE_NAME-"* ]] || exit 1
 ready="$(gcloud run services describe "$SERVICE_NAME" --format='value(status.latestReadyRevisionName)' "${common[@]}")"
 [[ "$ready" == "$revision" ]] || exit 1
@@ -52,6 +60,9 @@ candidate="$(gcloud run services describe "$SERVICE_NAME" --format='json(status.
 node --import tsx deploy/smoke.ts "$candidate" "$IMAGE_TAG"
 gcloud run services update-traffic "$SERVICE_NAME" --to-revisions="$revision=100" "${common[@]}"
 node --import tsx deploy/smoke.ts "$PUBLIC_ORIGIN" "$IMAGE_TAG"
+if [[ -n "$cleanupJobName" ]]; then
+  gcloud run jobs update "$cleanupJobName" --image="$digest" --command=npm --args=run,attachments:cleanup --update-env-vars="ATTACHMENT_STORAGE_DRIVER=gcs,GCS_PROJECT_ID=$gcsProjectId,GCS_BUCKET_NAME=$gcsBucketName" --tasks=1 --parallelism=1 --max-retries=1 "${common[@]}"
+fi
 if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
   printf 'Release SHA: `%s`\n\nImage: `%s`\n\nRevision: `%s`\n\nMigration execution: `%s`\n\nURL: %s\n\nRead-only smoke: passed\n' "$IMAGE_TAG" "$digest" "$revision" "$execution" "$PUBLIC_ORIGIN" >> "$GITHUB_STEP_SUMMARY"
 fi

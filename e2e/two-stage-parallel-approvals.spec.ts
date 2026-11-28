@@ -39,8 +39,7 @@ test("two-stage parallel approval progresses through waiting and partial votes",
         expect(draft.status()).toBe(201);
         const draftBody = await draft.json() as { id: string; version: number };
         await owner!.goto(`/requests/${draftBody.id}/edit`);
-        await owner!.getByRole("button", { name: "Next", exact: true }).click();
-        await owner!.getByRole("button", { name: "Next", exact: true }).click();
+        for (let step = 0; step < 3; step++) await owner!.getByRole("button", { name: "Next", exact: true }).click();
         await owner!.getByRole("button", { name: "Submit request", exact: true }).click();
         const submittedResponse = owner!.waitForResponse((response) => response.url().endsWith("/submit") && response.request().method() === "POST");
         await owner!.getByRole("button", { name: "Confirm submission" }).click();

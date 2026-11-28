@@ -34,8 +34,11 @@ test("E2E-01 wizard incomplete save, Back/Next preservation, conditional validat
     await expect(page.getByLabel("Title", { exact: false })).toHaveValue("Browser submission");
     await page.getByRole("button", { name: "Next", exact: true }).click();
     await page.getByRole("button", { name: "Next", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "Items & Attachments" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Working attachments" })).toHaveCount(0);
+    await expect(page.getByLabel("Attach supporting file")).toBeVisible();
+    await page.getByRole("button", { name: "Next", exact: true }).click();
     await expect(page.getByRole("heading", { name: "Review & Submit" })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Items & Attachments" })).toHaveCount(0);
     await page.getByRole("button", { name: "Submit request", exact: true }).click();
     await expect(page.getByRole("dialog", { name: "Submit this request?" })).toBeVisible();
     const actionKeys: string[] = [];

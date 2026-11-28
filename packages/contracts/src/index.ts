@@ -15,3 +15,4 @@ export * from "./decisions";
 export * from "./policies";
 export * from "./reporting";
 export * from "./dashboard";
+export * from "./collaboration";
