@@ -1,5 +1,5 @@
-import { createFieldRecord, createRequestSchema, withdrawRequestSchema, requestTypeSearchSchema, type CreateRequest, type RequestDetail, type RequestSearchQuery, type WithdrawRequest } from "@workflow/contracts";
-import { requestApi } from "~/api/requests";
+import { createFieldRecord, createRequestSchema, withdrawRequestSchema, requestTypeSearchSchema, type AttachmentQuery, type CommentQuery, type CreateCommentInput, type CreateRequest, type RequestDetail, type RequestSearchQuery, type WithdrawRequest } from "@workflow/contracts";
+import { requestApi, type IUploadAttachmentOptions } from "~/api/requests";
 import { ApiFailure } from "~/api/errors";
 
 /** One in-memory editing session; no request content or action key is persisted in browser storage. */
@@ -158,4 +158,34 @@ export function readRevisions(id: string, page: number, signal?: AbortSignal, ge
 export function readRevision(id: string, revisionId: string, signal?: AbortSignal, generation?: number)
 {
     return requestApi.revision(id, revisionId, signal, generation);
+}
+
+export function readComments(id: string, query: Partial<CommentQuery>, signal?: AbortSignal, generation?: number)
+{
+    return requestApi.listComments(id, query, signal, generation);
+}
+
+export function addComment(id: string, input: CreateCommentInput, signal?: AbortSignal, generation?: number)
+{
+    return requestApi.createComment(id, input, signal, generation);
+}
+
+export function readAttachments(id: string, query: Partial<AttachmentQuery>, signal?: AbortSignal, generation?: number)
+{
+    return requestApi.listAttachments(id, query, signal, generation);
+}
+
+export function uploadWorkingAttachment(options: IUploadAttachmentOptions)
+{
+    return requestApi.uploadAttachment(options);
+}
+
+export function removeWorkingAttachment(requestId: string, attachmentId: string, signal?: AbortSignal, generation?: number)
+{
+    return requestApi.deleteAttachment(requestId, attachmentId, signal, generation);
+}
+
+export function downloadRequestAttachment(attachmentId: string, fallbackFileName: string, signal?: AbortSignal, generation?: number)
+{
+    return requestApi.downloadAttachment(attachmentId, fallbackFileName, signal, generation);
 }

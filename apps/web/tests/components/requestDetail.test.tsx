@@ -133,7 +133,14 @@ test.each([[403, "You do not have access to this content."], [404, "This request
 test("detail tabs support keyboard navigation and keep the header visible", async () =>
 {
     vi.stubEnv("VITE_API_BASE_URL", "http://localhost/api");
-    server.use(http.get(`http://localhost/api/v1/requests/${id}`, () => HttpResponse.json(detail)), http.get(`http://localhost/api/v1/request-types/${id}/versions/${versionId}`, () => HttpResponse.json(definition)));
+    const emptyPage = { headers: { "X-Pagination": JSON.stringify({ currentPage: 1, pageSize: 20, totalPages: 0, totalCount: 0, hasPrevious: false, hasNext: false }) } };
+    server.use(
+        http.get(`http://localhost/api/v1/requests/${id}`, () => HttpResponse.json(detail)),
+        http.get(`http://localhost/api/v1/request-types/${id}/versions/${versionId}`, () => HttpResponse.json(definition)),
+        http.get(`http://localhost/api/v1/requests/${id}/approvers`, () => HttpResponse.json([])),
+        http.get(`http://localhost/api/v1/requests/${id}/comments`, () => HttpResponse.json([], emptyPage)),
+        http.get(`http://localhost/api/v1/requests/${id}/attachments`, () => HttpResponse.json([], emptyPage)),
+    );
     render(<MemoryRouter initialEntries={[`/requests/${id}`]}><Routes><Route path="/requests/:id" element={<RequestDetailPage />} /></Routes></MemoryRouter>);
     const overview = await screen.findByRole("tab", { name: "Overview" });
     const dateOptions = { year: "numeric", month: "numeric", day: "numeric", hour: "numeric", minute: "numeric", second: "numeric" } as const;

@@ -8,7 +8,7 @@ import { ApiFailure } from "../../app/api/errors";
 import { definition, draft, id } from "../helpers/requestLifecycle";
 
 vi.mock("../../app/modules/auth/sessionContext", () => ({ useSession: () => ({ generation: 1, user: { id, roles: ["REQUESTER"], department: { id: "new", name: "New department" } } }) }));
-vi.mock("../../app/api/requests", () => ({ requestApi: { read: vi.fn(), version: vi.fn(), type: vi.fn(), types: vi.fn(), patch: vi.fn(), submit: vi.fn(), resubmit: vi.fn() } }));
+vi.mock("../../app/api/requests", () => ({ requestApi: { read: vi.fn(), version: vi.fn(), type: vi.fn(), types: vi.fn(), patch: vi.fn(), submit: vi.fn(), resubmit: vi.fn(), listAttachments: vi.fn() } }));
 const show = Object.getOwnPropertyDescriptor(HTMLDialogElement.prototype, "showModal");
 const close = Object.getOwnPropertyDescriptor(HTMLDialogElement.prototype, "close");
 beforeAll(() =>
@@ -38,10 +38,12 @@ function setup(detail = returned, form = pinned)
     vi.mocked(requestApi.read).mockResolvedValue(detail);
     vi.mocked(requestApi.version).mockResolvedValue(form);
     vi.mocked(requestApi.type).mockResolvedValue({ ...pinned, versionId: id, versionNumber: 2, fields: [] });
+    vi.mocked(requestApi.listAttachments).mockResolvedValue({ items: [], pagination: { currentPage: 1, pageSize: 100, totalPages: 1, totalCount: 0, hasPrevious: false, hasNext: false } });
     return render(<RouterProvider router={createMemoryRouter([{ path: "/requests/:id/edit", Component: RequestEditPage }], { initialEntries: [`/requests/${id}/edit`] })} />);
 }
 async function review(user: ReturnType<typeof userEvent.setup>)
 {
+    await user.click(screen.getByRole("button", { name: /^Next$/ }));
     await user.click(screen.getByRole("button", { name: /^Next$/ }));
     await user.click(screen.getByRole("button", { name: /^Next$/ }));
     await user.click(screen.getByRole("button", { name: "Resubmit request" }));
@@ -101,10 +103,6 @@ test.each([false, true])("resubmit maps amount or indexed item validation with v
     setup(detail, form);
     const user = userEvent.setup();
     await screen.findByLabelText("Title (required)");
-    if (items)
-    {
-        await user.click(screen.getByRole("button", { name: /^Next$/ }));
-    }
     await review(user);
     const input = await screen.findByLabelText(items ? "Quantity (item 1)" : "Amount (THB, required)");
     await waitFor(() => expect(input).toHaveFocus());

@@ -2,7 +2,7 @@ import { ZodError } from "zod";
 import { useEffect, useRef, useState } from "react";
 import { Link, useBeforeUnload, useBlocker, useLocation, useNavigate } from "react-router";
 import { AlertCircle, CheckCircle2, ChevronLeft, ChevronRight, LoaderCircle } from "lucide-react";
-import { applicableFields, createFieldRecord, createRequestSchema, formatMoney, getFieldValue, isPresent, resolveLocalizedText, safeItemTotal, setFieldValue, sumAmounts, validateFields, type IRequestTypeSearchResult, type CreateRequest, type IFieldIssue, type PublishedRequestType, type RequestDetail } from "@workflow/contracts";
+import { applicableFields, createFieldRecord, createRequestSchema, formatMoney, getFieldValue, isPresent, resolveLocalizedText, safeItemTotal, setFieldValue, sumAmounts, validateFields, type AttachmentDTO, type IRequestTypeSearchResult, type CreateRequest, type IFieldIssue, type PublishedRequestType, type RequestDetail } from "@workflow/contracts";
 import { requestApi } from "~/api/requests";
 import { isApiFailure } from "~/api/errors";
 import { ActionButton } from "~/components/actions/ActionButton";
@@ -13,9 +13,10 @@ import { ManagedForm } from "~/components/forms/ManagedForm";
 import { FieldRenderer, fieldClassName } from "~/components/forms/FieldRenderer";
 import { PriorityBadge } from "~/components/status/PriorityBadge";
 import { useSession } from "~/modules/auth/sessionContext";
-import { RequestEditingSession } from "~/services/requestService";
-import { preferredBrowserLocale, presentFailure, requestPriorityLabel } from "./requestPresentation";
+import { readAttachments, RequestEditingSession } from "~/services/requestService";
+import { formatFileSize, preferredBrowserLocale, presentFailure, requestPriorityLabel } from "./requestPresentation";
 import { RequestResult } from "./RequestResult";
+import { WorkingAttachmentsUploader } from "./WorkingAttachmentsUploader";
 
 const baseSteps = ["Request Type", "Basic Information", "Request Details", "Review & Submit"];
 function fieldInputId(field: string): string
@@ -50,6 +51,11 @@ export function RequestWizard({ initial }: IRequestWizardProps = {})
     const [savedMessage, setSavedMessage] = useState("");
     const [result, setResult] = useState<RequestDetail | null>(null);
     const [savedId, setSavedId] = useState(initial?.detail.id ?? "");
+    const [workingRevisionId, setWorkingRevisionId] = useState<string | null>(initial?.detail.workingRevision?.id ?? null);
+    const [workingAttachments, setWorkingAttachments] = useState<AttachmentDTO[]>([]);
+    const [attachmentsLoading, setAttachmentsLoading] = useState(false);
+    const [attachmentsError, setAttachmentsError] = useState("");
+    const [attachmentsReload, setAttachmentsReload] = useState(0);
     const [confirming, setConfirming] = useState(false);
     const [focusField, setFocusField] = useState<string | null>(null);
     const session = useRef(new RequestEditingSession(initial?.detail, initial?.content));
@@ -59,7 +65,10 @@ export function RequestWizard({ initial }: IRequestWizardProps = {})
     const completedStep = useRef(step);
     completedStep.current = Math.max(completedStep.current, step);
     const submitButton = useRef<HTMLButtonElement>(null);
-    const steps = type?.supportsLineItems ? [...baseSteps.slice(0, 3), "Items & Attachments", baseSteps[3]!] : baseSteps;
+    const steps = type ? [...baseSteps.slice(0, 3), "Items & Attachments", baseSteps[3]!] : baseSteps;
+    const sessionScope = `${generation}:${user?.id ?? ""}`;
+    const sessionScopeRef = useRef(sessionScope);
+    sessionScopeRef.current = sessionScope;
     const visible = type ? applicableFields(type.fields, content.fields ?? {}) : [];
     const locale = preferredBrowserLocale();
     const blocker = useBlocker(dirty && !result);
@@ -125,6 +134,46 @@ export function RequestWizard({ initial }: IRequestWizardProps = {})
         }
         else if (changedStep) stepHeading.current?.focus();
     }, [focusField, step]);
+    useEffect(() =>
+    {
+        setWorkingAttachments([]);
+        setAttachmentsError("");
+    }, [sessionScope]);
+    useEffect(() =>
+    {
+        if (!savedId || !workingRevisionId || !user)
+        {
+            setAttachmentsLoading(false);
+            return;
+        }
+        const controller = new AbortController();
+        setAttachmentsLoading(true);
+        setAttachmentsError("");
+        void readAttachments(savedId, { revisionId: workingRevisionId, pageNumber: 1, pageSize: 100 }, controller.signal, generation)
+            .then((response) =>
+            {
+                if (!controller.signal.aborted && sessionScopeRef.current === sessionScope)
+                {
+                    setWorkingAttachments(response.items);
+                }
+            })
+            .catch((failure: unknown) =>
+            {
+                if (!controller.signal.aborted && sessionScopeRef.current === sessionScope)
+                {
+                    const view = presentFailure(failure, "Could not load working attachments.");
+                    setAttachmentsError(view.requestId ? `${view.message} Request ID: ${view.requestId}` : view.message);
+                }
+            })
+            .finally(() =>
+            {
+                if (!controller.signal.aborted && sessionScopeRef.current === sessionScope)
+                {
+                    setAttachmentsLoading(false);
+                }
+            });
+        return () => controller.abort();
+    }, [savedId, workingRevisionId, user?.id, generation, sessionScope, attachmentsReload]);
     useEffect(() =>
     {
         if (!confirming) return;
@@ -198,6 +247,7 @@ export function RequestWizard({ initial }: IRequestWizardProps = {})
             else
             {
                 setSavedId(detail.id);
+                setWorkingRevisionId(detail.workingRevision?.id ?? null);
                 setSavedMessage(returned ? "Changes saved to the returned request." : "Draft saved. No request number or approval task has been created.");
             }
         }
@@ -232,6 +282,9 @@ export function RequestWizard({ initial }: IRequestWizardProps = {})
         if (type && (dirty || session.current.HasSaved()) && !window.confirm("Changing the type starts a new draft and clears incompatible values. Continue?")) return;
         const selected = types.find((item) => item.id === id) ?? null;
         setSavedId("");
+        setWorkingRevisionId(null);
+        setWorkingAttachments([]);
+        setAttachmentsError("");
         setError("");
         setStaleForm(false);
         setStaleDraft(false);
@@ -280,6 +333,10 @@ export function RequestWizard({ initial }: IRequestWizardProps = {})
             setType(restored.definition);
             setContent(restored.content);
             setSavedId(restored.detail.id);
+            setWorkingRevisionId(restored.detail.workingRevision?.id ?? null);
+            setWorkingAttachments([]);
+            setAttachmentsError("");
+            setAttachmentsReload((value) => value + 1);
             setStaleDraft(false);
             setStaleForm(false);
             setDirty(false);
@@ -294,6 +351,62 @@ export function RequestWizard({ initial }: IRequestWizardProps = {})
             setError(view.requestId ? `${view.message} Request ID: ${view.requestId}` : view.message);
             setUnavailable(view.terminal);
             if (view.terminal) setDirty(false);
+        }
+        finally
+        {
+            setBusy(false);
+        }
+    }
+    async function ensureDraftForUpload(): Promise<{ requestId: string; workingRevisionId: string } | null>
+    {
+        if (!type || busy || staleDraft)
+        {
+            return null;
+        }
+        if (savedId && workingRevisionId)
+        {
+            return { requestId: savedId, workingRevisionId };
+        }
+        setBusy(true);
+        setError("");
+        setSavedMessage("");
+        try
+        {
+            const detail = await session.current.Save(payload());
+            const revisionId = detail.workingRevision?.id ?? null;
+            if (!revisionId)
+            {
+                setError("Could not initialize a working draft revision for attachments.");
+                return null;
+            }
+            setDirty(false);
+            setSavedId(detail.id);
+            setWorkingRevisionId(revisionId);
+            setSavedMessage(returned ? "Changes saved to the returned request." : "Draft saved. No request number or approval task has been created.");
+            return { requestId: detail.id, workingRevisionId: revisionId };
+        }
+        catch (failure)
+        {
+            if (isApiFailure(failure))
+            {
+                const view = presentFailure(failure, "Could not save draft before uploading attachment. Your inputs are preserved.");
+                setError(view.requestId ? `${view.message} Request ID: ${view.requestId}` : view.message);
+                setUnavailable(view.terminal);
+                if (view.terminal) setDirty(false);
+                setStaleDraft(["REQUEST_STALE", "INVALID_REQUEST_TRANSITION"].includes(failure.code ?? ""));
+                setSavedId(session.current.SavedId() ?? "");
+                setStaleForm(failure.code === "FORM_DEFINITION_CHANGED");
+                if (failure.details?.length) showIssues(failure.details);
+            }
+            else if (failure instanceof ZodError)
+            {
+                showIssues(failure.issues.map((issue) => ({ field: issue.path.join("."), code: "VALIDATION_ERROR", message: issue.message })));
+            }
+            else
+            {
+                setError("Could not save draft before uploading attachment. Your inputs are preserved.");
+            }
+            return null;
         }
         finally
         {
@@ -390,7 +503,23 @@ export function RequestWizard({ initial }: IRequestWizardProps = {})
                                     <p id="monetaryAmount.error" className="text-sm text-destructive">{errorFor("monetaryAmount")}</p>
                                 </div> : !visible.length && <p className="text-sm text-muted-foreground">No additional fields are required.</p>}
                             </>}
-                            {type?.supportsLineItems && step === 3 && <LineItemsEditor items={content.lineItems ?? []} onChange={(lineItems) => update({ lineItems })} errorFor={errorFor} disabled={busy} locale={locale} />}
+                            {type && step === 3 && <div className="space-y-6">
+                                {type.supportsLineItems && <LineItemsEditor items={content.lineItems ?? []} onChange={(lineItems) => update({ lineItems })} errorFor={errorFor} disabled={busy} locale={locale} />}
+                                <WorkingAttachmentsUploader
+                                    requestId={savedId}
+                                    workingRevisionId={workingRevisionId}
+                                    attachments={workingAttachments}
+                                    loading={attachmentsLoading}
+                                    loadError={attachmentsError}
+                                    canEdit={!staleDraft}
+                                    disabled={busy}
+                                    onEnsureDraft={ensureDraftForUpload}
+                                    onUploaded={(attachment) => setWorkingAttachments((current) => current.some((item) => item.id === attachment.id) ? current : [...current, attachment])}
+                                    onDeleted={(attachmentId) => setWorkingAttachments((current) => current.filter((item) => item.id !== attachmentId))}
+                                    onReconciled={(items) => setWorkingAttachments(items)}
+                                    onReload={() => setAttachmentsReload((value) => value + 1)}
+                                />
+                            </div>}
                             {step === steps.length - 1 && <div className="space-y-5 wrap-anywhere">
                                 <p className="text-sm text-muted-foreground">{type ? resolveLocalizedText(type.name, locale) : ""} · Version {type?.versionNumber}</p>
                                 <dl className="grid gap-4 sm:grid-cols-2 [&_dt]:text-sm [&_dt]:text-muted-foreground">
@@ -413,6 +542,15 @@ export function RequestWizard({ initial }: IRequestWizardProps = {})
                                     return <li key={index} className="flex flex-wrap justify-between gap-x-4 gap-y-1 py-3"><span>{item.description}</span><span className="tabular-nums text-muted-foreground">{item.quantity} × {formatMoney(item.unitAmount, "THB", locale)}{rowTotal ? ` = ${formatMoney(rowTotal, "THB", locale)}` : ""}</span></li>;
                                 })}</ul>}
                                 {type?.monetary && <p className="font-medium tabular-nums">Total: {reviewTotal ? formatMoney(reviewTotal, "THB", locale) : "—"}</p>}
+                                <div className="space-y-2 border-t pt-4">
+                                    <h3 className="text-sm font-medium text-muted-foreground">Attachments ({workingAttachments.length})</h3>
+                                    {workingAttachments.length === 0 ? <p className="text-sm text-muted-foreground">No attachments uploaded.</p> : <ul aria-label="Review attachments" className="divide-y rounded-md border">
+                                        {workingAttachments.map((attachment) => <li key={attachment.id} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 text-sm">
+                                            <span className="font-medium wrap-anywhere">{attachment.fileName}</span>
+                                            <span className="tabular-nums text-muted-foreground">{formatFileSize(attachment.sizeBytes)}</span>
+                                        </li>)}
+                                    </ul>}
+                                </div>
                                 <p className="rounded-lg bg-muted/60 p-4 text-sm leading-relaxed text-muted-foreground">{returned ? "Resubmission locks this revision and restarts review under the current policy. The original request number and department remain unchanged." : "Submission locks this revision. The server checks the active department, policy and eligible reviewers before assigning a request number."}</p>
                             </div>}
                         </>}

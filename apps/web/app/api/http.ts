@@ -9,9 +9,13 @@ export interface IHttpOptions extends Omit<RequestInit, "body">
     generation?: number;
 }
 
+export function apiBaseUrl(): string
+{
+    return import.meta.env.VITE_API_BASE_URL || "/api";
+}
 function baseUrl(): string
 {
- return import.meta.env.VITE_API_BASE_URL || "/api";
+    return apiBaseUrl();
 }
 export function abortFailure(): ApiFailure
 {

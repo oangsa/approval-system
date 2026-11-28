@@ -1,16 +1,20 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { createMemoryRouter, MemoryRouter, RouterProvider } from "react-router";
-import { afterAll, beforeAll, expect, test, vi } from "vitest";
+import { afterAll, beforeAll, beforeEach, expect, test, vi } from "vitest";
 import { RequestEditPage } from "../../app/modules/requests/RequestEditPage";
 import { RequestOwnerActions } from "../../app/modules/requests/RequestOwnerActions";
 import { requestApi } from "../../app/api/requests";
 import { ApiFailure } from "../../app/api/errors";
 import { definition, draft, id } from "../helpers/requestLifecycle";
 vi.mock("../../app/modules/auth/sessionContext", () => ({ useSession: () => ({ generation: 1, user: { id: "7bb91ef4-5982-405f-8bd5-61b5c3cf410b", roles: ["REQUESTER"] } }) }));
-vi.mock("../../app/api/requests", () => ({ requestApi: { read: vi.fn(), version: vi.fn(), type: vi.fn(), types: vi.fn(), create: vi.fn(), patch: vi.fn(), withdraw: vi.fn() } }));
+vi.mock("../../app/api/requests", () => ({ requestApi: { read: vi.fn(), version: vi.fn(), type: vi.fn(), types: vi.fn(), create: vi.fn(), patch: vi.fn(), withdraw: vi.fn(), listAttachments: vi.fn() } }));
 const show = Object.getOwnPropertyDescriptor(HTMLDialogElement.prototype, "showModal");
 const close = Object.getOwnPropertyDescriptor(HTMLDialogElement.prototype, "close");
+beforeEach(() =>
+{
+    vi.mocked(requestApi.listAttachments).mockResolvedValue({ items: [], pagination: { currentPage: 1, pageSize: 100, totalPages: 1, totalCount: 0, hasPrevious: false, hasNext: false } });
+});
 beforeAll(() =>
 {
     Object.defineProperty(HTMLDialogElement.prototype, "showModal", { configurable: true, value: function (this: HTMLDialogElement)
@@ -143,6 +147,7 @@ function editableFixture(detail = draft, form = definition)
     vi.mocked(requestApi.read).mockResolvedValue(detail);
     vi.mocked(requestApi.version).mockResolvedValue(form);
     vi.mocked(requestApi.types).mockResolvedValue({ items: [definition], pagination: { currentPage: 1, pageSize: 100, totalCount: 1, totalPages: 1, hasNext: false, hasPrevious: false } });
+    vi.mocked(requestApi.listAttachments).mockResolvedValue({ items: [], pagination: { currentPage: 1, pageSize: 100, totalPages: 1, totalCount: 0, hasPrevious: false, hasNext: false } });
     return render(<RouterProvider router={createMemoryRouter([{ path: "/requests/:id/edit", Component: RequestEditPage }], { initialEntries: [`/requests/${id}/edit`] })} />);
 }
 
@@ -250,8 +255,9 @@ test("B02 type change replaces edit resource URL, keeps step, and unchanged retr
     await user.click(screen.getByRole("button", { name: "Save Draft" }));
     await waitFor(() => expect(router.state.location.pathname).toBe(`/requests/${saved.id}/edit`));
     expect(router.state.historyAction).toBe("REPLACE");
+    await waitFor(() => expect(requestApi.read).toHaveBeenCalledWith(saved.id, expect.any(AbortSignal), 1));
     await waitFor(() => expect(screen.getByLabelText("Request type (required)")).toHaveValue(other.id));
-    expect(screen.getByRole("heading", { name: "Request Type" })).toBeVisible();
+    expect(await screen.findByRole("heading", { name: "Request Type" })).toBeVisible();
     expect(confirm).toHaveBeenCalledTimes(2);
     await user.click(screen.getByRole("button", { name: "Save Draft" }));
     await screen.findByText(/Draft saved/);
@@ -290,6 +296,7 @@ test("B04 review summary excludes raw line items that canonical payload omits", 
     await screen.findByLabelText("Title (required)");
     await user.click(screen.getByRole("button", { name: /^Next$/ }));
     await user.click(screen.getByRole("button", { name: /^Next$/ }));
+    await user.click(screen.getByRole("button", { name: /^Next$/ }));
     expect(screen.getByRole("heading", { name: "Review & Submit" })).toBeVisible();
     expect(screen.queryByText("Obsolete part")).not.toBeInTheDocument();
 });
@@ -316,11 +323,16 @@ test.each([false, true])("B04 confirmed migration clears incompatible values per
         await user.click(screen.getByRole("button", { name: /^Next$/ }));
         expect(screen.getByLabelText("Description (item 1)")).toHaveValue("Obsolete part");
     }
-    else expect(screen.getByLabelText("Amount (THB, required)")).toHaveValue("10.00");
+    else
+    {
+        expect(screen.getByLabelText("Amount (THB, required)")).toHaveValue("10.00");
+        await user.click(screen.getByRole("button", { name: /^Next$/ }));
+    }
     await user.click(screen.getByRole("button", { name: /^Next$/ }));
     expect(screen.getByText("Total: THB 10.00")).toBeVisible();
     confirm.mockReturnValue(true);
     await user.click(screen.getByRole("button", { name: "Review updated form" }));
+    await user.click(screen.getByRole("button", { name: /^Next$/ }));
     await user.click(screen.getByRole("button", { name: /^Next$/ }));
     expect(screen.getByRole("heading", { name: "Review & Submit" })).toBeVisible();
     expect(screen.queryByText("Obsolete part")).not.toBeInTheDocument();
@@ -359,7 +371,7 @@ test.each([false, true])("B04 compatible form migration preserves monetary value
     await user.click(screen.getByRole("button", { name: "Save Draft" }));
     await user.click(await screen.findByRole("button", { name: "Review updated form" }));
     await user.click(screen.getByRole("button", { name: /^Next$/ }));
-    if (items) await user.click(screen.getByRole("button", { name: /^Next$/ }));
+    await user.click(screen.getByRole("button", { name: /^Next$/ }));
     expect(screen.getByText("Total: THB 10.00")).toBeVisible();
     if (items) expect(screen.getByText("Retained part")).toBeVisible();
     await user.click(screen.getByRole("button", { name: "Save Draft" }));
