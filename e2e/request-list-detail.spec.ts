@@ -17,12 +17,14 @@ test("REQ-E2E-01 and REQ-E2E-02: requester list and persisted detail", async ({ 
     expect(title).not.toContain(" ");
     const searchTerm = title.slice(0, 90);
     const futureCalls: string[] = [];
+    const collaborationCalls: string[] = [];
     const revisionCalls: string[] = [];
     page.on("request", (outgoing) =>
     {
         const pathname = new URL(outgoing.url()).pathname;
         if (/^\/api\/v1\/requests\/[^/]+\/revisions(\/|$)/.test(pathname)) revisionCalls.push(outgoing.url());
-        if (/^\/api\/v1\/requests\/[^/]+\/(comments|attachments|history|discussion|files)(\/|$)/.test(pathname) || /^\/api\/v1\/attachments\/[^/]+\/download$/.test(pathname)) futureCalls.push(outgoing.url());
+        if (/^\/api\/v1\/requests\/[^/]+\/(comments|attachments)(\/|$)/.test(pathname) || /^\/api\/v1\/attachments\/[^/]+\/download$/.test(pathname)) collaborationCalls.push(outgoing.url());
+        if (/^\/api\/v1\/requests\/[^/]+\/(history|discussion|files)(\/|$)/.test(pathname)) futureCalls.push(outgoing.url());
     });
     await signIn(page, "requester-a@example.test");
     await page.goto("/requests");
@@ -33,6 +35,8 @@ test("REQ-E2E-01 and REQ-E2E-02: requester list and persisted detail", async ({ 
     await page.getByLabel("Justification", { exact: false }).fill("Browser list and detail verification");
     await page.getByRole("button", { name: "Next", exact: true }).click();
     await page.getByLabel("Category", { exact: false }).selectOption("OPERATIONS");
+    await page.getByRole("button", { name: "Next", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "Items & Attachments" })).toBeVisible();
     await page.getByRole("button", { name: "Next", exact: true }).click();
     await page.getByRole("button", { name: "Submit request", exact: true }).click();
     await page.getByRole("button", { name: "Confirm submission" }).click();
@@ -120,16 +124,28 @@ test("REQ-E2E-01 and REQ-E2E-02: requester list and persisted detail", async ({ 
     await expect(page.getByText(number!, { exact: true })).toBeVisible();
     await expect(page.getByText("Pending approval", { exact: true })).toBeVisible();
     expect(futureCalls).toEqual([]);
+    expect(collaborationCalls).toEqual([]);
     expect(revisionCalls).toEqual([]);
 
     const overview = page.getByRole("tab", { name: "Overview" });
     await overview.focus();
     for (const name of ["Approval", "History", "Discussion / Files"])
     {
+        if (name === "Discussion / Files") expect(collaborationCalls).toEqual([]);
         const revisionResponse = name === "History" ? page.waitForResponse((response) =>
         {
             const url = new URL(response.url());
             return url.pathname === `/api/v1${new URL(detailUrl).pathname}/revisions` && response.request().method() === "GET";
+        }) : null;
+        const commentsResponse = name === "Discussion / Files" ? page.waitForResponse((response) =>
+        {
+            const url = new URL(response.url());
+            return url.pathname === `/api/v1${new URL(detailUrl).pathname}/comments` && response.request().method() === "GET";
+        }) : null;
+        const attachmentsResponse = name === "Discussion / Files" ? page.waitForResponse((response) =>
+        {
+            const url = new URL(response.url());
+            return url.pathname === `/api/v1${new URL(detailUrl).pathname}/attachments` && response.request().method() === "GET";
         }) : null;
         await page.keyboard.press("ArrowRight");
         const tab = page.getByRole("tab", { name, exact: true });
@@ -151,10 +167,19 @@ test("REQ-E2E-01 and REQ-E2E-02: requester list and persisted detail", async ({ 
             await expect(page.getByLabel("Select revision")).toBeVisible();
             await expect(page.getByRole("tabpanel")).toContainText("REQUEST SUBMITTED");
         }
+        if (commentsResponse && attachmentsResponse)
+        {
+            const [commentsRes, attachmentsRes] = await Promise.all([commentsResponse, attachmentsResponse]);
+            expect(commentsRes.status()).toBe(200);
+            expect(attachmentsRes.status()).toBe(200);
+            await expect(page.getByRole("tabpanel")).toContainText("No comments yet.");
+            await expect(page.getByRole("tabpanel")).toContainText("No submitted files attached.");
+        }
     }
     await page.keyboard.press("Home");
     await expect(overview).toBeFocused();
     expect(futureCalls).toEqual([]);
+    collaborationCalls.length = 0;
     await expect(page.getByRole("heading", { level: 1, name: title })).toBeVisible();
 
     for (const path of ["/requests", new URL(detailUrl).pathname])
@@ -206,6 +231,7 @@ test("REQ-E2E-01 and REQ-E2E-02: requester list and persisted detail", async ({ 
     await expect(page.getByRole("heading", { level: 1, name: title })).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
     expect(futureCalls).toEqual([]);
+    expect(collaborationCalls).toEqual([]);
 
     await page.setViewportSize({ width: 1280, height: 720 });
     await page.getByRole("button", { name: "Requester A" }).click();
@@ -220,5 +246,6 @@ test("REQ-E2E-01 and REQ-E2E-02: requester list and persisted detail", async ({ 
     await expect(page.getByRole("button", { name: "Retry" })).toHaveCount(0);
     await expect(page.getByText(title)).toHaveCount(0);
     expect(futureCalls).toEqual([]);
+    expect(collaborationCalls).toEqual([]);
     expect(revisionCalls.every((url) => new URL(url).pathname === `/api/v1${new URL(detailUrl).pathname}/revisions`)).toBe(true);
 });

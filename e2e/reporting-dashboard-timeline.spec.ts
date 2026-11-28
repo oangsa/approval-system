@@ -27,6 +27,7 @@ async function submitRequest(page: Page, title: string)
     await page.getByRole("button", { name: "Next", exact: true }).click();
     await page.getByLabel("Category", { exact: false }).selectOption("OPERATIONS");
     await page.getByRole("button", { name: "Next", exact: true }).click();
+    await page.getByRole("button", { name: "Next", exact: true }).click();
     await page.getByRole("button", { name: "Submit request", exact: true }).click();
     const submittedResponse = page.waitForResponse((item) => item.url().endsWith("/submit") && item.request().method() === "POST");
     await page.getByRole("button", { name: "Confirm submission" }).click();
