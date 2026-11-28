@@ -27,7 +27,7 @@ test("migrator owns only application objects and can change schema while runtime
                 count(*) FILTER (WHERE tableowner = 'approval_migrator')::int AS owned
             FROM pg_tables WHERE schemaname IN ('public', 'drizzle')
         `);
-        expect(tables[0]).toEqual({ total: 28, owned: 28 });
+        expect(tables[0]).toEqual({ total: 32, owned: 32 });
         const objects = await tx.execute<{ functions: number; enumOwner: string; sequenceOwner: string; journalSequenceOwner: string; schemaOwner: string }>(sql`
             SELECT (SELECT count(*)::int FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
                 WHERE n.nspname = 'public' AND pg_get_userbyid(p.proowner) = 'approval_migrator') AS functions,
@@ -36,7 +36,7 @@ test("migrator owns only application objects and can change schema while runtime
                 (SELECT pg_get_userbyid(relowner) FROM pg_class WHERE oid = pg_get_serial_sequence('drizzle.__drizzle_migrations', 'id')::regclass) AS "journalSequenceOwner",
                 (SELECT pg_get_userbyid(nspowner) FROM pg_namespace WHERE nspname = 'public') AS "schemaOwner"
         `);
-        expect(objects[0]).toMatchObject({ functions: 8, enumOwner: "approval_migrator", sequenceOwner: "approval_migrator", journalSequenceOwner: "approval_migrator" });
+        expect(objects[0]).toMatchObject({ functions: 9, enumOwner: "approval_migrator", sequenceOwner: "approval_migrator", journalSequenceOwner: "approval_migrator" });
         expect(objects[0]!.schemaOwner).not.toBe("approval_migrator");
         await tx.execute(sql`SET LOCAL ROLE approval_migrator`);
         const privileges = await tx.execute<{ createRole: boolean; createDatabase: boolean; superuser: boolean; bypassRls: boolean }>(sql`

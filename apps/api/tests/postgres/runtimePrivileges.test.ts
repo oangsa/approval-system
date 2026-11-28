@@ -38,6 +38,44 @@ test("scoped runtime grants support submission/decision without schema or accoun
                 has_schema_privilege(current_user, 'drizzle', 'USAGE') AS "migrationAccess"
         `);
         expect(permissions[0]).toEqual({ schemaCreate: false, passwordUpdate: false, auditUpdate: false, assignmentKeyUpdate: false, routingUpdate: true, migrationAccess: false });
+        const collaborationPermissions = await tx.execute<{
+            commentInsert: boolean;
+            commentUpdate: boolean;
+            commentDelete: boolean;
+            attachmentDelete: boolean;
+            attachmentUpdate: boolean;
+            reservationStatusUpdate: boolean;
+            reservationKeyUpdate: boolean;
+            reservationDelete: boolean;
+            cleanupStatusUpdate: boolean;
+            cleanupKeyUpdate: boolean;
+            cleanupDelete: boolean;
+        }>(sql`
+            SELECT has_table_privilege(current_user, 'public.request_comments', 'INSERT') AS "commentInsert",
+                has_table_privilege(current_user, 'public.request_comments', 'UPDATE') AS "commentUpdate",
+                has_table_privilege(current_user, 'public.request_comments', 'DELETE') AS "commentDelete",
+                has_table_privilege(current_user, 'public.attachments', 'DELETE') AS "attachmentDelete",
+                has_table_privilege(current_user, 'public.attachments', 'UPDATE') AS "attachmentUpdate",
+                has_column_privilege(current_user, 'public.attachment_upload_reservations', 'status', 'UPDATE') AS "reservationStatusUpdate",
+                has_column_privilege(current_user, 'public.attachment_upload_reservations', 'storage_key', 'UPDATE') AS "reservationKeyUpdate",
+                has_table_privilege(current_user, 'public.attachment_upload_reservations', 'DELETE') AS "reservationDelete",
+                has_column_privilege(current_user, 'public.attachment_cleanup_jobs', 'status', 'UPDATE') AS "cleanupStatusUpdate",
+                has_column_privilege(current_user, 'public.attachment_cleanup_jobs', 'storage_key', 'UPDATE') AS "cleanupKeyUpdate",
+                has_table_privilege(current_user, 'public.attachment_cleanup_jobs', 'DELETE') AS "cleanupDelete"
+        `);
+        expect(collaborationPermissions[0]).toEqual({
+            commentInsert: true,
+            commentUpdate: false,
+            commentDelete: false,
+            attachmentDelete: true,
+            attachmentUpdate: false,
+            reservationStatusUpdate: true,
+            reservationKeyUpdate: false,
+            reservationDelete: false,
+            cleanupStatusUpdate: true,
+            cleanupKeyUpdate: false,
+            cleanupDelete: false,
+        });
         const identities = new IdentityRepository(tx);
         const actors = [];
         for (const fixture of [fixtureUsers[0]!, fixtureUsers[2]!])
@@ -50,6 +88,53 @@ test("scoped runtime grants support submission/decision without schema or accoun
         const reviewer = actors[1]!;
         const requests = new RequestService({ Run: async (operation) => operation(new RequestRepository(tx)) });
         const draft = await requests.Mutate(requester, "create", null, { typeId: seededTypeId, formDefinitionVersionId: seededVersionId, title: "Runtime privilege fixture", justification: "Verify restricted database access", priority: "MEDIUM", fields: { category: "OPERATIONS" } }, randomUUID());
+        const commentId = randomUUID();
+        await tx.execute(sql`INSERT INTO public.request_comments (id, request_id, author_id, body) VALUES (${commentId}, ${draft.id}, ${requester.account.id}, 'Runtime comment')`);
+        const commentRows = await tx.execute<{ id: string }>(sql`SELECT id FROM public.request_comments WHERE id = ${commentId}`);
+        expect(commentRows).toHaveLength(1);
+        await expect(tx.transaction(async (nested) => nested.execute(sql`UPDATE public.request_comments SET body = 'Edited' WHERE id = ${commentId}`))).rejects.toThrow();
+        await expect(tx.transaction(async (nested) => nested.execute(sql`DELETE FROM public.request_comments WHERE id = ${commentId}`))).rejects.toThrow();
+
+        const workingRevisionId = draft.workingRevision!.id;
+        const reservationId = randomUUID();
+        const attachmentId = randomUUID();
+        const storageKey = `requests/${draft.id}/revisions/${workingRevisionId}/${attachmentId}/test.pdf`;
+        const sha256 = "a".repeat(64);
+        await tx.execute(sql`
+            INSERT INTO public.attachment_upload_reservations (
+                id, attachment_id, request_id, revision_id, uploaded_by, storage_key, file_name, media_type, size_bytes, sha256, status, expires_at
+            ) VALUES (
+                ${reservationId}, ${attachmentId}, ${draft.id}, ${workingRevisionId}, ${requester.account.id}, ${storageKey}, 'test.pdf', 'application/pdf', 128, ${sha256}, 'UPLOADING', now() + interval '5 minutes'
+            )
+        `);
+        await tx.execute(sql`UPDATE public.attachment_upload_reservations SET status = 'FINALIZED', updated_at = now(), finalized_at = now() WHERE id = ${reservationId}`);
+        await expect(tx.transaction(async (nested) => nested.execute(sql`UPDATE public.attachment_upload_reservations SET storage_key = 'tampered' WHERE id = ${reservationId}`))).rejects.toThrow();
+        await expect(tx.transaction(async (nested) => nested.execute(sql`DELETE FROM public.attachment_upload_reservations WHERE id = ${reservationId}`))).rejects.toThrow();
+
+        await tx.execute(sql`
+            INSERT INTO public.attachments (
+                id, request_id, revision_id, uploaded_by, file_name, media_type, size_bytes, storage_key, sha256
+            ) VALUES (
+                ${attachmentId}, ${draft.id}, ${workingRevisionId}, ${requester.account.id}, 'test.pdf', 'application/pdf', 128, ${storageKey}, ${sha256}
+            )
+        `);
+        const attachmentRows = await tx.execute<{ id: string }>(sql`SELECT id FROM public.attachments WHERE id = ${attachmentId}`);
+        expect(attachmentRows).toHaveLength(1);
+        await expect(tx.transaction(async (nested) => nested.execute(sql`UPDATE public.attachments SET file_name = 'renamed.pdf' WHERE id = ${attachmentId}`))).rejects.toThrow();
+        await expect(tx.transaction(async (nested) => nested.execute(sql`ALTER TABLE public.attachments DISABLE TRIGGER immutable_attachment`))).rejects.toThrow();
+        await tx.execute(sql`DELETE FROM public.attachments WHERE id = ${attachmentId}`);
+
+        const cleanupJobId = randomUUID();
+        await tx.execute(sql`
+            INSERT INTO public.attachment_cleanup_jobs (
+                id, reservation_id, attachment_id, storage_key, reason, status
+            ) VALUES (
+                ${cleanupJobId}, ${reservationId}, ${attachmentId}, ${storageKey}, 'WORKING_DELETED', 'PENDING'
+            )
+        `);
+        await tx.execute(sql`UPDATE public.attachment_cleanup_jobs SET status = 'SUCCEEDED', attempt_count = 1, completed_at = now(), updated_at = now() WHERE id = ${cleanupJobId}`);
+        await expect(tx.transaction(async (nested) => nested.execute(sql`UPDATE public.attachment_cleanup_jobs SET storage_key = 'tampered' WHERE id = ${cleanupJobId}`))).rejects.toThrow();
+        await expect(tx.transaction(async (nested) => nested.execute(sql`DELETE FROM public.attachment_cleanup_jobs WHERE id = ${cleanupJobId}`))).rejects.toThrow();
         const submitted = await requests.Mutate(requester, "submit", draft.id, { expectedVersion: 0 }, randomUUID());
         expect(submitted.status).toBe("PENDING");
         const updatedStages = await tx.execute<{ activatedAt: Date }>(sql`

@@ -16,7 +16,9 @@ GRANT SELECT ON TABLE
     public.approval_slots, public.audit_events, public.outbox_events,
     public.idempotency_records, public.approval_decisions,
     public.decision_idempotency_records, public.request_type_idempotency_records, public.approval_policies,
-    public.configuration_audit_events, public.policy_idempotency_records
+    public.configuration_audit_events, public.policy_idempotency_records,
+    public.request_comments, public.attachments,
+    public.attachment_upload_reservations, public.attachment_cleanup_jobs
 TO approval_runtime;
 
 GRANT INSERT ON TABLE
@@ -27,7 +29,9 @@ GRANT INSERT ON TABLE
     public.decision_idempotency_records, public.request_types,
     public.request_type_versions, public.request_type_idempotency_records, public.approval_policies,
     public.configuration_audit_events, public.policy_idempotency_records,
-    public.approval_policy_versions, public.reviewer_assignment_rules, public.budget_policies
+    public.approval_policy_versions, public.reviewer_assignment_rules, public.budget_policies,
+    public.request_comments, public.attachments,
+    public.attachment_upload_reservations, public.attachment_cleanup_jobs
 TO approval_runtime;
 
 GRANT UPDATE (version, is_enabled, draft, published_version_id) ON public.approval_policies TO approval_runtime;
@@ -50,6 +54,12 @@ GRANT DELETE ON public.request_items TO approval_runtime;
 GRANT UPDATE (is_active) ON public.approval_cycles TO approval_runtime;
 GRANT UPDATE (status, activated_at) ON public.approval_stages TO approval_runtime;
 GRANT UPDATE (status, version) ON public.approval_slots TO approval_runtime;
+GRANT DELETE ON public.attachments TO approval_runtime;
+GRANT UPDATE (status, updated_at, finalized_at, abandoned_at) ON public.attachment_upload_reservations TO approval_runtime;
+GRANT UPDATE (
+    status, attempt_count, next_attempt_at, lease_expires_at,
+    claim_token, last_error, updated_at, completed_at
+) ON public.attachment_cleanup_jobs TO approval_runtime;
 GRANT USAGE ON SEQUENCE public.request_number_sequence TO approval_runtime;
 
 -- Existing SELECT ... FOR SHARE queries require UPDATE on at least one column.

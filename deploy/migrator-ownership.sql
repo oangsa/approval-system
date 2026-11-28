@@ -37,6 +37,10 @@ ALTER TABLE public.reviewer_assignment_rules OWNER TO approval_migrator;
 ALTER TABLE public.approval_decisions OWNER TO approval_migrator;
 ALTER TABLE public.decision_idempotency_records OWNER TO approval_migrator;
 ALTER TABLE public.request_type_idempotency_records OWNER TO approval_migrator;
+ALTER TABLE public.request_comments OWNER TO approval_migrator;
+ALTER TABLE public.attachments OWNER TO approval_migrator;
+ALTER TABLE public.attachment_upload_reservations OWNER TO approval_migrator;
+ALTER TABLE public.attachment_cleanup_jobs OWNER TO approval_migrator;
 -- PostgreSQL also transfers sequences owned by this table's serial columns.
 ALTER TABLE drizzle.__drizzle_migrations OWNER TO approval_migrator;
 ALTER TYPE public.role_code OWNER TO approval_migrator;
@@ -44,6 +48,7 @@ ALTER SEQUENCE public.request_number_sequence OWNER TO approval_migrator;
 ALTER FUNCTION public.protect_published_form() OWNER TO approval_migrator;
 ALTER FUNCTION public.protect_submitted_revision() OWNER TO approval_migrator;
 ALTER FUNCTION public.protect_submitted_item() OWNER TO approval_migrator;
+ALTER FUNCTION public.protect_submitted_attachment() OWNER TO approval_migrator;
 ALTER FUNCTION public.protect_request_identity() OWNER TO approval_migrator;
 ALTER FUNCTION public.protect_policy_version() OWNER TO approval_migrator;
 ALTER FUNCTION public.protect_cycle_snapshot() OWNER TO approval_migrator;
