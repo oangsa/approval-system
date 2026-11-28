@@ -168,3 +168,31 @@ test("unverified origins and unreadable service metadata stop before mutations",
         assert.doesNotMatch(result.calls, /run jobs|run services update|smoke/);
     }
 });
+
+test("cloud run release wires GCS attachment storage env vars safely without breaking defaults", () =>
+{
+    const workflow = readFileSync(".github/workflows/deploy.yml", "utf8");
+    assert.match(workflow, /GCS_PROJECT_ID:/);
+    assert.match(workflow, /GCS_BUCKET_NAME:/);
+
+    const defaulted = release();
+    assert.equal(defaulted.status, 0, defaulted.error);
+    assert.match(
+        defaulted.calls,
+        /--update-env-vars=ATTACHMENT_STORAGE_DRIVER=gcs,GCS_PROJECT_ID=test-project,GCS_BUCKET_NAME=approval-system-attachments/,
+    );
+
+    const configured = release("", {
+        GCS_PROJECT_ID: "cpe334-514311",
+        GCS_BUCKET_NAME: "approval-system-attachments",
+    });
+    assert.equal(configured.status, 0, configured.error);
+    assert.match(
+        configured.calls,
+        /--update-env-vars=ATTACHMENT_STORAGE_DRIVER=gcs,GCS_PROJECT_ID=cpe334-514311,GCS_BUCKET_NAME=approval-system-attachments/,
+    );
+
+    const invalidBucket = release("", { GCS_BUCKET_NAME: "INVALID_BUCKET!" });
+    assert.notEqual(invalidBucket.status, 0);
+    assert.equal(invalidBucket.calls, "");
+});

@@ -29,6 +29,8 @@ jobs:
       MIGRATE_JOB_NAME: ${{ vars.MIGRATE_JOB_NAME }}
       PUBLIC_ORIGIN: ${{ vars.PUBLIC_ORIGIN }}
       IMAGE_TAG: ${{ github.sha }}
+      GCS_PROJECT_ID: ${{ vars.GCS_PROJECT_ID || vars.GCP_PROJECT_ID }}
+      GCS_BUCKET_NAME: ${{ vars.GCS_BUCKET_NAME }}
     steps:
       - uses: actions/checkout@v4
         with:

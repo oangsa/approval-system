@@ -11,6 +11,10 @@ done
 [[ "$PUBLIC_ORIGIN" =~ ^https://[a-z0-9-]+\.([a-z0-9-]+\.)?run\.app$ ]] || exit 1
 registryRegion="${REGISTRY_REGION:-$REGION}"
 [[ "$registryRegion" == asia-southeast1 || "$registryRegion" == asia-southeast3 ]] || exit 1
+gcsProjectId="${GCS_PROJECT_ID:-$PROJECT_ID}"
+gcsBucketName="${GCS_BUCKET_NAME:-approval-system-attachments}"
+[[ "$gcsProjectId" =~ ^[a-z][a-z0-9-]+$ ]] || exit 1
+[[ "$gcsBucketName" =~ ^[a-z0-9][a-z0-9._-]{1,61}[a-z0-9]$ ]] || exit 1
 if [[ "${1:-}" == validate ]]; then exit 0; fi
 
 image="$registryRegion-docker.pkg.dev/$PROJECT_ID/$REGISTRY/application"
@@ -40,7 +44,7 @@ execution="$(gcloud run jobs execute "$MIGRATE_JOB_NAME" --wait --format='value(
 [[ -n "$execution" ]] || exit 1
 
 # Keep old traffic while startup and read-only smoke validate the new image.
-revision="$(gcloud run services update "$SERVICE_NAME" --image="$digest" --no-traffic --tag=candidate --format='value(status.latestCreatedRevisionName)' "${common[@]}")"
+revision="$(gcloud run services update "$SERVICE_NAME" --image="$digest" --update-env-vars="ATTACHMENT_STORAGE_DRIVER=gcs,GCS_PROJECT_ID=$gcsProjectId,GCS_BUCKET_NAME=$gcsBucketName" --no-traffic --tag=candidate --format='value(status.latestCreatedRevisionName)' "${common[@]}")"
 [[ "$revision" == "$SERVICE_NAME-"* ]] || exit 1
 ready="$(gcloud run services describe "$SERVICE_NAME" --format='value(status.latestReadyRevisionName)' "${common[@]}")"
 [[ "$ready" == "$revision" ]] || exit 1
